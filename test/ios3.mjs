@@ -1,0 +1,34 @@
+import { createRequire } from 'module';
+import http from 'http'; import fs from 'fs'; import path from 'path';
+const require = createRequire(import.meta.url);
+const { chromium, devices } = require('/opt/node22/lib/node_modules/playwright');
+const dir = path.dirname(new URL(import.meta.url).pathname), dist = path.join(dir, '..', 'dist');
+const server = http.createServer((req, res) => { res.writeHead(200, { 'Content-Type': 'text/html' }); fs.createReadStream(path.join(dist, 'declan-craft.html')).pipe(res); }).listen(0);
+const url = 'http://localhost:' + server.address().port + '/';
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+(async () => {
+  const browser = await chromium.launch({ args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
+  const ctx = await browser.newContext({ ...devices['iPhone 13'] }); const p = await ctx.newPage();
+  await p.goto(url); await sleep(2500);
+  await p.evaluate(() => game.startWorld('valley', 'survival', true));
+  const t0 = Date.now(); while (Date.now() - t0 < 60000 && !(await p.evaluate(() => game.state === 'playing'))) await sleep(300);
+  await sleep(1000);
+  await p.evaluate(() => {
+    const pl = game.player, w = game.world, bx = Math.floor(pl.x), bz = Math.floor(pl.z), by = 112;
+    for (let x = -6; x <= 6; x++) for (let z = -6; z <= 6; z++) w.setBlock(bx + x, by, bz + z, B.STONE, 0);
+    Object.assign(pl, { x: bx + 0.5, y: by + 1, z: bz + 0.5, vx: 0, vy: 0, vz: 0, yaw: 0, pitch: -0.7 });
+    pl.inv[0] = { id: B.COBBLE, count: 3 }; pl.sel = 0; ui.dirty = true;
+    window.__log = [];
+    const cv = el('gl');
+    for (const t of ['pointerdown', 'pointerup', 'pointercancel']) cv.addEventListener(t, e => window.__log.push(t + ':' + e.pointerType + '@' + Math.round(e.clientX) + ',' + Math.round(e.clientY)), true);
+    const orig = pl.useBlock.bind(pl);
+    pl.useBlock = (h, c) => { const r = orig(h, c); window.__log.push('useBlock->' + r); return r; };
+  });
+  await sleep(600);
+  const before = await p.evaluate(() => ({ target: game.player.target && [game.player.target.x, game.player.target.y, game.player.target.z, game.player.target.face], top: document.elementFromPoint(195, 330) && (document.elementFromPoint(195, 330).id || document.elementFromPoint(195, 330).tagName) }));
+  await p.touchscreen.tap(195, 330);
+  await sleep(700);
+  const after = await p.evaluate(() => ({ log: window.__log, cobble: game.player.inv[0] && game.player.inv[0].count, inp: { use: game.input.use, useOnce: game.input.useOnce } }));
+  console.log(JSON.stringify({ before, after }));
+  await browser.close(); server.close();
+})().catch(e => { console.error('HARNESS', e); process.exit(1); });

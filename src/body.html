@@ -1,0 +1,138 @@
+<script>document.documentElement.className += ' js'; setTimeout(function () { var s = document.getElementById('boot-slow'); if (s) s.hidden = false; }, 9000);</script>
+<div id="app">
+  <canvas id="gl" aria-label="Declan-craft game view"></canvas>
+  <div id="fx-water" class="fx" hidden></div>
+  <div id="fx-lava" class="fx" hidden></div>
+  <div id="fx-hurt" class="fx"></div>
+  <div id="fx-fade" class="fx"></div>
+
+  <div id="hud" hidden>
+    <div id="crosshair" aria-hidden="true"></div>
+    <pre id="debug" hidden></pre>
+    <div id="chat-log" aria-live="polite"></div>
+    <div id="toast" role="status"></div>
+    <div id="bottom">
+      <div id="item-name" aria-live="polite"></div>
+      <div id="stats">
+        <div id="hearts" class="row" aria-label="Health"></div>
+        <div class="row-right">
+          <div id="air" class="row" aria-label="Air"></div>
+          <div id="hunger" class="row flip" aria-label="Hunger"></div>
+        </div>
+      </div>
+      <div id="hotbar" role="toolbar" aria-label="Hotbar"></div>
+    </div>
+    <div id="touch" hidden>
+      <div id="joy" aria-label="Move"><div id="joy-knob"></div></div>
+      <button type="button" class="tb" id="tb-jump" aria-label="Jump">Jump</button>
+      <button type="button" class="tb" id="tb-sneak" aria-label="Sneak">Sneak</button>
+      <button type="button" class="tb" id="tb-mine" aria-label="Break blocks">Break</button>
+      <button type="button" class="tb" id="tb-place" aria-label="Place or use">Place</button>
+      <div class="tb-top">
+        <button type="button" class="tb small" id="tb-fly" aria-label="Toggle flying" hidden>Fly</button>
+        <button type="button" class="tb small" id="tb-inv" aria-label="Inventory">Bag</button>
+        <button type="button" class="tb small" id="tb-view" aria-label="Change camera">View</button>
+        <button type="button" class="tb small" id="tb-pause" aria-label="Pause">| |</button>
+      </div>
+    </div>
+  </div>
+
+  <section id="scr-title" class="screen title" aria-label="Title screen">
+    <div class="title-inner">
+      <div class="logo-wrap">
+        <h1 id="logo-text" class="logo-text">Declan-craft</h1>
+        <canvas id="logo" role="img" aria-label="Declan-craft" hidden></canvas>
+        <div id="splash"></div>
+      </div>
+      <div id="boot-note" class="boot-note" role="status">
+        <div class="js-only">
+          <p class="boot-h">Starting Declan-craft...</p>
+          <p id="boot-slow" hidden>Taking a long time? If this doesn't change, this browser may be too old for Declan-craft. Updating it usually fixes this, or play on a computer.</p>
+        </div>
+        <div class="nojs-only">
+          <p class="boot-h">Tap Play to start the game</p>
+          <a class="play-link" href="%PLAY_URL%">Play Declan-craft</a>
+          <p>This screen is only a preview, and previews can't run games. Play opens the game in your web browser.</p>
+          <p class="boot-url">%PLAY_URL_TEXT%</p>
+        </div>
+      </div>
+      <nav class="menu" aria-label="Main menu" id="title-menu" hidden>
+        <button type="button" class="btn big" id="btn-play">Play</button>
+        <div class="btn-row">
+          <button type="button" class="btn" id="btn-help">How to Play</button>
+          <button type="button" class="btn" id="btn-settings">Settings</button>
+        </div>
+      </nav>
+    </div>
+    <div id="title-char" class="char-view" aria-hidden="true"></div>
+    <p class="foot">Made for Declan. Everything here is built from code, block by block.</p>
+  </section>
+
+  <section id="scr-worlds" class="screen dirt" aria-label="Choose a world" hidden>
+    <h2 class="scr-h">Choose a World</h2>
+    <div class="world-cards" id="world-cards"></div>
+    <button type="button" class="btn" id="btn-worlds-back">Back</button>
+  </section>
+
+  <section id="scr-loading" class="screen dirt" aria-label="Loading" hidden>
+    <h2 class="scr-h" id="load-title">Building terrain</h2>
+    <div class="bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" id="load-bar-wrap"><div id="load-bar"></div></div>
+    <p class="tip" id="load-tip"></p>
+  </section>
+
+  <section id="scr-pause" class="screen dim" aria-label="Game menu" hidden>
+    <h2 class="scr-h">Game Menu</h2>
+    <div class="menu">
+      <button type="button" class="btn big" id="btn-resume">Back to Game</button>
+      <button type="button" class="btn big" id="btn-mode">Game Mode: Survival</button>
+      <div class="btn-row">
+        <button type="button" class="btn" id="btn-p-settings">Settings</button>
+        <button type="button" class="btn" id="btn-p-help">How to Play</button>
+      </div>
+      <button type="button" class="btn big" id="btn-quit">Save and Quit to Title</button>
+    </div>
+    <p class="tip" id="pause-stats"></p>
+  </section>
+
+  <section id="scr-settings" class="screen dirt" aria-label="Settings" hidden>
+    <h2 class="scr-h">Settings</h2>
+    <div class="settings" id="settings-list"></div>
+    <button type="button" class="btn big" id="btn-settings-done">Done</button>
+  </section>
+
+  <section id="scr-help" class="screen dirt" aria-label="How to play" hidden>
+    <h2 class="scr-h">How to Play</h2>
+    <div class="help" id="help-body"></div>
+    <button type="button" class="btn big" id="btn-help-done">Done</button>
+  </section>
+
+  <section id="scr-death" class="screen death" aria-label="You died" hidden>
+    <h2 class="scr-h big-h">You died!</h2>
+    <p class="death-msg" id="death-msg"></p>
+    <div class="menu">
+      <button type="button" class="btn big" id="btn-respawn">Respawn</button>
+      <button type="button" class="btn big" id="btn-death-title">Title Screen</button>
+    </div>
+  </section>
+
+  <section id="scr-inv" class="screen inv" aria-label="Inventory" hidden>
+    <div id="inv-root"></div>
+  </section>
+
+  <div id="cursor-stack" aria-hidden="true"></div>
+  <div id="tip" hidden></div>
+  <form id="chat-form" hidden autocomplete="off">
+    <label for="chat-input" class="sr">Chat or command</label>
+    <input id="chat-input" type="text" maxlength="120" placeholder="Type a message, or a command like /time set day" spellcheck="false">
+  </form>
+  <button type="button" id="click-hint" hidden>Click to play</button>
+  <div id="gl-lost" class="screen dirt" hidden>
+    <h2 class="scr-h">Graphics paused</h2>
+    <p class="tip">This device paused the game's 3D graphics, which can happen when a phone switches apps. Your world was saved.</p>
+    <button type="button" class="btn big" id="btn-reload">Restart the game</button>
+  </div>
+  <div id="nogl" class="screen dirt" hidden>
+    <h2 class="scr-h">Declan-craft needs WebGL 2</h2>
+    <p class="tip">This browser could not start 3D graphics. Try a current version of Chrome, Edge, Firefox or Safari, and turn on hardware acceleration in its settings.</p>
+  </div>
+</div>

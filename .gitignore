@@ -1,0 +1,6 @@
+dist/
+test/shots/
+test/*.png
+test/*.ppm
+test/bundle.js
+tools/node_modules/
