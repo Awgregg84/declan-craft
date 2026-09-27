@@ -3,12 +3,16 @@
   <canvas id="gl" aria-label="Declan-craft game view"></canvas>
   <div id="fx-water" class="fx" hidden></div>
   <div id="fx-lava" class="fx" hidden></div>
+  <div id="fx-portal" class="fx"></div>
   <div id="fx-hurt" class="fx"></div>
   <div id="fx-fade" class="fx"></div>
 
   <div id="hud" hidden>
     <div id="crosshair" aria-hidden="true"></div>
     <pre id="debug" hidden></pre>
+    <div id="nametags" aria-hidden="true"></div>
+    <div id="room-badge" hidden></div>
+    <div id="net-wait" role="status" hidden></div>
     <div id="chat-log" aria-live="polite"></div>
     <div id="toast" role="status"></div>
     <div id="bottom">
@@ -30,6 +34,7 @@
       <button type="button" class="tb" id="tb-place" aria-label="Place or use">Place</button>
       <div class="tb-top">
         <button type="button" class="tb small" id="tb-fly" aria-label="Toggle flying" hidden>Fly</button>
+        <button type="button" class="tb small" id="tb-chat" aria-label="Chat" hidden>Chat</button>
         <button type="button" class="tb small" id="tb-inv" aria-label="Inventory">Bag</button>
         <button type="button" class="tb small" id="tb-view" aria-label="Change camera">View</button>
         <button type="button" class="tb small" id="tb-pause" aria-label="Pause">| |</button>
@@ -58,10 +63,12 @@
       </div>
       <nav class="menu" aria-label="Main menu" id="title-menu" hidden>
         <button type="button" class="btn big" id="btn-play">Play</button>
+        <button type="button" class="btn big" id="btn-together">Play Together</button>
         <div class="btn-row">
           <button type="button" class="btn" id="btn-help">How to Play</button>
           <button type="button" class="btn" id="btn-settings">Settings</button>
         </div>
+        <button type="button" class="btn char-btn" id="btn-char">Your character</button>
       </nav>
     </div>
     <div id="title-char" class="char-view" aria-hidden="true"></div>
@@ -69,7 +76,7 @@
   </section>
 
   <section id="scr-worlds" class="screen dirt" aria-label="Choose a world" hidden>
-    <h2 class="scr-h">Choose a World</h2>
+    <h2 class="scr-h" id="worlds-h">Choose a World</h2>
     <div class="world-cards" id="world-cards"></div>
     <button type="button" class="btn" id="btn-worlds-back">Back</button>
   </section>
@@ -85,6 +92,12 @@
     <div class="menu">
       <button type="button" class="btn big" id="btn-resume">Back to Game</button>
       <button type="button" class="btn big" id="btn-mode">Game Mode: Survival</button>
+      <button type="button" class="btn big" id="btn-invite">Invite a Player</button>
+      <div id="pause-room" class="room-box" hidden>
+        <p class="room-label">Room code</p>
+        <p class="room-code" id="room-code-big"></p>
+        <p class="tip" id="room-help"></p>
+      </div>
       <div class="btn-row">
         <button type="button" class="btn" id="btn-p-settings">Settings</button>
         <button type="button" class="btn" id="btn-p-help">How to Play</button>
@@ -115,15 +128,65 @@
     </div>
   </section>
 
+  <section id="scr-mp" class="screen dirt" aria-label="Play together" hidden>
+    <h2 class="scr-h">Play Together</h2>
+    <p class="tip">Play in the same world on two devices. Both need the internet.</p>
+    <button type="button" class="btn char-btn" id="btn-mp-char">Your character</button>
+    <div class="menu">
+      <button type="button" class="btn big" id="btn-host">Host a Game</button>
+      <p class="tip small">Pick one of your worlds. You get a room code to tell the other player.</p>
+      <button type="button" class="btn big" id="btn-join">Join a Game</button>
+      <p class="tip small">Type the room code from the other player's screen.</p>
+      <button type="button" class="btn" id="btn-mp-back">Back</button>
+    </div>
+  </section>
+
+  <section id="scr-join" class="screen dirt" aria-label="Join a game" hidden>
+    <h2 class="scr-h">Join a Game</h2>
+    <label class="field"><span>Room code</span>
+      <input id="join-code" class="code-input" type="text" maxlength="12" autocomplete="off" autocapitalize="characters" autocorrect="off" spellcheck="false" placeholder="FROG7">
+    </label>
+    <p class="tip" id="join-status" role="status"></p>
+    <div class="menu">
+      <button type="button" class="btn big" id="btn-join-go">Join</button>
+      <button type="button" class="btn" id="btn-join-back">Back</button>
+    </div>
+  </section>
+
+  <section id="scr-char" class="screen dirt" aria-label="Your character" hidden>
+    <h2 class="scr-h">Your Character</h2>
+    <div class="char-pick" id="char-pick" role="group" aria-label="Choose a character"></div>
+    <label class="field"><span>Your name</span>
+      <input id="char-name" type="text" maxlength="16" autocomplete="off" autocorrect="off" spellcheck="false" placeholder="Type your name">
+    </label>
+    <p class="tip" id="char-note"></p>
+    <button type="button" class="btn big" id="btn-char-done">Done</button>
+  </section>
+
+  <section id="scr-msg" class="screen dirt" aria-label="Message" hidden>
+    <h2 class="scr-h" id="msg-title"></h2>
+    <p class="tip" id="msg-text"></p>
+    <button type="button" class="btn big" id="btn-msg-ok">OK</button>
+  </section>
+
   <section id="scr-inv" class="screen inv" aria-label="Inventory" hidden>
     <div id="inv-root"></div>
   </section>
 
+  <div id="join-prompt" class="dialog" role="alertdialog" aria-labelledby="join-prompt-text" hidden>
+    <img id="join-face" alt="">
+    <p id="join-prompt-text"></p>
+    <p class="small-note">Only let in people you know.</p>
+    <div class="btn-row">
+      <button type="button" class="btn" id="btn-allow">Let them in</button>
+      <button type="button" class="btn" id="btn-deny">Not now</button>
+    </div>
+  </div>
   <div id="cursor-stack" aria-hidden="true"></div>
   <div id="tip" hidden></div>
   <form id="chat-form" hidden autocomplete="off">
     <label for="chat-input" class="sr">Chat or command</label>
-    <input id="chat-input" type="text" maxlength="120" placeholder="Type a message, or a command like /time set day" spellcheck="false">
+    <input id="chat-input" type="text" maxlength="120" placeholder="Type a message, or a command like /time set day" spellcheck="false" enterkeyhint="send">
   </form>
   <button type="button" id="click-hint" hidden>Click to play</button>
   <div id="gl-lost" class="screen dirt" hidden>

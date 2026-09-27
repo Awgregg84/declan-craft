@@ -30,7 +30,7 @@ export default async function (E, shot, sleep, page, waitFor) {
   await sleep(300);
   const tgt = await E(() => game.player.target && { x: game.player.target.x, y: game.player.target.y, z: game.player.target.z, face: game.player.target.face });
   await E(() => { game.input.use = true; game.input.usePressed = true; });
-  await sleep(120);
+  await sleep(450);   // long enough to span a frame even with slow software rendering
   await E(() => { game.input.use = false; });
   await sleep(200);
   const r2 = await E(t => ({ ok: game.world.getBlock(t.x + DX[t.face], t.y + DY[t.face], t.z + DZ[t.face]) === B.COBBLE, count: game.player.inv[0] && game.player.inv[0].count }), tgt);
@@ -51,8 +51,8 @@ export default async function (E, shot, sleep, page, waitFor) {
   });
   log('3. crafting ->', r3.out1 === 'Oak Planks x4' && r3.planks === 8 && r3.out2 === 'Crafting Table' ? 'PASS' : 'FAIL', JSON.stringify(r3));
   // 4. water flow
-  await E(P => game.world.setBlock(P.bx + 5, P.by + 1, P.bz + 5, B.WATER, 0), P);
-  await sleep(2600);
+  await E(P => { game.world.setBlock(P.bx + 5, P.by + 1, P.bz + 5, B.WATER, 0); window.__c0 = game.world.clock; }, P);
+  await waitFor(() => game.world.clock - window.__c0 > 2.4, 20000, 'water to flow');   // game time, not wall time
   const r4 = await E(P => { let n = 0; for (let x = -8; x <= 8; x++) for (let z = -8; z <= 8; z++) if (game.world.getBlock(P.bx + x, P.by + 1, P.bz + z) === B.WATER) n++; let down = 0; for (let y = P.by; y > P.by - 20; y--) if (game.world.getBlock(P.bx + 8 + 1, y, P.bz + 5) === B.WATER) down++; return { n, down }; }, P);
   log('4. water spread ->', r4.n > 20 ? 'PASS' : 'FAIL', JSON.stringify(r4));
   // 5. torch lighting inside a sealed stone box below the platform
@@ -75,8 +75,10 @@ export default async function (E, shot, sleep, page, waitFor) {
   }, P);
   log('6. sky light ->', r6.open === 15 && r6.roofed === 14 && r6.reopened === 15 ? 'PASS' : 'CHECK', JSON.stringify(r6));
   // 7. TNT
-  const r7 = await E(P => { const w = game.world; w.setBlock(P.bx - 5, P.by + 1, P.bz - 5, B.TNT, 0); w.setBlock(P.bx - 5, P.by + 1, P.bz - 5, B.AIR, 0); primeTNT(game, P.bx - 5, P.by + 1, P.bz - 5, 1); return true; }, P);
-  await sleep(2500);
+  const r7 = await E(P => { const w = game.world;
+    for (let x = -9; x <= 9; x++) for (let z = -9; z <= 9; z++) for (let y = P.by - 20; y <= P.by + 2; y++) if (LIQUID[w.getBlock(P.bx + x, y, P.bz + z)]) w.setBlock(P.bx + x, y, P.bz + z, B.AIR, 0);   // water from test 4 would fill the blast holes
+    w.setBlock(P.bx - 5, P.by + 1, P.bz - 5, B.TNT, 0); w.setBlock(P.bx - 5, P.by + 1, P.bz - 5, B.AIR, 0); primeTNT(game, P.bx - 5, P.by + 1, P.bz - 5, 1); return true; }, P);
+  await waitFor(() => !game.entities.some(e => e.type === 'tnt'), 20000, 'TNT to explode'); await sleep(300);   // game time runs slower than real time when frames are slow
   const r7b = await E(P => { let holes = 0; for (let x = -9; x <= -1; x++) for (let z = -9; z <= -1; z++) if (game.world.getBlock(P.bx + x, P.by, P.bz + z) === 0) holes++; return { holes, hp: game.player.health }; }, P);
   log('7. TNT ->', r7b.holes > 5 ? 'PASS' : 'FAIL', JSON.stringify(r7b));
   await shot('mech-after');

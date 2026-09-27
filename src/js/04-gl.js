@@ -46,7 +46,7 @@ uniform vec3 uSkyTint;
 uniform vec3 uFogColor;
 uniform vec2 uFog;
 uniform float uAlphaTest;
-uniform float uMinLight;
+uniform vec3 uMinLight;
 in vec3 vUV; in float vShade; in vec2 vLight; in float vDist; in float vFlag;
 out vec4 outColor;
 float curve(float l) { float x = clamp(l / 15.0, 0.0, 1.0); return x / (4.0 - 3.0 * x); }
@@ -56,7 +56,7 @@ void main() {
   float sky = curve(vLight.x * uSkyLight);
   float blk = min(1.0, curve(vLight.y) * 1.25);
   vec3 light = max(uSkyTint * sky, vec3(1.0, 0.84, 0.6) * blk);
-  light = max(light, vec3(uMinLight));
+  light = max(light, uMinLight);
   if (vFlag > 1.5) light = vec3(1.0);
   vec3 col = c.rgb * vShade * light;
   float fog = clamp((vDist - uFog.x) / (uFog.y - uFog.x), 0.0, 1.0);
@@ -223,7 +223,7 @@ function buildTileTexture() {
   const n = TILE_DATA.length;
   for (const nm of ['door_top', 'oak_leaves', 'birch_leaves', 'spruce_leaves', 'glass', 'torch', 'tall_grass', 'dandelion', 'poppy', 'cornflower', 'dead_bush', 'oak_sapling', 'birch_sapling', 'spruce_sapling', 'cactus_side', 'cactus_top', 'cactus_bottom', 'bed_side', 'bed_end'])
     CUTOUT_TILE[TILE[nm]] = 1;
-  for (const nm of ['water', 'ice']) TRANS_TILE[TILE[nm]] = 1;
+  for (const nm of ['water', 'ice', 'nether_portal']) TRANS_TILE[TILE[nm]] = 1;   // see-through from far away too
   for (const nm of TILE_NAMES) if (TILE[nm] >= TILE.stick) CUTOUT_TILE[TILE[nm]] = 1;
   const tex = gl.createTexture();
   gl.bindTexture(gl.TEXTURE_2D_ARRAY, tex);

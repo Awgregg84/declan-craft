@@ -6,17 +6,27 @@ const DEFAULT_SETTINGS = {
 };
 function loadSettings() { try { return JSON.parse(store.get(SETTINGS_KEY) || '{}') || {}; } catch (e) { return {}; } }
 const saveKey = map => 'declancraft:v1:world:' + map;
+/* chunks where a saved player stands, sleeps or starts (a new village must not appear on top of them) */
+function savedSpots(data) {
+  const p = data.player || {}, xz = [[p.x, p.z], p.spawn && [p.spawn[0], p.spawn[2]], data.worldSpawn && [data.worldSpawn[0], data.worldSpawn[2]]];
+  return xz.filter(q => q && isFinite(q[0]) && isFinite(q[1])).map(([x, z]) => [Math.floor(x / 16), Math.floor(z / 16)]);
+}
 function loadSaveMeta(map) {
   const s = store.get(saveKey(map));
   if (!s) return null;
-  try { const d = JSON.parse(s); return { mode: d.mode, day: d.day, seed: d.seed }; } catch (e) { return null; }
+  try { const d = JSON.parse(s); return { mode: d.mode, day: d.day, seed: d.seed, nether: d.dim === 'nether' }; } catch (e) { return null; }
 }
 const LOAD_TIPS = ['Punch a tree to collect wood.', 'Press E to open your inventory and turn logs into planks.', 'A crafting table lets you make tools.',
   'Torches keep monsters away at night.', 'Sleep in a bed to skip the night.', 'Creepers hiss before they explode. Run!', 'Cook food in a furnace to fill up more hunger.',
-  'Sneak to stop yourself falling off edges.', 'In Creative, double-tap jump to fly.', 'Press V to see Declan from behind.', 'Diamonds hide deep underground near lava.'];
+  'Sneak to stop yourself falling off edges.', 'In Creative, double-tap jump to fly.', 'Press V to see yourself from behind.', 'Diamonds hide deep underground near lava.',
+  'Villagers trade emeralds for tools, food and more.', 'A Mason gives an emerald for 16 cobblestone.', 'Type /locate village to find the nearest village.',
+  'Play Together lets two iPads share one world.', 'An obsidian frame lit with flint and steel opens a portal to the Nether.',
+  'Flint comes from breaking gravel. Add an iron ingot to make flint and steel.', 'Zombified piglins are peaceful unless you hit one.',
+  'In the Nether, 1 block is 8 blocks back home.'];
 const DEATH_MSG = {
-  fall: 'Declan fell from a high place', lava: 'Declan tried to swim in lava', drown: 'Declan ran out of air', zombie: 'Declan was caught by a Zombie',
-  explosion: 'Declan was blown up', cactus: 'Declan hugged a cactus', starve: 'Declan got too hungry', void: 'Declan fell out of the world',
+  fall: 'fell from a high place', lava: 'tried to swim in lava', drown: 'ran out of air', zombie: 'was caught by a Zombie',
+  explosion: 'was blown up', cactus: 'hugged a cactus', starve: 'got too hungry', void: 'fell out of the world',
+  piglin: 'was chased by a Zombified Piglin', magma: 'was squashed by a Magma Cube',
 };
 
 const game = {
@@ -25,7 +35,10 @@ const game = {
   input: { fwd: false, back: false, left: false, right: false, jump: false, sneak: false, sprint: false, mine: false, use: false, minePressed: false, usePressed: false, useOnce: false, joyX: 0, joyY: 0, joySprint: false, lookX: 0, lookY: 0 },
   view: 0, uiOpen: false, paused: false, pool: null, sky: null, t: 0, lastT: 0, hurtFlash: 0, hurtTilt: 0, shake: 0, stats: {}, day: 1,
   ui, gen: null, locked: false, dragLook: false, hideHud: false, debug: false, saveT: 0, spawnT: 0, debugT: 0, loadT: 0, sleeping: 0,
-  lastJumpT: 0, lastFwdT: 0, touchOn: false, fov: 70, warnedSave: false, titleYaw: 0, menuSpawn: [0, 80, 0],
+  lastJumpT: 0, lastFwdT: 0, touchOn: false, fov: 70, warnedSave: false, titleYaw: 0, menuSpawn: [0, 80, 0], net: null, hostAfterLoad: false,
+  // dimensions: the live world is this.dim ('over' or 'nether'); the other one waits here, saved as block changes
+  dim: 'over', dims: { over: null, nether: null }, portals: [], netherSpawn: null, arrival: null, overVB: [],
+  carry: [], awaitTp: 0,   // things that didn't fit in the inventory on the way through a portal; a guest waiting for the host's way out
 
   giveItem(id, n) { return this.player.give(id, n); },
   applySettings() {
@@ -95,7 +108,7 @@ const game = {
     if (!this.touchOn && !this.dragLook) { this.requestPointer(); el('click-hint').hidden = false; }
   },
   releaseKeys() { const i = this.input; i.fwd = i.back = i.left = i.right = i.jump = i.sneak = i.sprint = i.mine = i.use = false; i.lookX = i.lookY = 0; },
-  cycleView() { this.view = (this.view + 1) % 3; toast(['First person', 'Behind Declan', 'Facing Declan'][this.view], 1.2); },
+  cycleView() { this.view = (this.view + 1) % 3; toast(['First person', 'Behind ' + playerName(), 'Facing ' + playerName()][this.view], 1.2); },
   onJumpPress() {
     const t = nowS();
     if (this.mode === 'creative' && t - this.lastJumpT < 0.3) { this.player.flying = !this.player.flying; this.lastJumpT = 0; }
@@ -115,23 +128,28 @@ const game = {
   },
   startWorld(mapId, mode, fresh) {
     initAudio();
+    this.hostAfterLoad = !!ui.hostMode; ui.hostMode = false;
     if (fresh) store.del(saveKey(mapId));
     let data = null;
     const raw = store.get(saveKey(mapId));
     if (raw) { try { data = JSON.parse(raw); } catch (e) { data = null; } }
-    if (this.world) this.world.destroy();
-    this.pool.cancelAll();
-    this.entities = []; PARTICLES.length = 0;
     this.mapId = mapId;
     this.seed = data ? data.seed : ((Math.random() * 2147483647) | 0);
-    this.world = new World(mapId, this.seed);
-    this.wireWorld();
+    this.dim = data && data.dim === 'nether' ? 'nether' : 'over';
+    this.dims = { over: data ? data.world || null : null, nether: data ? data.nether || null : null };
+    this.portals = data && Array.isArray(data.portals) ? data.portals.filter(okPortal).slice(-64) : [];
+    this.netherSpawn = data && Array.isArray(data.netherSpawn) && data.netherSpawn.length === 3 ? data.netherSpawn : null;
+    this.arrival = null; this.carry = []; this.awaitTp = 0;
+    // worlds saved before villages existed: no village may appear where anything was already changed
+    this.overVB = !data ? [] : data.villages && Array.isArray(data.villages.blocked) ? data.villages.blocked.slice()
+      : this.gen.villagesTouching(mapId, this.seed, Object.keys((data.world && data.world.edits) || {}).map(k => k.split(',').map(Number)).concat(savedSpots(data)));
+    this.makeWorld();
     const pl = this.player = new Player();
     this.stats = data && data.stats ? data.stats : {};
     this.day = data ? data.day || 1 : 1;
     this.setMode(data ? data.mode : (mode || 'survival'));
+    MP.guestSaves = data && data.players && typeof data.players === 'object' ? data.players : {}; MP.guestSavesMap = mapId;
     if (data) {
-      this.world.load(data.world);
       this.world.time = data.time || 0.02;
       this.world.clock = data.clock || 0;
       const p = data.player;
@@ -147,12 +165,161 @@ const game = {
       this.world.time = 0.02;
       this.fresh = true;
     }
+    this.beginLoading('Building ' + MAPS[mapId].name);
+  },
+  /* the live world for this.dim, with its saved changes */
+  makeWorld(remote) {
+    if (this.world) this.world.destroy();
+    this.pool.cancelAll();
+    this.entities = []; PARTICLES.length = 0;
+    const w = this.world = new World(this.dim === 'nether' ? 'nether' : this.mapId, this.seed);
+    w.remote = !!remote;
+    if (this.dim === 'over') w.villageBlock = this.overVB;
+    w.load(this.dims[this.dim]);
+    this.dims[this.dim] = null;   // the live world holds them now
+    this.wireWorld();
+    return w;
+  },
+  addPortal(rec) {
+    this.portals = this.portals.filter(p => !(p.d === rec.d && p.x === rec.x && p.y === rec.y && p.z === rec.z));
+    this.portals.push(rec);
+    if (this.portals.length > 64) this.portals.shift();
+  },
+  /* leaving this world: close any open screen first (a chest sends its last changes here), and
+     whatever doesn't fit back in the inventory comes along instead of being left on the ground */
+  closeForTravel() {
+    if (this.chatOpen) this.hideChat();
+    if (!ui.inv) { this.uiOpen = false; return; }
+    const n = this.entities.length;
+    closeInv(); this.uiOpen = false;
+    for (const e of this.entities.slice(n)) if (e.type === 'item' && !e.removed) { this.carry.push({ id: e.id, count: e.count, dmg: e.dmg || 0 }); e.removed = true; }
+  },
+  /* standing in a portal for a moment takes you through it */
+  checkPortal(dt) {
+    const pl = this.player, w = this.world;
+    const inside = [0.2, 1.2].some(h => w.getBlock(Math.floor(pl.x), Math.floor(pl.y + h), Math.floor(pl.z)) === B.NETHER_PORTAL);
+    const need = this.mode === 'creative' ? 1 : 2.5;
+    if (inside && !pl.portalLock) {
+      if (pl.portalT === 0) sfx('portalNear', pl.x, pl.y + 1, pl.z);
+      pl.portalT += dt;
+      if (pl.portalT >= need) { pl.portalT = 0; pl.portalLock = true; this.usePortal(); }
+    } else {
+      if (!inside) pl.portalLock = false;
+      pl.portalT = Math.max(0, pl.portalT - dt * 2);
+    }
+    const fx = el('fx-portal'), op = clamp(pl.portalT / need, 0, 1) * 0.85;
+    if (fx.style.opacity !== String(op)) fx.style.opacity = op;
+  },
+  usePortal() {
+    const pl = this.player, x = Math.floor(pl.x), y = Math.floor(pl.y + 0.2), z = Math.floor(pl.z);
+    if (MP.role === 'guest') { MP.send({ t: 'portal', x, y, z, we: MP.we }); return; }   // the host takes everyone through
+    this.travel(x, y, z);
+  },
+  /* go to the other dimension: 8 blocks here are 1 block in the Nether */
+  travel(px, py, pz, who) {
+    const from = this.dim, to = from === 'nether' ? 'over' : 'nether', sc = to === 'nether' ? 1 / 8 : 8;
+    const tx = Math.floor((px + 0.5) * sc), tz = Math.floor((pz + 0.5) * sc), ty = to === 'nether' ? clamp(py, 34, 100) : py;
+    let best = null, bd = Infinity;
+    for (const p of this.portals) if (p.d === to) { const d = Math.hypot(p.x - tx, p.z - tz); if (d < (to === 'nether' ? 16 : 128) && d < bd) { bd = d; best = p; } }
+    this.closeForTravel();
+    this.world.tickPortals();   // a frame broken just now still takes its portal with it
+    const src = findPortalFrame(this.world, px, py, pz);
+    if (src) this.addPortal(Object.assign({ d: from }, src));   // so the trip back comes out here
+    this.save();   // closing the app on the way loses nothing
+    if (MP.role === 'host') MP.flush();   // changes in the world being left go out first
+    const time = this.world.time, clock = this.world.clock;
+    this.dims[from] = this.world.serialize();
+    this.dim = to;
+    this.makeWorld();
+    this.world.time = time; this.world.clock = clock;
+    const pl = this.player;
+    [pl.x, pl.y, pl.z] = best ? portalSpot(best, 0) : [tx + 0.5, to === 'nether' ? ty : 72, tz + 0.5];
+    pl.vx = pl.vy = pl.vz = 0; pl.fallDist = 0; pl.portalT = 0; pl.portalLock = true;
+    this.arrival = { tx, ty, tz, portal: best };
+    if (MP.role) MP.hookWorld();
+    if (MP.role === 'host') MP.dimChanged(who);
+    sfx('portalTravel');
+    this.beginLoading(this.travelTitle());
+  },
+  travelTitle() { return this.dim === 'nether' ? 'Entering the Nether' : 'Back to ' + MAPS[this.mapId].name; },
+  /* after the other side has loaded: use the linked portal, or build one */
+  arrive() {
+    const a = this.arrival, w = this.world, pl = this.player;
+    this.arrival = null;
+    let p = a.portal && portalIntact(w, a.portal) ? a.portal : null;
+    if (!p && a.portal) {
+      this.portals = this.portals.filter(q => q !== a.portal);
+      this.arrival = { tx: a.tx, ty: a.ty, tz: a.tz, portal: null };   // that portal is gone: make a new one where it belongs
+      [pl.x, pl.y, pl.z] = [a.tx + 0.5, this.dim === 'nether' ? a.ty : 72, a.tz + 0.5];
+      this.beginLoading(this.travelTitle());
+      return false;
+    }
+    if (!p) { p = buildPortal(w, findPortalSpot(w, a.tx, a.ty, a.tz, this.dim === 'nether'), this.dim); this.addPortal(p); }
+    [pl.x, pl.y, pl.z] = portalSpot(p, 0);
+    pl.yaw = pl.bodyYaw = portalYaw(p); pl.pitch = 0;
+    pl.vx = pl.vy = pl.vz = 0; pl.fallDist = 0; pl.portalLock = true; pl.portalT = 0;
+    if (this.dim === 'nether') {
+      this.netherSpawn = [pl.x, pl.y, pl.z];
+      if (!this.stats.nether) { this.stats.nether = 1; chat('Welcome to the Nether! Watch out for lava. Walk back into the portal to go home.', '#ff9966'); }
+    }
+    if (MP.role === 'host') MP.arrived(p);
+    return true;
+  },
+  /* guest: build the host's world from its seed and changes */
+  startGuestWorld(m) {
+    initAudio();
+    this.mapId = MAPS[m.map] ? m.map : 'valley';
+    this.seed = m.seed;
+    this.overVB = m.vb;
+    this.dim = m.dim === 'nether' ? 'nether' : 'over';
+    this.dims = { over: null, nether: null };
+    this.dims[this.dim] = { edits: m.edits };
+    this.portals = []; this.arrival = null; this.carry = [];
+    this.awaitTp = m.tpWait ? performance.now() : 0;   // the host is on the way through a portal: wait to be shown where to come out
+    this.netherSpawn = m.ns;
+    this.makeWorld(true);
+    this.world.time = m.time; this.world.clock = m.clock;
+    const pl = this.player = new Player();
+    this.stats = {}; this.day = m.day; this.hostAfterLoad = false;
+    this.worldSpawn = m.spawn && m.spawn.length === 3 ? m.spawn.slice() : this.gen.spawnPoint(this.mapId, this.seed);
+    const you = m.you;
+    this.setMode(you ? you.mode : m.mode);
+    if (you) {
+      Object.assign(pl, { x: you.x, y: you.y, z: you.z, yaw: you.yaw, pitch: you.pitch, health: you.health, food: you.food, air: you.air, sel: you.sel, spawn: you.spawn, flying: you.flying });
+      pl.inv = you.inv.slice(0, 36);
+    } else if (m.at) { [pl.x, pl.y, pl.z] = m.at; }
+    else [pl.x, pl.y, pl.z] = this.worldSpawn;
+    this.fresh = false;
+    this.beginLoading('Joining ' + MP.hostName + "'s world");
+  },
+  /* guest: the host went through a portal, so we all did */
+  guestDim(m) {
+    this.dim = m.dim === 'nether' ? 'nether' : 'over';
+    this.dims = { over: null, nether: null };
+    this.dims[this.dim] = { edits: m.edits };
+    const time = this.world.time;
+    this.closeForTravel();
+    this.makeWorld(true);
+    MP.hookWorld();   // this device's changes in the new world go to the host
+    this.world.time = isFinite(+m.time) ? +m.time : time; this.world.clock = +m.clock || 0;
+    const pl = this.player;
+    [pl.x, pl.y, pl.z] = m.at;
+    pl.vx = pl.vy = pl.vz = 0; pl.fallDist = 0; pl.portalT = 0; pl.portalLock = true;
+    if (this.state === 'dead') { pl.alive = true; pl.health = 20; }
+    if (m.ns) this.netherSpawn = m.ns.slice();
+    this.awaitTp = performance.now();   // m.at is only a first guess: the host says where to step out once it is there
+    sfx('portalTravel');
+    this.beginLoading(this.travelTitle());
+  },
+  beginLoading(title) {
+    const pl = this.player;
     pl.bodyYaw = pl.yaw;
     this.view = 0; this.paused = false; this.uiOpen = false;
     ui.dirty = true; ui.hearts = ui.food = ui.air = -2;
     this.state = 'loading';
     this.loadT = 0;
-    el('load-title').textContent = 'Building ' + MAPS[mapId].name;
+    el('fx-portal').style.opacity = 0;
+    el('load-title').textContent = title;
     el('load-tip').textContent = 'Tip: ' + LOAD_TIPS[randInt(0, LOAD_TIPS.length - 1)];
     showScreen('scr-loading');
     el('hud').hidden = true;
@@ -166,22 +333,44 @@ const game = {
   },
   finishLoading() {
     const pl = this.player, w = this.world;
+    if (this.awaitTp) {   // a guest: the host is still finding the way out of the portal
+      const wait = 'Waiting for ' + MP.hostName + ' to come through...';
+      if (performance.now() - this.awaitTp < 60000) { if (el('load-tip').textContent !== wait) el('load-tip').textContent = wait; return; }
+      this.awaitTp = 0;
+      const h = MP.remotes.get('host');
+      if (h && h.lastState) { [pl.x, pl.y, pl.z] = [h.tx, h.ty + 0.05, h.tz]; return; }   // no word, but the host is here: go to them
+    }
+    const came = !!this.arrival;
+    if (this.arrival && !this.arrive()) return;   // still on the way to where a new portal goes
     if (this.fresh) {
+      this.fresh = false;
       const x = Math.floor(pl.x), z = Math.floor(pl.z);
       let y = w.topSolid(x, z);
       if (y < 0) y = 80;
       pl.y = y + 1.01;
       this.worldSpawn = [pl.x, pl.y, pl.z];
-      let best = -1;
-      for (let k = 0; k < 16; k++) {
-        const a = (k / 16) * TAU, dx = -Math.sin(a), dz = -Math.cos(a);
+      // face an open view; when a village is near, the open view closest to it
+      const v = this.gen.findVillage(this.mapId, this.seed, pl.x, pl.z, w.villageBlock);
+      const vd = v ? Math.hypot(v[0] - pl.x, v[2] - pl.z) : Infinity, vyaw = vd < 130 ? Math.atan2(-(v[0] - pl.x), -(v[2] - pl.z)) : null;
+      const off = a => Math.abs(((a - vyaw + Math.PI) % TAU + TAU) % TAU - Math.PI);
+      let best = -1e9;
+      for (let k = 0; k < 32; k++) {
+        const a = (k / 32) * TAU, dx = -Math.sin(a), dz = -Math.cos(a);
         const hit = raycast(w, pl.x, pl.y + 1.6, pl.z, dx, -0.08, dz, 24);
-        const d = hit ? hit.t : 24;
+        let d = hit ? hit.t : 24;
+        if (vyaw !== null) d = Math.min(d, 16) - off(a) * 5;
         if (d > best) { best = d; pl.yaw = a; }
       }
-      pl.bodyYaw = pl.yaw; pl.pitch = -0.1;
+      pl.pitch = -0.1;
+      if (vyaw !== null && off(pl.yaw) < 0.3) pl.pitch = clamp(Math.atan2(v[1] + 2 - (pl.y + 1.6), vd), -0.15, 0.2);
+      pl.bodyYaw = pl.yaw;
       if (this.mode === 'survival') chat('Welcome to ' + MAPS[this.mapId].name + '! Punch a tree to get started.', '#ffff55');
       else chat('Creative mode: every block is in your inventory (E). Double-tap jump to fly.', '#ffff55');
+      if (vyaw !== null) {
+        const rel = ((vyaw - pl.yaw + Math.PI) % TAU + TAU) % TAU - Math.PI;   // turning left makes yaw bigger
+        const where = Math.abs(rel) < 0.8 ? 'ahead' : Math.abs(rel) > 2.3 ? 'behind you' : rel > 0 ? 'to your left' : 'to your right';
+        chat('There is a village ' + Math.round(vd) + ' blocks ' + where + '. Villagers trade for emeralds!', '#55ff55');
+      }
       this.save();
     }
     this.state = 'playing';
@@ -189,9 +378,17 @@ const game = {
     el('hud').hidden = this.hideHud;
     el('click-hint').hidden = this.touchOn || this.dragLook;
     ui.dirty = true;
+    for (const c of this.carry.splice(0)) { const e = dropItem(this, pl.x, pl.y + 0.5, pl.z, c.id, c.count); if (e && c.dmg) e.dmg = c.dmg; }
+    if (came) this.save();
+    if (this.hostAfterLoad) { this.hostAfterLoad = false; MP.startHosting(); }
+    MP.updateUI();
   },
-  quitToTitle() {
-    this.save();
+  /* disconnected: the connection code already cleaned up; just go back to the title */
+  quitToTitle(disconnected) {
+    if (MP.role === 'guest') MP.leave();
+    else if (!disconnected) { this.save(); if (MP.role) MP.stop(); }
+    if (this.uiOpen) closeInv();
+    if (this.chatOpen) this.hideChat();
     this.paused = false; this.uiOpen = false;
     this.releasePointer();
     el('hud').hidden = true; el('click-hint').hidden = true;
@@ -200,47 +397,60 @@ const game = {
     showScreen('scr-title');
   },
   save() {
-    if (!this.world || this.state === 'title' || this.state === 'boot' || this.state === 'loading' || !this.mapId) return;
+    if (!this.world || this.world.remote) { if (MP.role === 'guest') MP.sendSave(); return; }
+    if (this.state === 'title' || this.state === 'boot' || this.state === 'loading' || !this.mapId) return;
     const pl = this.player;
     const data = {
       v: 1, map: this.mapId, seed: this.seed, mode: this.mode, time: this.world.time, day: this.day, clock: this.world.clock,
       worldSpawn: this.worldSpawn, stats: this.stats,
       player: { x: pl.x, y: pl.y, z: pl.z, yaw: pl.yaw, pitch: pl.pitch, health: pl.alive ? pl.health : 20, food: pl.alive ? pl.food : 20, air: pl.air, inv: pl.inv, sel: pl.sel, spawn: pl.spawn, flying: pl.flying },
-      world: this.world.serialize(),
+      villages: { v: 1, blocked: this.overVB }, players: MP.guestSaves,
+      dim: this.dim, portals: this.portals, netherSpawn: this.netherSpawn,
     };
+    const cur = this.world.serialize(), other = this.dim === 'over' ? 'nether' : 'over';
+    data.world = this.dim === 'over' ? cur : this.dims.over || { edits: {}, tiles: {} };
+    if (this.dim === 'nether' || this.dims.nether) data.nether = this.dim === 'nether' ? cur : this.dims[other];
     if (!pl.alive) { const sp = this.spawnPos(); data.player.x = sp[0]; data.player.y = sp[1]; data.player.z = sp[2]; }
     const ok = store.set(saveKey(this.mapId), JSON.stringify(data));
     if (!ok && !this.warnedSave) { this.warnedSave = true; toast("This browser won't let the game save, so your world will reset when you leave.", 6); }
   },
   spawnPos() {
     const pl = this.player;
+    if (this.dim === 'nether') return this.netherSpawn ? this.netherSpawn.slice() : [0.5, 64, 0.5];
     if (pl.spawn) return [pl.spawn[0] + 0.5, pl.spawn[1] + 0.6, pl.spawn[2] + 0.5];
     return this.worldSpawn.slice();
   },
   onDeath(cause) {
     this.state = 'dead';
+    this.paused = false;   // in a shared world the game keeps going behind the menu, so you can die with it open
+    el('fx-portal').style.opacity = 0; this.player.portalT = 0;
     this.releasePointer();
     el('click-hint').hidden = true;
     if (this.uiOpen) { closeInv(); this.uiOpen = false; }
+    if (this.chatOpen) this.hideChat();
     const pl = this.player;
     if (!this.settings.keepInv) { for (let i = 0; i < 36; i++) if (pl.inv[i]) { dropItem(this, pl.x, pl.y + 1, pl.z, pl.inv[i].id, pl.inv[i].count, true); pl.inv[i] = null; } ui.dirty = true; }
-    el('death-msg').textContent = DEATH_MSG[cause] || 'Declan fainted';
+    const line = playerName() + ' ' + (DEATH_MSG[cause] || 'fainted');
+    el('death-msg').textContent = line;
+    if (this.net) MP.system(line);
     showScreen('scr-death');
     this.stats.deaths = (this.stats.deaths || 0) + 1;
   },
   respawn() {
     const pl = this.player, w = this.world;
     let [x, y, z] = this.spawnPos();
-    if (pl.spawn && w.getBlock(pl.spawn[0], pl.spawn[1], pl.spawn[2]) !== B.BED) { pl.spawn = null; chat('Your bed was missing, so you woke up at the world spawn.'); [x, y, z] = this.worldSpawn; }
-    Object.assign(pl, { x, y, z, vx: 0, vy: 0, vz: 0, health: 20, food: 20, air: 10, alive: true, fallDist: 0, invuln: 2 });
-    this.state = 'playing';
+    if (this.dim === 'over' && pl.spawn && w.getBlock(pl.spawn[0], pl.spawn[1], pl.spawn[2]) !== B.BED) { pl.spawn = null; chat('Your bed was missing, so you woke up at the world spawn.'); [x, y, z] = this.worldSpawn; }
+    Object.assign(pl, { x, y, z, vx: 0, vy: 0, vz: 0, health: 20, food: 20, air: 10, alive: true, fallDist: 0, invuln: 2, portalT: 0, portalLock: true });   // the Nether spawn is inside a portal
+    this.state = 'playing'; this.paused = false;
     showScreen(null);
+    el('hud').hidden = this.hideHud;
     el('click-hint').hidden = this.touchOn || this.dragLook;
     if (!this.touchOn && !this.dragLook) this.requestPointer();
     ui.hearts = ui.food = -2;
   },
   trySleep(x, y, z) {
     const pl = this.player, t = this.world.time;
+    if (this.dim === 'nether') { chat("Beds don't work in the Nether. Sleep in the Overworld."); return; }
     pl.spawn = [x, y, z];
     const night = t > 0.53 && t < 0.97;
     if (!night) { chat('Respawn point set. You can only sleep at night.'); return; }
@@ -248,21 +458,26 @@ const game = {
     this.sleeping = 2.2;
     el('fx-fade').style.opacity = 1;
     sfx('sleep');
+    if (this.net) MP.sleepStart();
   },
 
   /* ---- chat commands ---- */
-  openChat(prefix) {
+  openChat(prefix, now) {
     if (this.state !== 'playing' || this.uiOpen || this.paused) return;
     this.chatOpen = true; this.releaseKeys();
     this.releasePointer();
     el('chat-form').hidden = false; el('chat-log').classList.add('open');
     const inp = el('chat-input'); inp.value = prefix || '';
-    setTimeout(() => inp.focus(), 0);
+    if (now) inp.focus();   // straight away on a tap: iPads only show the keyboard during the tap itself
+    else setTimeout(() => inp.focus(), 0);   // after a key press, so the key isn't typed into the box
   },
-  closeChat() {
+  hideChat() {
     this.chatOpen = false;
     el('chat-form').hidden = true; el('chat-log').classList.remove('open');
     el('chat-input').blur();
+  },
+  closeChat() {
+    this.hideChat();
     if (!this.touchOn && !this.dragLook) { this.requestPointer(); el('click-hint').hidden = !!document.pointerLockElement; }
   },
   findItem(name) {
@@ -270,18 +485,21 @@ const game = {
     const all = CREATIVE_LIST;
     return all.find(id => itemName(id).toLowerCase().replace(/[\s']/g, '') === q) || all.find(id => itemName(id).toLowerCase().replace(/[\s']/g, '').includes(q)) || 0;
   },
-  runCommand(text) {
-    const pl = this.player, w = this.world;
+  runCommand(text, origin) {
+    const remote = !!origin, pl = origin || this.player, w = this.world;
     const a = text.slice(1).trim().split(/\s+/), cmd = (a[0] || '').toLowerCase();
-    const say = m => chat(m, '#aaaaff');
+    const say = m => (remote ? MP.tell(origin, m, '#aaaaff') : chat(m, '#aaaaff'));
+    const shared = cmd === 'time' || cmd === 'summon';
+    if (MP.role === 'guest' && shared) { MP.send({ t: 'cmd', c: text }); return; }
+    if (remote && !shared) return;
     const num = (s, base) => s === undefined ? NaN : s.startsWith('~') ? base + (parseFloat(s.slice(1)) || 0) : parseFloat(s);
     switch (cmd) {
-      case 'help': say('Commands: /time set day|night, /gamemode survival|creative, /give <item> [count], /tp x y z, /summon <mob>, /spawnpoint, /seed, /difficulty peaceful|easy|normal, /kill, /clear'); break;
+      case 'help': say('Commands: /time set day|night, /gamemode survival|creative, /give <item> [count], /tp x y z, /summon <mob>, /locate village, /spawnpoint, /seed, /difficulty peaceful|easy|normal, /kill, /clear'); break;
       case 'time': {
         const v = (a[2] || a[1] || '').toLowerCase();
         const map = { day: 0.04, morning: 0.02, noon: 0.25, sunset: 0.47, night: 0.56, midnight: 0.75 };
-        if (map[v] === undefined) { say('Try /time set day or /time set night'); break; }
-        w.time = map[v]; say('Time set to ' + v); break;
+        if (!Object.prototype.hasOwnProperty.call(map, v)) { say('Try /time set day or /time set night'); break; }
+        w.time = map[v]; say('Time set to ' + v); MP.syncTime(); break;
       }
       case 'gamemode': case 'gm': {
         const v = (a[1] || '').toLowerCase();
@@ -304,12 +522,25 @@ const game = {
       }
       case 'summon': {
         const t = (a[1] || '').toLowerCase();
-        if (MOB_DEFS[t]) { const [dx, , dz] = pl.lookDir(); spawnMob(this, t, pl.x + dx * 3, pl.y + 0.5, pl.z + dz * 3); say('Summoned a ' + t); }
-        else if (t === 'tnt') { primeTNT(this, Math.floor(pl.x + 2), Math.floor(pl.y + 1), Math.floor(pl.z), 4); }
-        else say('You can summon: pig, cow, sheep, chicken, zombie, creeper, tnt');
+        const px = remote ? pl.tx : pl.x, py = remote ? pl.ty : pl.y, pz = remote ? pl.tz : pl.z;
+        if (isMobType(t)) { const [dx, , dz] = pl.lookDir(); spawnMob(this, t, px + dx * 3, py + 0.5, pz + dz * 3, { home: [px + dx * 3, pz + dz * 3] }); say('Summoned a ' + t); }
+        else if (t === 'tnt') { primeTNT(this, Math.floor(px + 2), Math.floor(py + 1), Math.floor(pz), 4); }
+        else say('You can summon: ' + MOB_TYPES.join(', ') + ', tnt');
         break;
       }
-      case 'spawnpoint': case 'setspawn': this.worldSpawn = [pl.x, pl.y, pl.z]; pl.spawn = null; say('Spawn point set here'); break;
+      case 'locate': {
+        if ((a[1] || 'village').toLowerCase() !== 'village') { say('Try /locate village'); break; }
+        const v = this.gen.findVillage(this.mapId, this.seed, pl.x, pl.z, w.villageBlock);
+        if (this.dim === 'nether') { say('There are no villages in the Nether. Go back through the portal to find one.'); break; }
+        if (!v) { say(this.mapId === 'sky' ? 'Villages are only in Sunny Valley. Use a villager spawn egg or /summon villager here.' : 'No village found nearby.'); break; }
+        const dx = v[0] - pl.x, dz = v[2] - pl.z, dist = Math.round(Math.hypot(dx, dz));
+        const dir = (dz < -Math.abs(dx) * 0.4 ? 'north' : dz > Math.abs(dx) * 0.4 ? 'south' : '') + (dx > Math.abs(dz) * 0.4 ? 'east' : dx < -Math.abs(dz) * 0.4 ? 'west' : '');
+        say('The nearest village is ' + dist + ' blocks ' + (dir || 'away') + ', at x ' + v[0] + ', z ' + v[2] + '. Press F3 to see where you are.');
+        break;
+      }
+      case 'spawnpoint': case 'setspawn':
+        if (this.dim === 'nether') { this.netherSpawn = [pl.x, pl.y, pl.z]; say('Nether spawn point set here'); break; }   // the Overworld one stays as it was
+        this.worldSpawn = [pl.x, pl.y, pl.z]; pl.spawn = null; say('Spawn point set here'); break;
       case 'seed': say('Seed: ' + this.seed); break;
       case 'kill': pl.invuln = 0; if (this.mode === 'creative') say('You cannot be hurt in Creative'); else pl.damage(1000, 'void'); break;
       case 'clear': pl.inv.fill(null); ui.dirty = true; say('Inventory cleared'); break;
@@ -335,9 +566,9 @@ function setupInput() {
     if (c === 'F5' || c === 'F3' || c === 'F1' || c === 'Space' || c === 'Slash' || c.startsWith('Arrow')) { if (game.state === 'playing') e.preventDefault(); }
     if (game.state === 'playing' && game.uiOpen) {
       if (c === 'KeyE' || c === 'Escape') { e.preventDefault(); game.closeUI(); }
-      else if (/^Digit[1-9]$/.test(c) && ui.hoverRef && ui.hoverRef.arr) {
+      else if (/^Digit[1-9]$/.test(c) && ui.hoverRef && ui.hoverRef.arr && !(ui.inv && ui.inv.tile && ui.inv.tile.loading)) {
         const n = +c.slice(5) - 1, ref = ui.hoverRef, pl = game.player;
-        if (ref.arr !== pl.inv || ref.i !== n) { const tmp = pl.inv[n]; if (!tmp || !ref.accept || ref.accept(tmp.id)) { pl.inv[n] = ref.arr[ref.i]; ref.arr[ref.i] = tmp; updateCraft(); ui.dirty = true; refreshInv(); } }
+        if (ref.arr !== pl.inv || ref.i !== n) { const tmp = pl.inv[n]; if (!tmp || !ref.accept || ref.accept(tmp.id)) { pl.inv[n] = ref.arr[ref.i]; ref.arr[ref.i] = tmp; updateCraft(); ui.dirty = true; refreshInv(); if (ui.inv && ui.inv.tile) MP.tileTouched(ui.inv.tile); } }
       }
       return;
     }
@@ -473,7 +704,7 @@ function setupInput() {
     const v = el('chat-input').value.trim();
     game.closeChat();
     if (!v) return;
-    if (v.startsWith('/')) game.runCommand(v); else chat('<Declan> ' + v);
+    if (v.startsWith('/')) game.runCommand(v); else MP.say(v);
   });
   el('chat-input').addEventListener('keydown', e => { if (e.key === 'Escape') { e.preventDefault(); game.closeChat(); } e.stopPropagation(); });
 }
@@ -500,11 +731,12 @@ function renderWorld(cam, dt, withEntities) {
   R.fogColor = s.fog;
   if (under === 'water') { R.fogStart = 0; R.fogEnd = 22; }
   else if (under === 'lava') { R.fogStart = 0; R.fogEnd = 3; }
+  else if (s.nether) { R.fogEnd = Math.min(rd * 16 - 6, 84); R.fogStart = R.fogEnd * 0.2; }
   else { R.fogEnd = rd * 16 - 6; R.fogStart = R.fogEnd * 0.55; }
   gl.viewport(0, 0, R.width, R.height);
   gl.clearColor(s.fog[0], s.fog[1], s.fog[2], 1);
   gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
-  if (!under) drawSky(s);
+  if (!under && !s.nether) drawSky(s);
   gl.enable(gl.DEPTH_TEST); gl.depthFunc(gl.LEQUAL);
   gl.enable(gl.CULL_FACE); gl.cullFace(gl.BACK); gl.frontFace(gl.CCW);
   collectVisible(w, rd);
@@ -524,7 +756,7 @@ function renderWorld(cam, dt, withEntities) {
   gl.depthMask(false);
   terrainUniforms(s, game.t, 0.02);
   drawTerrainList(R.visT, true);
-  if (S.clouds && !under) {
+  if (S.clouds && !under && !s.nether) {
     if (w.map === 'sky') { drawClouds(s, game.t, 26); drawClouds(s, game.t + 400, 126); }
     else drawClouds(s, game.t, 110);
   }
@@ -563,7 +795,7 @@ function debugText() {
   const tg = pl.target;
   return 'Declan-craft  ' + game.fps + ' fps\n' +
     'XYZ: ' + pl.x.toFixed(1) + ' / ' + pl.y.toFixed(1) + ' / ' + pl.z.toFixed(1) + '\n' +
-    'Chunk: ' + (x >> 4) + ', ' + (z >> 4) + '   Facing: ' + f + '\n' +
+    'Chunk: ' + (x >> 4) + ', ' + (z >> 4) + '   Facing: ' + f + (game.dim === 'nether' ? '   (the Nether)' : '') + '\n' +
     'Light: sky ' + (L >> 4) + ', block ' + (L & 15) + '\n' +
     'Day ' + game.day + '  ' + String(hrs).padStart(2, '0') + ':' + String(mins).padStart(2, '0') + '\n' +
     'Chunks: ' + w.chunks.size + '  Mobs: ' + game.entities.filter(e => e.mob).length + '\n' +
@@ -614,14 +846,16 @@ function frame(ts) {
     gl.viewport(0, 0, R.width, R.height); gl.clearColor(0, 0, 0, 1); gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
     return;
   }
-  // playing, paused or dead
-  const running = !game.paused;
+  // playing, paused or dead (a shared world keeps going while the menu is open)
+  const running = !game.paused || !!game.net;
   if (running) {
     const inp = game.input;
     if (inp.lookX || inp.lookY) { pl.yaw -= inp.lookX * dt * 2.2 * S.sens / 100; pl.pitch = clamp(pl.pitch + inp.lookY * dt * 1.8 * S.sens / 100, -1.55, 1.55); }
-    if (game.state === 'playing' && pl.alive) {
+    if (game.state === 'playing' && pl.alive && !game.paused) {
       const steps = dt > 0.034 ? 2 : 1;
       for (let i = 0; i < steps; i++) pl.update(dt / steps);
+      game.checkPortal(dt);
+      if (game.world !== w) return;   // went through a portal: the next frame starts on the other side
     }
     if (inp.useOnce) { inp.useOnce = false; inp.use = false; }
     w.stream(game.pool, pl.x, pl.z, S.renderDist);
@@ -633,7 +867,7 @@ function frame(ts) {
     if (game.spawnT <= 0) { game.spawnT = 1; spawnTick(game); }
     if (game.sleeping > 0) {
       game.sleeping -= dt;
-      if (game.sleeping <= 0.9 && w.time > 0.5) { w.time = 0.01; game.day++; chat('Good morning! Day ' + game.day + '.'); }
+      if (!game.net && game.sleeping <= 0.9 && w.time > 0.5) { w.time = 0.01; game.day++; chat('Good morning! Day ' + game.day + '.'); }
       if (game.sleeping <= 0) el('fx-fade').style.opacity = 0;
     } else {
       w.time += dt / DAY_LENGTH;
@@ -644,6 +878,7 @@ function frame(ts) {
       if (game.saveT > 30) { game.saveT = 0; game.save(); }
     }
   }
+  if (game.net) MP.tick(dt);
   w.meshStep(running ? 4 : 8, S.renderDist);
   if (game.hurtFlash > 0) game.hurtFlash = Math.max(0, game.hurtFlash - dt);
   if (game.hurtTilt > 0) game.hurtTilt = Math.max(0, game.hurtTilt - dt * 3);
@@ -660,6 +895,7 @@ function frame(ts) {
     }
   }
   renderWorld(GAME_CAM, dt, true);
+  if (MP.remotes.size) MP.updateTags();
   if (ui.inv) updateFurnaceUI();
   el('fx-water').hidden = !(pl.headInWater && game.view === 0);
   el('fx-lava').hidden = !(pl.headInLava && game.view === 0);
@@ -672,8 +908,23 @@ function frame(ts) {
 /* ---------- boot ---------- */
 function wireButtons() {
   const click = (id, fn) => el(id).addEventListener('click', () => { initAudio(); sfx('click'); fn(); });
-  click('btn-play', () => { buildWorldCards(); showScreen('scr-worlds'); });
-  click('btn-worlds-back', () => showScreen('scr-title'));
+  click('btn-play', () => { ui.hostMode = false; buildWorldCards(); showScreen('scr-worlds'); });
+  click('btn-worlds-back', () => { showScreen(ui.hostMode ? 'scr-mp' : 'scr-title'); ui.hostMode = false; });
+  click('btn-together', () => showScreen('scr-mp'));
+  click('btn-char', () => showCharScreen('scr-title'));
+  click('btn-mp-char', () => showCharScreen('scr-mp'));
+  click('btn-mp-back', () => showScreen('scr-title'));
+  const needName = then => { if (cleanName(PROFILE.name)) then(); else showCharScreen('scr-mp', 'Type your name first, so the other player knows who you are.', then); };
+  click('btn-host', () => needName(() => { ui.hostMode = true; buildWorldCards(); showScreen('scr-worlds'); }));
+  click('btn-join', () => needName(() => { el('join-status').textContent = ''; el('btn-join-go').disabled = false; showScreen('scr-join'); }));
+  click('btn-join-go', () => MP.join(el('join-code').value));
+  click('btn-join-back', () => { MP.cancelJoin(); showScreen('scr-mp'); });
+  click('btn-invite', () => MP.startHosting());
+  click('btn-allow', () => MP.answerPrompt(true));
+  click('btn-deny', () => MP.answerPrompt(false));
+  click('btn-msg-ok', () => showScreen('scr-title'));
+  el('join-code').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); el('btn-join-go').click(); } e.stopPropagation(); });
+  el('join-code').addEventListener('input', () => { const c = el('join-code'), v = normalizeCode(c.value); if (c.value !== v) c.value = v; });
   click('btn-help', () => { ui.back = 'scr-title'; showScreen('scr-help'); });
   click('btn-settings', () => { ui.back = 'scr-title'; buildSettings(); showScreen('scr-settings'); });
   click('btn-settings-done', () => showScreen(ui.back));
@@ -707,7 +958,7 @@ function boot() {
   document.documentElement.style.setProperty('--dirt-img', 'url(' + dirtURL + ')');
   drawLogo();
   el('splash').textContent = SPLASHES[randInt(0, SPLASHES.length - 1)];
-  buildHotbar(); buildHelp(); setupTouch(); setupInput(); wireButtons();
+  buildHotbar(); buildHelp(); setupTouch(); setupInput(); wireButtons(); setupCharScreen(); MP.updateUI();
   game.gen = genModule(B, genProps());
   game.pool = new GenPool();
   game.applySettings();

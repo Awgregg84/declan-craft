@@ -49,9 +49,39 @@ function humanoid(name, skin, scale, extras) {
     { name: 'lleg', box: [0, 0, -2, 4, 12, 4], uv: [16, 48], pivot: [2, 12, 0] },
   ].concat(extras || []));
 }
+const PLAYER_SKINS = ['declan', 'sister'];
+const VILLAGER_PROFS = ['farmer', 'butcher', 'toolsmith', 'shepherd', 'mason', 'cleric'];
+function playerModelFor(skin) { return MODELS['player_' + skin] || MODELS.player; }
 function buildModels() {
   humanoid('player', 'declan', 0.9375 / 16);
+  MODELS.player_declan = MODELS.player;
+  humanoid('player_sister', 'sister', 0.9375 / 16);
+  for (const prof of VILLAGER_PROFS) {
+    defModel('villager_' + prof, 'villager_' + prof, 0.9 / 16, [
+      { name: 'head', box: [-4, 24, -4, 8, 10, 8], uv: [0, 0], pivot: [0, 24, 0] },
+      { name: 'nose', box: [-1, 25, 4, 2, 4, 2], uv: [32, 0], pivot: [0, 24, 0], follow: 'head' },
+      { name: 'body', box: [-4, 5, -3, 8, 19, 6], uv: [0, 20] },
+      { name: 'rarmU', box: [-8, 16, -2, 4, 8, 4], uv: [32, 20], pivot: [-6, 23, 0] },
+      { name: 'larmU', box: [4, 16, -2, 4, 8, 4], uv: [32, 20], pivot: [6, 23, 0] },
+      { name: 'arms', box: [-8, 16, 3, 16, 4, 4], uv: [0, 46] },
+      { name: 'rleg', box: [-4, 0, -2, 4, 6, 4], uv: [40, 0], pivot: [-2, 6, 0] },
+      { name: 'lleg', box: [0, 0, -2, 4, 6, 4], uv: [40, 0], pivot: [2, 6, 0] },
+    ]);
+  }
   humanoid('zombie', 'zombie', 1 / 16);
+  defModel('piglin', 'piglin', 1 / 16, [
+    { name: 'head', box: [-5, 24, -4, 10, 8, 8], uv: [0, 0], pivot: [0, 24, 0] },
+    { name: 'snout', box: [-2, 25, 4, 4, 3, 1], uv: [36, 0], pivot: [0, 24, 0], follow: 'head' },
+    { name: 'ear1', box: [-6, 25, -2, 1, 5, 4], uv: [48, 0], pivot: [0, 24, 0], follow: 'head' },
+    { name: 'ear2', box: [5, 25, -2, 1, 5, 4], uv: [48, 0], pivot: [0, 24, 0], follow: 'head' },
+    { name: 'body', box: [-4, 12, -2, 8, 12, 4], uv: [16, 16], pivot: [0, 24, 0] },
+    { name: 'rarm', box: [-8, 12, -2, 4, 12, 4], uv: [40, 16], pivot: [-6, 22, 0] },
+    { name: 'sword', box: [-6.5, 11, 1, 1, 1, 12], uv: [0, 34], pivot: [-6, 22, 0], follow: 'rarm' },
+    { name: 'larm', box: [4, 12, -2, 4, 12, 4], uv: [32, 48], pivot: [6, 22, 0] },
+    { name: 'rleg', box: [-4, 0, -2, 4, 12, 4], uv: [0, 16], pivot: [-2, 12, 0] },
+    { name: 'lleg', box: [0, 0, -2, 4, 12, 4], uv: [16, 48], pivot: [2, 12, 0] },
+  ]);
+  defModel('magma', 'magma', 1 / 16, [{ name: 'body', box: [-4, 0, -4, 8, 8, 8], uv: [0, 0] }]);
   defModel('creeper', 'creeper', 1 / 16, [
     { name: 'head', box: [-4, 18, -4, 8, 8, 8], uv: [0, 0], pivot: [0, 18, 0] },
     { name: 'body', box: [-4, 6, -2, 8, 12, 4], uv: [16, 16] },

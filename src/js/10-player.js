@@ -66,10 +66,11 @@ class Player {
     this.mining = null; this.eatT = 0; this.eatSndT = 0; this.useCd = 0; this.breakCd = 0; this.attackCd = 0; this.jumpCd = 0;
     this.bob = 0; this.bobAmt = 0; this.stepT = 0; this.target = null; this.targetEnt = null; this.digSndT = 0;
     this.lastJump = -1; this.lastFwd = -1;
+    this.portalT = 0; this.portalLock = true;   // seconds spent in a portal; locked until you step out (after travelling, loading or respawning)
   }
   held() { return this.inv[this.sel]; }
   heldId() { const s = this.inv[this.sel]; return s ? s.id : 0; }
-  swing() { if (this.swingP >= 0.5 || this.swingP === 1) this.swingP = 0; }
+  swing() { if (this.swingP >= 0.5 || this.swingP === 1) { this.swingP = 0; this.swings = (this.swings || 0) + 1; } }
   damage(amount, cause, src) {
     if (!this.alive || game.mode === 'creative' || amount <= 0) return;
     if (this.invuln > 0 && cause !== 'void') return;
@@ -97,6 +98,7 @@ class Player {
     let speed = this.flying ? (this.sprinting ? 21.6 : 10.9) : this.sneaking ? 1.3 : this.sprinting ? 5.6 : 4.317;
     if ((this.inWater || this.inLava) && !this.flying) speed *= this.inLava ? 0.35 : 0.55;
     if (this.eatT > 0) speed *= 0.4;
+    if (this.onGround && !this.flying) { const under = BLOCKS[game.world.getBlock(Math.floor(this.x), Math.floor(this.y - 0.1), Math.floor(this.z))]; if (under && under.slow) speed *= under.slow; }   // soul sand
     const sy = Math.sin(this.yaw), cy = Math.cos(this.yaw);
     const wx = (-sy * fz + cy * fx) * speed, wz = (-cy * fz - sy * fx) * speed;
     const ice = world.getBlock(Math.floor(this.x), Math.floor(this.y - 0.1), Math.floor(this.z)) === B.ICE;
@@ -239,7 +241,7 @@ class Player {
             hurtMob(game, this.targetEnt, this.sprinting ? dmg + 1 : dmg, this.x, this.z, 'player');
             this.attackCd = 0.4;
             this.swing();
-            if (tool && !creative) this.damageTool(tool.kind === 'sword' ? 1 : 2);
+            if (tool && tool.kind !== 'lighter' && !creative) this.damageTool(tool.kind === 'sword' ? 1 : 2);
             this.addFoodExhaust(0.5);
           }
         }
@@ -261,6 +263,13 @@ class Player {
       } else { this.mining = null; if (inp.minePressed) this.swing(); }
     } else this.mining = null;
     inp.minePressed = false;
+    // talk to a villager
+    const tEnt = this.targetEnt;
+    if (inp.use && tEnt && tEnt.type === 'villager' && this.useCd <= 0 && !tEnt.dead) {
+      this.swing(); openTrade(tEnt); this.useCd = 0.3;
+      inp.use = false; inp.usePressed = false;
+      return;
+    }
     // use / place / eat
     const food = hid >= 256 && ITEMS[hid].food;
     if (inp.use && food && (this.food < 20 || creative) && !(this.target && !this.sneaking && this.isInteractive(this.target.id))) {
@@ -286,16 +295,42 @@ class Player {
     if (!t) return false;
     if (!this.sneaking || !hid) {
       if (t.id === B.CRAFTING_TABLE) { this.swing(); game.openScreen('craft'); return true; }
-      if (t.id === B.FURNACE || t.id === B.FURNACE_LIT) { this.swing(); game.openScreen('furnace', world.getTile(t.x, t.y, t.z, 'furnace')); return true; }
-      if (t.id === B.CHEST) { this.swing(); sfx('chest'); game.openScreen('chest', world.getTile(t.x, t.y, t.z, 'chest')); return true; }
+      if (t.id === B.FURNACE || t.id === B.FURNACE_LIT) { this.swing(); const tile = MP.useTile(t.x, t.y, t.z, 'furnace'); if (tile) game.openScreen('furnace', tile); return true; }
+      if (t.id === B.CHEST) { this.swing(); const tile = MP.useTile(t.x, t.y, t.z, 'chest'); if (tile) { sfx('chest'); game.openScreen('chest', tile); } return true; }
       if (t.id === B.BED) { game.trySleep(t.x, t.y, t.z); return true; }
-      if (t.id === B.TNT) { world.setBlock(t.x, t.y, t.z, B.AIR, 0, true); primeTNT(game, t.x, t.y, t.z, 4); this.swing(); return true; }
+      if (t.id === B.TNT) {
+        if (MP.role === 'guest') MP.send({ t: 'tnt', x: t.x, y: t.y, z: t.z });
+        else { world.setBlock(t.x, t.y, t.z, B.AIR, 0, true); primeTNT(game, t.x, t.y, t.z, 4); }
+        this.swing(); return true;
+      }
       if (t.id === B.DOOR) {
         const d = world.getData(t.x, t.y, t.z), ly = (d & 8) ? t.y - 1 : t.y, ld = world.getData(t.x, ly, t.z) ^ 4;
         world.setBlock(t.x, ly, t.z, B.DOOR, ld, true);
         if (world.getBlock(t.x, ly + 1, t.z) === B.DOOR) world.setBlock(t.x, ly + 1, t.z, B.DOOR, ld | 8, true);
-        sfx('door', t.x + 0.5, t.y + 0.5, t.z + 0.5); this.swing(); return true;
+        sfx('door', t.x + 0.5, t.y + 0.5, t.z + 0.5); this.swing();
+        if (game.net) MP.localFx('door', t.x, t.y, t.z, 0);
+        return true;
       }
+    }
+    if (hid === I.FLINT_AND_STEEL && t.face >= 0) {
+      const fx = t.x + DX[t.face], fy = t.y + DY[t.face], fz = t.z + DZ[t.face];
+      this.swing();
+      sfx('flint', fx + 0.5, fy + 0.5, fz + 0.5);
+      const p = lightPortalAt(game, fx, fy, fz);
+      if (p) sfx('portalLight', fx + 0.5, fy + 0.5, fz + 0.5);
+      else if (this.inv[this.sel] && !this.usedFlint) { this.usedFlint = true; toast('Build an obsidian frame (at least 4 wide and 5 tall), then light it inside.', 4); }
+      smokeParticles(fx + 0.5, fy + 0.3, fz + 0.5, p ? 14 : 4, p ? 0.8 : 0.15, false);
+      if (!creative) this.damageTool(1);
+      return true;
+    }
+    const egg = hid >= 256 && ITEMS[hid] && ITEMS[hid].egg;
+    if (egg && t.face >= 0) {
+      const ex = t.x + DX[t.face] + 0.5, ey = t.y + DY[t.face], ez = t.z + DZ[t.face] + 0.5;
+      if (MP.role === 'guest') MP.send({ t: 'egg', m: egg, x: ex, y: ey, z: ez });
+      else spawnMob(game, egg, ex, ey, ez, { home: [ex, ez] });
+      this.swing();
+      if (!creative) this.consumeHeld(1);
+      return true;
     }
     if (hid === I.DOOR && t.face >= 0) {
       let px = t.x + DX[t.face], py = t.y + DY[t.face], pz = t.z + DZ[t.face];
@@ -339,6 +374,7 @@ class Player {
     if (hid === B.CHEST) world.getTile(px, py, pz, 'chest');
     if (hid === B.FURNACE) world.getTile(px, py, pz, 'furnace');
     sfx('place_' + SOUND_OF(hid), px + 0.5, py + 0.5, pz + 0.5);
+    if (game.net) MP.localFx('place', px, py, pz, hid);
     this.swing();
     if (!creative) this.consumeHeld(1);
     if (game.stats) game.stats.placed = (game.stats.placed || 0) + 1;
@@ -347,16 +383,21 @@ class Player {
   breakBlock(x, y, z, drops) {
     const world = game.world, id = world.getBlock(x, y, z);
     if (!id || id === B.UNLOADED) return;
+    if (MP.role === 'host' && (id === B.CHEST || id === B.FURNACE || id === B.FURNACE_LIT)) {
+      const t = world.tiles.get(tileKey(x, y, z)), by = t && MP.tileUser(t, 'host');
+      if (by) { toast(by + ' is using this ' + (id === B.CHEST ? 'chest' : 'furnace') + '.', 2.5); return; }
+    }
     const hid = this.heldId();
     let repl = B.AIR;
     if (id === B.ICE && game.mode === 'survival' && SOLID[world.getBlock(x, y - 1, z)]) repl = B.WATER;
     world.setBlock(x, y, z, repl, 0, true);
     sfx('break_' + SOUND_OF(id), x + 0.5, y + 0.5, z + 0.5);
     blockParticles(x, y, z, id, 14, true);
+    if (game.net) MP.localFx('break', x, y, z, id);
     if (drops) {
       for (const [did, n] of blockDrops(id, hid)) dropItem(game, x + 0.5, y + 0.4, z + 0.5, did, n);
       const tool = toolOf(hid);
-      if (tool && BLOCKS[id].hardness > 0) this.damageTool(tool.kind === 'sword' ? 2 : 1);
+      if (tool && tool.kind !== 'lighter' && BLOCKS[id].hardness > 0) this.damageTool(tool.kind === 'sword' ? 2 : 1);
       this.addFoodExhaust(0.1);
     }
     if (game.stats) game.stats.mined = (game.stats.mined || 0) + 1;
@@ -401,6 +442,7 @@ class Player {
     game.ui.dirty = true;
   }
 }
+function swingCount(p) { return p.swings || 0; }
 
 /* ---- first person hand and third person model ---- */
 const _hm = M4.create();
@@ -426,7 +468,7 @@ function drawFirstPerson(pl, s, world) {
     M4.rotZ(_hm, _hm, 0.1);
     M4.scale(_hm, _hm, 1 / 16, 1 / 16, 1 / 16);
     M4.translate(_hm, _hm, 6, -22, 0);
-    drawPart(MODELS.player.parts.rarm, _hm);
+    drawPart(playerModelFor(PROFILE.skin).parts.rarm, _hm);
   } else {
     entityBegin(texTiles, R.handProj);
     gl.uniform2f(P.u.uFog, 100, 200); gl.uniform1f(P.u.uBright, bright);
@@ -454,16 +496,18 @@ function playerPose(pl, t) {
   const hy = ((pl.yaw - pl.bodyYaw + Math.PI) % TAU + TAU) % TAU - Math.PI;
   const idle = Math.sin(t * 1.6) * 0.04;
   const sneak = pl.sneaking ? 0.35 : 0;
+  const holding = pl.heldId ? pl.heldId() : pl.held;
   return {
     head: [-pl.pitch, hy, 0],
     body: [sneak, 0, 0],
-    rarm: [-a - f2 * 1.3 - (pl.held() ? 0.25 : 0) + idle, f2 * 0.3, 0.05 + idle],
+    rarm: [-a - f2 * 1.3 - (holding ? 0.25 : 0) + idle, f2 * 0.3, 0.05 + idle],
     larm: [a - idle, 0, -0.05 - idle],
     rleg: [a, 0, 0], lleg: [-a, 0, 0],
   };
 }
-function drawPlayerModel(game, s, t, cam) {
-  const pl = game.player, P = PROG.entity, sc = MODELS.player.scale;
+function drawPlayerModel(game, s, t, cam) { drawHumanoid(game.player, playerModelFor(PROFILE.skin), game.player.heldId(), s, t, cam); }
+function drawHumanoid(pl, model, heldId, s, t, cam) {
+  const P = PROG.entity, sc = model.scale;
   gl.uniform1f(P.u.uBright, brightAt(game.world, pl.x, pl.y + 1.2, pl.z, s));
   gl.uniform4fv(P.u.uTint, pl.invuln > 0.25 ? [0.8, 0.1, 0.1, 0.4] : [0, 0, 0, 0]);
   M4.identity(_pmB);
@@ -471,8 +515,8 @@ function drawPlayerModel(game, s, t, cam) {
   M4.rotY(_pmB, _pmB, pl.bodyYaw + Math.PI);
   M4.scale(_pmB, _pmB, sc, sc, sc);
   const pose = playerPose(pl, t);
-  drawModel(MODELS.player, _pmB, pose);
-  const held = pl.held();
+  drawModel(model, _pmB, pose);
+  const held = heldId ? { id: heldId } : null;
   if (held) {
     entityBegin(texTiles);
     gl.uniform1f(P.u.uBright, brightAt(game.world, pl.x, pl.y + 1.2, pl.z, s));

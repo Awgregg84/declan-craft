@@ -246,6 +246,11 @@ function buildTiles() {
     paintMetal(p, C('#62e6de'), C('#caffff'), C('#26a9a6'), true);
     for (let i = 2; i < 14; i++) { p.px(i, i, C('#9ef7f2')); p.px(15 - i, i, C('#48cfc9')); }
   });
+  addTile('emerald_ore', p => paintOre(p, C('#17dd62'), C('#0b9c44'), C('#b4ffd2')));
+  addTile('emerald_block', p => {
+    paintMetal(p, C('#2ed36c'), C('#a6ffc6'), C('#0e8c3c'), true);
+    for (let y = 2; y < 14; y++) for (let x = 2; x < 14; x++) { const d = Math.abs(x - 7.5) + Math.abs(y - 7.5); if (d > 4.4 && d < 5.6) p.px(x, y, C('#15a44c')); else if (d < 2) p.px(x, y, C('#7df0a8')); }
+  });
   addTile('bricks', p => {
     const cols = [C('#9c4a38'), C('#a8543f'), C('#8f4232'), C('#b05e46')];
     p.fill((x, y) => {
@@ -285,6 +290,62 @@ function buildTiles() {
   addTile('lava', p => {
     const f = vfield(p.r, 4), g = vfield(p.r, 8);
     p.fill((x, y) => { const n = f(x, y) * 0.7 + g(x, y) * 0.3; if (n > 0.62) return mixc(C('#ffb020'), C('#fff080'), (n - 0.62) * 2.5); if (n < 0.35) return mixc(C('#b83a0c'), C('#d9520f'), n / 0.35); return mixc(C('#e0620f'), C('#ff9a1e'), (n - 0.35) / 0.27); });
+  });
+  // ---- the Nether ----
+  const paintNetherrack = p => {
+    const f = vfield(p.r, 4), g = vfield(p.r, 8);
+    p.fill((x, y) => {
+      let c = mixc(C('#6a1818'), C('#a23a32'), f(x, y) * 0.65 + g(x, y) * 0.35);
+      const k = p.r();
+      if (k < 0.1) c = mixc(c, C('#b04a40'), 0.55); else if (k < 0.18) c = mixc(c, C('#300808'), 0.55);
+      return c;
+    });
+  };
+  addTile('netherrack', paintNetherrack);
+  addTile('nether_quartz_ore', p => {
+    paintNetherrack(p);
+    for (let k = 0; k < 6; k++) {
+      const cx = 1 + p.ri(13), cy = 1 + p.ri(13), horiz = p.r() < 0.5;
+      for (let i = 0; i < 3; i++) p.px(cx + (horiz ? i : 0), cy + (horiz ? 0 : i), i === 1 ? C('#ffffff') : C('#e6d9c8'));
+      p.px(cx + (horiz ? 1 : 1), cy + (horiz ? 1 : 1), C('#bfae9c'));
+    }
+  });
+  addTile('soul_sand', p => {
+    p.fill(() => p.jit(p.pick([C('#51402f'), C('#5b4735'), C('#4a3a2a'), C('#624e3b')]), 6));
+    for (const [x, y] of [[2, 3], [9, 9]]) {   // two wailing faces
+      const d = C('#2a1e14');
+      p.px(x, y, d); p.px(x + 3, y, d);
+      p.rect(x + 1, y + 2, 2, 2, d);
+      p.px(x, y + 1, C('#3a2c1e')); p.px(x + 3, y + 1, C('#3a2c1e'));
+    }
+  });
+  addTile('quartz_block_side', p => p.fill((x, y) => {
+    let v = 228 + p.r() * 10;
+    if (x === 0 || y === 0) v += 10; else if (x === 15 || y === 15) v -= 22;
+    return [v, v - 5, v - 12];
+  }));
+  addTile('quartz_block_top', p => p.fill((x, y) => {
+    let v = 232 + p.r() * 8;
+    if (x === 0 || y === 0) v += 8; else if (x === 15 || y === 15) v -= 20;
+    else if (x === 2 || y === 2 || x === 13 || y === 13) v -= 9;
+    return [v, v - 5, v - 12];
+  }));
+  addTile('nether_bricks', p => p.fill((x, y) => {
+    const row = y >> 2, xx = (x + (row % 2 ? 4 : 0)) & 15;
+    if (y % 4 === 3 || xx % 8 === 7) return p.jit(C('#1c0b0e'), 3);
+    let c = p.jit(C('#46171b'), 6);
+    if (y % 4 === 0 || xx % 8 === 0) c = mixc(c, C('#6c2b30'), 0.5);
+    return c;
+  }));
+  addTile('nether_portal', p => {
+    const f = vfield(p.r, 4), g = vfield(p.r, 8);
+    p.fill((x, y) => {
+      const swirl = Math.sin(TAU * (x / 16 * 2 + y / 16) + f(x, y) * 5) * 0.5 + 0.5;   // repeats every 16 pixels, so it can scroll
+      const n = swirl * 0.6 + g(x, y) * 0.4;
+      const c = mixc(C('#3a0a8a'), C('#c070ff'), n);
+      c[3] = 175 + Math.round(n * 55);
+      return c;
+    });
   });
   addTile('cactus_side', p => {
     p.fill((x, y) => {
@@ -503,6 +564,37 @@ function buildItemTiles() {
     shadeMask(p, mask(poly([[3, 4], [7, 3], [9, 4], [13, 3], [13, 12], [9, 13], [7, 12], [3, 13]])), [C('#9a5a2a'), C('#b8763e'), C('#6a3a18'), C('#3a1a08')], true);
     for (let i = 4; i < 12; i += 2) { p.px(5, i, C('#e0c090')); p.px(11, i, C('#e0c090')); }
   });
+  addTile('emerald', p => {
+    shadeMask(p, mask(poly([[8, 1.5], [12.8, 5], [12.8, 11], [8, 14.5], [3.2, 11], [3.2, 5]])), [C('#2ad46c'), C('#9dffc4'), C('#0f8a40'), C('#054a20')], true);
+    p.px(6, 5, C('#e8fff0')); p.px(6, 6, C('#c0ffd8')); p.px(7, 4, C('#c0ffd8')); p.px(9, 11, C('#17b456'));
+  });
+  addTile('bread', p => {
+    shadeMask(p, mask(capsule([[3.8, 10], [12.2, 6.8]], 5.4)), [C('#c88a3a'), C('#e8b465'), C('#8a5a20'), C('#4a2a08')], true);
+    for (const [x, y] of [[5, 8], [6, 7], [8, 7], [9, 6], [11, 5]]) p.px(x, y, C('#f4d49a'));
+  });
+  addTile('flint', p => {
+    shadeMask(p, mask(poly([[5, 2], [10, 2.6], [13, 7.5], [11.4, 13], [5.4, 14], [3, 8.6]])), [C('#3a3a40'), C('#6c6c74'), C('#1e1e24'), C('#08080a')], true);
+    p.px(7, 5, C('#9090a0')); p.px(6, 6, C('#7c7c88'));
+  });
+  addTile('flint_and_steel', p => {
+    shadeMask(p, mask(capsule([[3.5, 4.5], [3.5, 11], [5.5, 13.2], [9.5, 13.2], [11.5, 11]], 2.4)), PAL.iron, true);
+    shadeMask(p, mask(poly([[8, 1.8], [12.8, 2.8], [14, 7.4], [10.8, 9.2], [7.6, 6.4]])), [C('#3a3a40'), C('#6c6c74'), C('#1e1e24'), C('#08080a')], true);
+  });
+  addTile('quartz', p => {
+    shadeMask(p, mask(poly([[6, 2], [10, 2], [13.4, 7], [10.4, 14], [5.6, 14], [2.6, 7]])), [C('#ece4dc'), C('#ffffff'), C('#bcb0a6'), C('#5c5048')], true);
+    p.px(7, 4, C('#ffffff')); p.px(8, 9, C('#d8cec4'));
+  });
+  addTile('nether_brick', p => ingot(p, [C('#5a2226'), C('#843e40'), C('#381216'), C('#180608')]));
+  const EGG_PAL = { pig: ['#f0a5a2', '#db635f'], cow: ['#443626', '#a1a1a1'], sheep: ['#e7e7e7', '#ffb5b5'], chicken: ['#a1a1a1', '#ff3030'],
+    zombie: ['#00afaf', '#799c65'], creeper: ['#0da70b', '#1a1a1a'], villager: ['#563c33', '#bd8b72'], piglin: ['#ea9393', '#4c7129'], magma: ['#340000', '#fcfc00'] };
+  for (const m of EGG_MOBS) {
+    addTile('egg_' + m, p => {
+      const base = C(EGG_PAL[m][0]), spot = C(EGG_PAL[m][1]);
+      const eg = mask((x, y) => ((x - 8) / 4.7) * ((x - 8) / 4.7) + ((y - 9) / 6.1) * ((y - 9) / 6.1) < 1);
+      shadeMask(p, eg, [base, mixc(base, [255, 255, 255], 0.35), mulc(base, 0.7), mulc(base, 0.35)], true);
+      for (const [x, y] of [[6, 6], [9, 8], [7, 11], [10, 12], [5, 9], [9, 4]]) if (eg[y * 16 + x]) { p.px(x, y, spot); if (eg[y * 16 + x + 1]) p.px(x + 1, y, spot); }
+    });
+  }
   for (let m = 0; m < 4; m++) {
     const mat = TOOL_MATS[m], pal = PAL[mat];
     addTile(mat + '_pickaxe', p => {
@@ -624,6 +716,43 @@ function buildSkins() {
     const leg = (u, v) => paintBox(S, u, v, 4, 12, 4, (f, x, y) => y > 9 ? C('#4a4a4a') : S.jit(pants, 6));
     leg(0, 16); leg(16, 48);
   });
+  addSkin('piglin', S => {
+    const pk = C('#eba29c'), pd = C('#d4847e'), rot = C('#6f9a55'), rotD = C('#557a40'), gold = C('#f2cc3a'), cloth = C('#6b4424'), belt = C('#3a2614');
+    const flesh = () => S.r() < 0.16 ? (S.r() < 0.5 ? rot : rotD) : S.jit(pk, 7);
+    paintBox(S, 0, 0, 10, 8, 8, (f, x, y) => {
+      if (f === 'front') {
+        if (y === 2 && (x === 2 || x === 7)) return C('#2a1a18');   // eyes
+        if (y === 2 && (x === 3 || x === 6)) return C('#f4f0e8');
+        if (y === 7 && (x === 2 || x === 7)) return C('#f7f2dc');   // tusks
+        if (y >= 5 && x >= 3 && x <= 6) return pd;
+      }
+      if (f === 'top') return S.r() < 0.3 ? rotD : S.jit(pd, 6);
+      return flesh();
+    });
+    paintBox(S, 36, 0, 4, 3, 1, (f, x, y) => f === 'front' && y === 1 && (x === 1 || x === 2) ? C('#7a3a36') : S.jit(C('#f3b3ad'), 5));
+    paintBox(S, 48, 0, 1, 5, 4, () => S.jit(pk, 8));
+    paintBox(S, 16, 16, 8, 12, 4, (f, x, y) => {
+      if (y >= 8) return y === 8 ? (x % 3 === 1 ? gold : belt) : S.jit(cloth, 6);
+      if (f === 'front' && y >= 2 && y <= 6 && x >= 2 && x <= 5 && (y % 2 === 0)) return C('#e8e0d0');   // ribs showing
+      return flesh();
+    });
+    const limb = (u, v, legs) => paintBox(S, u, v, 4, 12, 4, (f, x, y) => legs ? (y >= 10 ? C('#5a3a20') : y < 3 ? S.jit(cloth, 6) : flesh()) : flesh());
+    limb(40, 16); limb(32, 48); limb(0, 16, true); limb(16, 48, true);
+    paintBox(S, 0, 34, 1, 1, 12, (f, x, y) => {   // golden sword: the grip is the end at the hand
+      const grip = f === 'back' || (f === 'left' ? x >= 9 : f === 'top' || f === 'bottom' ? y < 3 : f === 'right' ? x < 3 : false);
+      return grip ? C('#6b4424') : S.jit(gold, 12);
+    });
+  });
+  addSkin('magma', S => {
+    const f = vfield(S.r, 6);
+    paintBox(S, 0, 0, 8, 8, 8, (face, x, y) => {
+      if (face === 'front' && y === 3 && (x === 1 || x === 2 || x === 5 || x === 6)) return x === 1 || x === 6 ? C('#fff08a') : C('#ffc830');   // glowing eyes
+      const n = f((x * 2 + (face.length * 5)) & 15, (y * 2) & 15);
+      if (n > 0.66) return mixc(C('#ff8a1e'), C('#ffe060'), (n - 0.66) * 3);
+      if (n > 0.58) return C('#c8400e');
+      return S.jit(mixc(C('#2a0a06'), C('#4a120a'), n), 5);
+    });
+  });
   addSkin('creeper', S => {
     const pal = [C('#0da70b'), C('#5ee85c'), C('#0a6e08'), C('#3ac237'), C('#b5d6b0')];
     const cam = () => S.pick(pal);
@@ -675,7 +804,126 @@ function buildSkins() {
     paintBox(S, 32, 16, 1, 4, 6, () => S.jit(C('#e2e2e2'), 5));
     paintBox(S, 32, 32, 1, 5, 1, () => C('#e8a030'));
   });
+  // --- second player: long brown hair, blue eyes, purple top ---
+  addSkin('sister', S => {
+    const skin = C('#f3c6a5'), skinSh = C('#e3ae8c');
+    const hair = [C('#6b4226'), C('#7a4c2c'), C('#5e391f'), C('#845532')], hairDk = C('#4a2c16');
+    const shirt = C('#8e4fd0'), shirtDk = C('#6e36a8'), legs = C('#2f3f8a'), legsDk = C('#26336f'), shoe = C('#e86a9a'), sole = C('#f4f4f4');
+    const H = () => S.pick(hair);
+    paintBox(S, 0, 0, 8, 8, 8, (f, x, y) => {
+      if (f === 'top' || f === 'back') return H();
+      if (f === 'bottom') return skinSh;
+      if (f === 'left' || f === 'right') {
+        const nearFront = f === 'right' ? x >= 6 : x <= 1;
+        if (y < 3 || !nearFront) return H();
+        return y === 7 ? skinSh : skin;
+      }
+      if (y < 2) return H();
+      if (x === 0 || x === 7) return H();
+      if (y === 2) return x === 1 || x === 2 ? H() : skin;
+      if (y === 3) return (x === 1 || x === 2 || x === 5 || x === 6) ? C('#5a3a22') : skin;
+      if (y === 4) return x === 1 || x === 6 ? C('#ffffff') : x === 2 || x === 5 ? C('#4a90f0') : skin;
+      if (y === 5) return x === 1 || x === 6 ? C('#e8eef6') : x === 2 || x === 5 ? C('#2458c0') : (x === 3 || x === 4) ? skinSh : skin;
+      if (y === 6) return (x === 1 || x === 6) ? C('#f4a8a0') : skin;
+      if (y === 7) return (x === 3 || x === 4) ? C('#d0606a') : skin;
+      return skin;
+    });
+    paintBox(S, 32, 0, 8, 8, 8, (f, x, y) => {
+      if (f === 'top') return H();
+      if (f === 'bottom') return null;
+      if (f === 'back') return y === 7 && x % 2 ? hairDk : H();
+      if (f === 'left' || f === 'right') { const nearFront = f === 'right' ? x >= 6 : x <= 1; return (y < 3 || !nearFront) ? (y > 5 && x % 3 === 0 ? hairDk : H()) : null; }
+      if (y === 0) return H();
+      if (y === 1) return x < 4 || x === 7 ? H() : null;
+      return (x === 0 || x === 7) && y < 7 ? H() : null;
+    });
+    const HEART = ['##.##', '#####', '.###.', '..#..'];
+    paintBox(S, 16, 16, 8, 12, 4, (f, x, y) => {
+      if (f === 'top') return shirt;
+      if (f === 'bottom') return legs;
+      if (f === 'back' && y < 4) return y === 3 && x % 2 ? hairDk : H();
+      if (y === 11) return shirtDk;
+      if (f === 'front') {
+        if (y === 0 && x >= 2 && x <= 5) return (x === 3 || x === 4) ? skin : shirtDk;
+        if (y >= 4 && y <= 7 && x >= 2 && x <= 6 && HEART[y - 4][x - 2] === '#') return C('#ffb0d8');
+      }
+      return S.jit(shirt, 5);
+    });
+    const arm = (u, v) => paintBox(S, u, v, 4, 12, 4, (f, x, y) => {
+      if (f === 'top') return shirt;
+      if (f === 'bottom') return skinSh;
+      if (y < 3) return S.jit(shirt, 5);
+      if (y === 3) return shirtDk;
+      return y === 11 ? skinSh : skin;
+    });
+    arm(40, 16); arm(32, 48);
+    const leg = (u, v) => paintBox(S, u, v, 4, 12, 4, (f, x, y) => {
+      if (f === 'top') return legs;
+      if (f === 'bottom') return sole;
+      if (y >= 10) return y === 11 ? sole : shoe;
+      return S.jit((f === 'left' || f === 'right') && x === 3 ? legsDk : legs, 5);
+    });
+    leg(0, 16); leg(16, 48);
+  });
+  // --- villagers: tall head, big nose, robe and folded arms; one skin per job ---
+  const VSKIN = C('#c9936f'), VSKIN_SH = C('#b07a5c');
+  const paintVillager = (S, o) => {
+    const hair = o.hair || C('#4a3222');
+    const straw = C('#d8c060'), cap = C('#3a3a3a');
+    paintBox(S, 0, 0, 8, 10, 8, (f, x, y) => {
+      if (f === 'top') return S.jit(o.hat === 'straw' ? straw : o.hat === 'cap' ? cap : o.hat === 'hood' ? o.robe : hair, 5);
+      if (f === 'bottom') return VSKIN_SH;
+      if (o.hat === 'hood' && (f !== 'front' ? y < 9 : (y < 2 || x === 0 || x === 7))) return S.jit(o.robe, 5);
+      if (o.hat === 'straw' && y < 2) return S.jit(straw, 6);
+      if (o.hat === 'straw' && y === 2) return C('#b89a40');
+      if (o.hat === 'cap' && y < 2) return S.jit(cap, 4);
+      if (o.hat === 'band' && y === 1) return C('#c0302a');
+      if (f === 'front') {
+        if (y < 2) return S.jit(hair, 5);
+        if (y === 3) return (x === 1 || x === 2 || x === 5 || x === 6) ? C('#3a2a1a') : VSKIN;
+        if (y === 4) return x === 1 || x === 6 ? C('#f4f4f4') : x === 2 || x === 5 ? C('#2e8a3a') : VSKIN;
+        if (y === 9 && x >= 2 && x <= 5) return VSKIN_SH;
+        return VSKIN;
+      }
+      if (f === 'back') return y < 6 ? S.jit(hair, 5) : VSKIN;
+      return y < 2 ? S.jit(hair, 5) : VSKIN;
+    });
+    paintBox(S, 32, 0, 2, 4, 2, (f, x, y) => y === 3 && f === 'front' ? mulc(VSKIN_SH, 0.9) : VSKIN_SH);
+    paintBox(S, 40, 0, 4, 6, 4, (f, x, y) => y >= 4 ? C('#2a2420') : S.jit(C('#4a3a2c'), 4));
+    paintBox(S, 0, 20, 8, 19, 6, (f, x, y, fw, fh) => {
+      if (f === 'top') return o.robe;
+      if (f === 'bottom' || y === fh - 1) return o.robeDk;
+      if (o.belt && y === 8) return o.belt;
+      if (f === 'front' && o.apron && y >= 5 && y < fh - 2 && x >= 1 && x <= 6) return S.jit(o.apron, 4);
+      if (o.trim && f === 'front' && (x === 3 || x === 4) && y > 1) return o.trim;
+      return S.jit(o.robe, 5);
+    });
+    paintBox(S, 32, 20, 4, 8, 4, (f) => f === 'bottom' ? VSKIN : S.jit(o.robe, 5));
+    paintBox(S, 0, 46, 16, 4, 4, (f, x) => (f === 'front' || f === 'top' || f === 'bottom') && x >= 6 && x <= 9 ? VSKIN : S.jit(o.robeDk, 4));
+  };
+  const VILLAGER_LOOKS = {
+    farmer: { robe: C('#8a5a33'), robeDk: C('#6a4222'), hat: 'straw', belt: C('#4a3018') },
+    butcher: { robe: C('#7a4a2a'), robeDk: C('#5a3218'), apron: C('#f0f0f0'), hat: 'band' },
+    toolsmith: { robe: C('#5a4a3a'), robeDk: C('#3a3024'), apron: C('#262626'), hat: 'cap' },
+    shepherd: { robe: C('#e8dcc0'), robeDk: C('#c8b898'), belt: C('#7a4a22'), hair: C('#6a4a2a') },
+    mason: { robe: C('#7c7c7c'), robeDk: C('#5a5a5a'), apron: C('#cfcfcf'), hair: C('#2a2a2a') },
+    cleric: { robe: C('#6a2a8a'), robeDk: C('#4a1a64'), trim: C('#e0b830'), hat: 'hood' },
+  };
+  for (const prof in VILLAGER_LOOKS) addSkin('villager_' + prof, S => paintVillager(S, VILLAGER_LOOKS[prof]));
   addSkin('item_glint', S => { /* reserved */ });
+}
+/* a player's face as a small picture, for menus */
+function faceIcon(skin, size) {
+  const d = SKIN_DATA[SKIN[skin]], cv = document.createElement('canvas');
+  cv.width = cv.height = size || 64;
+  const ctx = cv.getContext('2d'), s = cv.width / 8;
+  const at = (u, v) => { const i = (v * 64 + u) * 4; return [d[i], d[i + 1], d[i + 2], d[i + 3]]; };
+  for (let y = 0; y < 8; y++) for (let x = 0; x < 8; x++) {
+    const hat = at(40 + x, 8 + y), c = hat[3] > 0 ? hat : at(8 + x, 8 + y);
+    ctx.fillStyle = 'rgb(' + c[0] + ',' + c[1] + ',' + c[2] + ')';
+    ctx.fillRect(x * s, y * s, s, s);
+  }
+  return cv.toDataURL();
 }
 
 /* ---------- canvases for UI: tiles, icons, hearts ---------- */

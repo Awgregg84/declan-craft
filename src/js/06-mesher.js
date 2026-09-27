@@ -191,6 +191,14 @@ function meshSection(world, c, s) {
         const data = padD[pi], bb = doorBox(data), t = (data & 8) ? TILE.door_top : TILE.door_bottom;
         for (let f = 0; f < 6; f++) _tiles6[f] = t;
         emitBox(WO, x, y, z, pi, bb[0] * 16, bb[1] * 16, bb[2] * 16, bb[3] * 16, bb[4] * 16, bb[5] * 16, _tiles6, SIX_FULL, 63, 0, 0);
+      } else if (r === R_PORTAL) {
+        // a glowing sheet in the middle of the block; edges only where the portal ends
+        const ax = padD[pi] & 1, sides = ax === 0 ? [0, 1, 2, 3] : [2, 3, 4, 5];
+        let faces = ax === 0 ? 0x30 : 0x03;
+        for (const d of sides) { const n = padB[pi + FN[d]]; if (n !== id && !OPAQUE[n]) faces |= 1 << d; }
+        for (let f = 0; f < 6; f++) _tiles6[f] = BT[id * 6];
+        if (ax === 0) emitBox(WT, x, y, z, pi, 0, 0, 6, 16, 16, 10, _tiles6, SIX_FULL, faces, 2, 0);
+        else emitBox(WT, x, y, z, pi, 6, 0, 0, 10, 16, 16, _tiles6, SIX_FULL, faces, 2, 0);
       } else if (r === R_BED) {
         const data = padD[pi], f = data & 3;
         for (let d = 0; d < 6; d++) _tiles6[d] = tileFor(id, d, data);

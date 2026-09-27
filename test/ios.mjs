@@ -34,14 +34,14 @@ const args = ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swif
       for (let i = 1; i <= 10; i++) { await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x, y: y0 + (y1 - y0) * i / 10 }] }); await sleep(16); }
       await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
     };
-    await swipe(195, 650, 150); await sleep(600); await swipe(195, 650, 150); await sleep(600);
+    for (let i = 0; i < 4; i++) { await swipe(195, 600, 100); await sleep(600); }
     const after = await p.evaluate(() => { const s = el('scr-help'), d = el('btn-help-done').getBoundingClientRect(); return { scrollTop: Math.round(s.scrollTop), max: s.scrollHeight - s.clientHeight, doneVisible: d.bottom <= window.innerHeight && d.top >= 0 }; });
     console.log('3b. How to Play touch scroll:', 'before', before, JSON.stringify(after));
     await p.screenshot({ path: path.join(out, 'ios-help-scrolled.png') });
     await p.tap('#btn-help-done'); await sleep(300);
     await p.tap('#btn-play'); await sleep(500);
     const w = await p.evaluate(() => { const s = el('scr-worlds'); return { overflow: s.scrollHeight - s.clientHeight }; });
-    await swipe(195, 700, 100); await sleep(700);
+    await swipe(195, 600, 100); await sleep(700);   // inside the 664px-tall viewport
     const w2 = await p.evaluate(() => { const b = el('btn-worlds-back').getBoundingClientRect(); return { scrollTop: Math.round(el('scr-worlds').scrollTop), backVisible: b.bottom <= window.innerHeight }; });
     console.log('3c. world list touch scroll:', JSON.stringify(w), JSON.stringify(w2));
     // start a world with a tap, then check play works and a screen tap places a block
@@ -50,7 +50,12 @@ const args = ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swif
     await p.evaluate(() => { const b = [...document.querySelectorAll('#world-cards .btn')].find(x => x.textContent === 'Create World'); b.click(); });
     const t0 = Date.now(); while (Date.now() - t0 < 60000 && !(await p.evaluate(() => game.state === 'playing'))) await sleep(300);
     await sleep(1200);
-    await p.evaluate(() => { const pl = game.player; pl.inv[0] = { id: B.COBBLE, count: 3 }; pl.sel = 0; pl.pitch = -1.0; ui.dirty = true; });
+    await p.evaluate(() => {
+      const pl = game.player, w = game.world, x = Math.floor(pl.x), y = Math.floor(pl.y), z = Math.floor(pl.z);
+      // flat ground all round, so the block always has room (a step next to the spawn would put it inside the player)
+      for (let dx = -3; dx <= 3; dx++) for (let dz = -3; dz <= 3; dz++) { w.setBlock(x + dx, y - 1, z + dz, B.STONE, 0); for (let dy = 0; dy < 3; dy++) w.setBlock(x + dx, y + dy, z + dz, B.AIR, 0); }
+      pl.inv[0] = { id: B.COBBLE, count: 3 }; pl.sel = 0; pl.pitch = -1.0; ui.dirty = true;
+    });
     await sleep(400);
     await p.touchscreen.tap(195, 420); await sleep(600);
     const placed = await p.evaluate(() => game.player.inv[0] ? game.player.inv[0].count : 0);

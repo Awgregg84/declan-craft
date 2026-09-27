@@ -1,8 +1,9 @@
 /* ===================== Interface ===================== */
 const ui = { dirty: true, cursor: null, screen: 'scr-title', inv: null, hoverRef: null, hbEls: [], hearts: -1, food: -1, air: -1, nameT: 0, toastT: 0, back: 'scr-title', px: 0, py: 0 };
-const SCREENS = ['scr-title', 'scr-worlds', 'scr-loading', 'scr-pause', 'scr-settings', 'scr-help', 'scr-death', 'scr-inv'];
+const SCREENS = ['scr-title', 'scr-worlds', 'scr-loading', 'scr-pause', 'scr-settings', 'scr-help', 'scr-death', 'scr-inv', 'scr-mp', 'scr-join', 'scr-char', 'scr-msg'];
 const SPLASHES = ['Now with Sky Islands!', 'Made for Declan!', '100% blocks!', 'Punch a tree!', 'Watch out for creepers!', 'Blonde hair, blue eyes!',
-  'Build a castle!', 'Diamonds hide deep down!', 'Sleep tight!', 'Never dig straight down!', 'Pigs say oink!', 'Build it big!', 'Also try bridges!', 'Torches keep monsters away!'];
+  'Build a castle!', 'Diamonds hide deep down!', 'Sleep tight!', 'Never dig straight down!', 'Pigs say oink!', 'Build it big!', 'Also try bridges!', 'Torches keep monsters away!',
+  'Now with villagers!', 'Hrmm!', 'Trade for emeralds!', 'Play together!', 'Now with the Nether!', 'Mind the lava!', 'Light the portal!'];
 const MAPS = {
   valley: { name: 'Sunny Valley', desc: 'Rolling hills, forests, lakes and beaches, deep caves full of ore, and snowy mountain peaks.' },
   sky: { name: 'Sky Islands', desc: 'Floating islands above a sea of clouds. Build bridges between them, and mind the edge!' },
@@ -146,6 +147,7 @@ function canAccept(ref, id) { return !ref.accept || ref.accept(id); }
 function clickSlot(ref, button, shift) {
   const inv = ui.inv, pl = game.player;
   if (!inv) return;
+  if (inv.tile && inv.tile.loading) return;   // still fetching this chest or furnace from the host
   if (ref.kind === 'creative') {
     if (ui.cursor) ui.cursor = null;
     else if (shift) pl.give(ref.id, maxStack(ref.id));
@@ -182,6 +184,7 @@ function clickSlot(ref, button, shift) {
   ui.dirty = true;
   refreshInv();
   if (ui.hoverRef === ref && !IS_TOUCH) showTip(ref, ui.px, ui.py);
+  if (inv.tile && ui.inv === inv) MP.tileTouched(inv.tile);
 }
 function moveInto(st, arr, from, to, accept) {
   for (const pass of [0, 1]) for (let i = from; i < to && st.count > 0; i++) {
@@ -329,7 +332,7 @@ function buildInv() {
   } else {
     if (inv.kind === 'inv' || inv.kind === 'craft') {
       const top = h('div', { class: 'inv-top' });
-      if (inv.kind === 'inv') top.appendChild(h('div', { class: 'char-box' }, h('canvas', { id: 'inv-char', 'aria-label': 'Declan' })));
+      if (inv.kind === 'inv') top.appendChild(h('div', { class: 'char-box' }, h('canvas', { id: 'inv-char', 'aria-label': playerName() })));
       else top.appendChild(h('h3', { text: 'Crafting' }));
       const craft = h('div', { class: 'craft' });
       invGrid(craft, inv.grid, 0, inv.n * inv.n, inv.n, { kind: 'normal' });
@@ -352,7 +355,7 @@ function buildInv() {
     } else if (inv.kind === 'chest') {
       panel.appendChild(h('h3', { text: 'Chest' }));
       invGrid(panel, inv.tile.slots, 0, 27, 9);
-    }
+    } else if (inv.kind === 'trade') { const tp = h('div', { class: 'panel trade-panel' }); buildTrade(tp); root.appendChild(tp); }
     panel.appendChild(h('h3', { text: 'Inventory' }));
     playerSection(panel);
     if (inv.grid) {
@@ -411,6 +414,8 @@ function closeInv() {
   game.uiOpen = false;
   ui.dirty = true;
   if (inv.kind === 'chest') sfx('chest');
+  if (inv.kind === 'trade') { inv.villager.tradeT = 0; if (inv.villager.proxy) MP.send({ t: 'trade', e: inv.villager.nid, end: 1 }); }
+  if (inv.tile && inv.tile.remote) MP.closeTile(inv.tile);
 }
 
 /* ---------- title logo and world thumbnails ---------- */
@@ -485,6 +490,7 @@ function drawThumb(cv, map) {
 function buildWorldCards() {
   const wrap = el('world-cards');
   wrap.textContent = '';
+  el('worlds-h').textContent = ui.hostMode ? 'Choose a World to Share' : 'Choose a World';
   for (const id of ['valley', 'sky']) {
     const info = MAPS[id], save = loadSaveMeta(id);
     const card = h('article', { class: 'card' });
@@ -493,7 +499,7 @@ function buildWorldCards() {
     card.appendChild(cv);
     card.appendChild(h('h3', { text: info.name }));
     card.appendChild(h('p', { text: info.desc }));
-    card.appendChild(h('p', { class: 'status', text: save ? 'Saved world - ' + (save.mode === 'creative' ? 'Creative' : 'Survival') + ', day ' + (save.day || 1) : 'New world' }));
+    card.appendChild(h('p', { class: 'status', text: save ? 'Saved world - ' + (save.mode === 'creative' ? 'Creative' : 'Survival') + ', day ' + (save.day || 1) + (save.nether ? ', in the Nether' : '') : 'New world' }));
     const actions = h('div', { class: 'actions' });
     let mode = save ? save.mode : 'survival';
     if (!save) {
@@ -595,7 +601,7 @@ function buildHelp() {
     '<dt>' + k('1') + '-' + k('9') + ', wheel</dt><dd>Pick a hotbar slot</dd>' +
     '<dt>' + k('E') + '</dt><dd>Inventory and crafting</dd>' +
     '<dt>' + k('Q') + '</dt><dd>Drop the item in your hand</dd>' +
-    '<dt>' + k('V') + ' or ' + k('F5') + '</dt><dd>See Declan from behind or the front</dd>' +
+    '<dt>' + k('V') + ' or ' + k('F5') + '</dt><dd>See your character from behind or the front</dd>' +
     '<dt>' + k('T') + ' or ' + k('/') + '</dt><dd>Chat and commands</dd>' +
     '<dt>' + k('F3') + '</dt><dd>Coordinates and info</dd>' +
     '<dt>' + k('Esc') + '</dt><dd>Pause</dd></dl></section>' +
@@ -617,8 +623,30 @@ function buildHelp() {
     '<li>Cook meat and smelt ore in a furnace.</li>' +
     '<li>Zombies burn in sunlight. Creepers hiss before they explode.</li>' +
     '<li>Right-click TNT to light it, then run!</li>' +
-    '<li>Commands: /time set day, /gamemode creative, /give diamond 5, /summon pig, /spawnpoint, /help.</li>' +
-    '<li>Your world saves by itself in this browser.</li></ul></section>';
+    '<li>Commands: /time set day, /gamemode creative, /give diamond 5, /summon pig, /summon piglin, /locate village, /spawnpoint, /help.</li>' +
+    '<li>Your world saves by itself in this browser.</li></ul></section>' +
+    '<section><h3>The Nether</h3><ul>' +
+    '<li>Build a frame of obsidian 4 wide and 5 tall (the corners can be left out), then use flint and steel on the inside to light it.</li>' +
+    '<li>Flint comes from breaking gravel. Put flint and an iron ingot together to make flint and steel. Clerics trade obsidian for emeralds.</li>' +
+    '<li>Stand in the purple portal for a moment to travel. Walk back in to come home. Every block in the Nether is 8 blocks back home.</li>' +
+    '<li>The Nether has lava seas, glowstone, quartz and soul sand, which slows you down.</li>' +
+    '<li>Zombified piglins are peaceful unless you hit one. Then they all come after you. Magma cubes hop after you and do not mind lava.</li>' +
+    '<li>If you die in the Nether, you wake up by the portal you came through. Beds do not work there.</li>' +
+    '<li>Playing together: when one player goes through a portal, everyone travels together.</li></ul></section>' +
+    '<section><h3>Villagers and trading</h3><ul>' +
+    '<li>Villages have a well, houses and gardens. A new Sunny Valley world starts next to one. Type /locate village to find one.</li>' +
+    '<li>Tap a villager (or right-click) to trade. Each job trades different things.</li>' +
+    '<li>Villagers pay emeralds for easy things: 16 cobblestone to a Mason, 10 dandelions to a Farmer, 16 coal to a Toolsmith.</li>' +
+    '<li>Spend emeralds on tools, food, glass, beds and even diamonds.</li></ul></section>' +
+    '<section><h3>Playing together</h3><ol>' +
+    '<li>Both players need the game open and the internet on.</li>' +
+    '<li>The host taps Play Together, then Host a Game, and picks a world. (Or taps Invite a Player in the game menu.)</li>' +
+    '<li>The game shows a room code, like FROG7.</li>' +
+    '<li>The other player taps Play Together, then Join a Game, and types the code.</li>' +
+    '<li>The host taps Let them in. The world, and everything the guest collects, is saved on the host\'s device.</li>' +
+    '<li>Up to 4 players can share a world. Tap Chat (or press T) to send a message.</li>' +
+    '<li>To skip the night, everyone gets in a bed.</li>' +
+    '<li>If the connection drops, join again with the same code. Your things come back.</li></ol></section>';
 }
 
 /* ---------- touch controls ---------- */
@@ -634,6 +662,9 @@ function setupTouch() {
   hold('tb-sneak', () => { inp.sneak = true; }, () => { inp.sneak = false; });
   hold('tb-mine', () => { inp.mine = true; inp.minePressed = true; }, () => { inp.mine = false; });
   hold('tb-place', () => { inp.use = true; inp.usePressed = true; }, () => { inp.use = false; });
+  // a plain tap (click) so the iPad keyboard is allowed to open
+  el('tb-chat').addEventListener('click', e => { e.preventDefault(); if (game.chatOpen) game.closeChat(); else game.openChat('', true); });
+  el('chat-input').addEventListener('blur', () => { if (game.touchOn) setTimeout(() => { if (game.chatOpen && document.activeElement !== el('chat-input')) game.closeChat(); }, 200); });
   hold('tb-inv', () => game.toggleInventory());
   hold('tb-view', () => game.cycleView());
   hold('tb-pause', () => game.pause());

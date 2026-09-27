@@ -6,9 +6,9 @@ const DAY_LENGTH = 720; // seconds for a full day
 const SAPLING_KIND = { [B.OAK_SAPLING]: 0, [B.BIRCH_SAPLING]: 1, [B.SPRUCE_SAPLING]: 2 };
 
 class Chunk {
-  constructor(cx, cz, blocks, light) {
+  constructor(cx, cz, blocks, light, data) {
     this.cx = cx; this.cz = cz; this.key = chunkKey(cx, cz);
-    this.blocks = blocks; this.light = light; this.data = new Uint8Array(CVOL);
+    this.blocks = blocks; this.light = light; this.data = data || new Uint8Array(CVOL);
     this.meshes = new Array(NSEC).fill(null);
     this.tmeshes = new Array(NSEC).fill(null);
     this.dirty = new Uint8Array(NSEC).fill(1);
@@ -26,8 +26,9 @@ class GenPool {
     try {
       const src = 'const genModule = ' + genModule.toString() + ';\nlet G = null;\n' +
         'onmessage = function (e) { const m = e.data; if (m.t === "init") { G = genModule(m.B, m.P); return; }\n' +
-        '  const r = G.generateChunk(m.map, m.seed, m.cx, m.cz, m.edits);\n' +
-        '  postMessage({ id: m.id, blocks: r.blocks, light: r.light, spawns: r.spawns }, [r.blocks.buffer, r.light.buffer]); };';
+        '  const r = G.generateChunk(m.map, m.seed, m.cx, m.cz, m.edits, m.vb);\n' +
+        '  const tr = [r.blocks.buffer, r.light.buffer]; if (r.data) tr.push(r.data.buffer);\n' +
+        '  postMessage({ id: m.id, blocks: r.blocks, light: r.light, spawns: r.spawns, data: r.data }, tr); };';
       const url = URL.createObjectURL(new Blob([src], { type: 'text/javascript' }));
       for (let i = 0; i < n; i++) {
         const w = new Worker(url);
@@ -57,25 +58,46 @@ class GenPool {
     for (const w of this.workers) if (w.busy < best.busy) best = w;
     best.busy++; job.worker = best;
     this.inflight.set(job.id, job);
-    best.postMessage({ t: 'gen', id: job.id, map: job.map, seed: job.seed, cx: job.cx, cz: job.cz, edits: job.edits });
+    best.postMessage({ t: 'gen', id: job.id, map: job.map, seed: job.seed, cx: job.cx, cz: job.cz, edits: job.edits, vb: job.vb });
   }
   done(w, m) {
     w.busy = Math.max(0, w.busy - 1);
     const job = this.inflight.get(m.id);
     if (!job) return;
     this.inflight.delete(m.id);
-    job.cb(m.blocks, m.light, m.spawns);
+    job.cb(m.blocks, m.light, m.spawns, m.data);
   }
   pump(budgetMs) {
     if (!this.local) return;
     const t0 = performance.now();
     while (this.queue.length && performance.now() - t0 < budgetMs) {
       const job = this.queue.shift();
-      const r = this.local.generateChunk(job.map, job.seed, job.cx, job.cz, job.edits);
-      job.cb(r.blocks, r.light, r.spawns);
+      const r = this.local.generateChunk(job.map, job.seed, job.cx, job.cz, job.edits, job.vb);
+      job.cb(r.blocks, r.light, r.spawns, r.data);
     }
   }
   cancelAll() { for (const job of this.inflight.values()) job.cb = () => {}; this.queue.length = 0; }
+}
+
+/* One furnace for dt seconds: burn fuel, cook the input, fill the output. */
+function stepFurnace(t, dt) {
+  const input = t.slots[0], fuel = t.slots[1], out = t.slots[2];
+  const result = input ? SMELT[input.id] : undefined;
+  const canSmelt = result !== undefined && (!out || (out.id === result && out.count < maxStack(result)));
+  if (t.burn > 0) t.burn -= dt;
+  if (t.burn <= 0 && canSmelt && fuel && fuelValue(fuel.id) > 0) {
+    t.burn = t.burnMax = fuelValue(fuel.id);
+    fuel.count--; if (fuel.count <= 0) t.slots[1] = null;
+  }
+  if (t.burn > 0 && canSmelt) {
+    t.cook += dt;
+    if (t.cook >= SMELT_TIME) {
+      t.cook = 0;
+      input.count--; if (input.count <= 0) t.slots[0] = null;
+      if (out) out.count++; else t.slots[2] = { id: result, count: 1 };
+    }
+  } else if (t.cook > 0) t.cook = Math.max(0, t.cook - dt * 2);
+  if (t.burn < 0) t.burn = 0;
 }
 
 class World {
@@ -91,6 +113,7 @@ class World {
     this.urgentList = new Set();
     this.liquidQ = []; this.liquidSet = new Set();
     this.gravQ = [];
+    this.portalQ = [];         // portal blocks to check (they vanish when their frame is broken)
     this.saplings = new Map();
     this.spawnQueue = [];
     this.order = []; this.orderDirty = true; this.centerCX = 1e9; this.centerCZ = 1e9;
@@ -98,6 +121,10 @@ class World {
     this._qa = []; this._qb = []; this._qr = [];
     this.randT = 0;
     this.onBreak = null; this.onFall = null; this.onDrop = null; this.onSound = null;
+    this.onChange = null;      // multiplayer: every block change goes through here
+    this.remote = false;       // true on a guest: the host runs liquids, falling sand, plants and furnaces
+    this.extraCenters = [];    // host: other players' positions to keep loaded
+    this.villageBlock = [];    // villages kept out of areas that were built before villages existed
     this.alive = true;
   }
   getChunk(cx, cz) {
@@ -230,11 +257,13 @@ class World {
   }
 
   /* ---- chunk lifecycle ---- */
-  addChunk(cx, cz, blocks, light, spawns) {
+  addChunk(cx, cz, blocks, light, spawns, data) {
     if (this.chunks.has(chunkKey(cx, cz))) return;
-    const c = new Chunk(cx, cz, blocks, light);
+    const c = new Chunk(cx, cz, blocks, light, data);
     const em = this.edits.get(c.key);
+    let late = null;
     if (em) for (const [i, v] of em) {
+      if (blocks[i] !== (v & 255)) (late || (late = [])).push(i, v);
       c.data[i] = v >> 8;
       const id = v & 255;
       if (SAPLING_KIND[id] !== undefined) this.saplings.set(posKey(cx * 16 + (i & 15), i >> 8, cz * 16 + ((i >> 4) & 15)), this.clock + randRange(30, 90));
@@ -261,6 +290,13 @@ class World {
     }
     this.lightAdd(qa, true);
     this.lightAdd(qb, false);
+    // changes that arrived while this chunk was being built
+    if (late) {
+      const hook = this.onChange;
+      this.onChange = null;
+      for (let k = 0; k < late.length; k += 2) { const i = late[k], v = late[k + 1]; this.setBlock(cx * 16 + (i & 15), i >> 8, cz * 16 + ((i >> 4) & 15), v & 255, v >> 8, false); }
+      this.onChange = hook;
+    }
     if (spawns) for (const s of spawns) this.spawnQueue.push(s);
   }
   removeChunk(c) {
@@ -289,20 +325,36 @@ class World {
           if (dx * dx + dz * dz > need * need + 2) continue;
           const cx = pcx + dx, cz = pcz + dz, k = chunkKey(cx, cz);
           if (this.chunks.has(k) || this.requested.has(k)) continue;
-          this.requested.add(k);
           n++;
-          pool.request({
-            map: this.map, seed: this.seed, cx, cz, edits: this.editsFor(k),
-            cb: (blocks, light, spawns) => { this.requested.delete(k); if (this.alive) this.addChunk(cx, cz, blocks, light, spawns); },
-          });
+          this.requestChunk(pool, cx, cz);
         }
         if (pool.busy >= pool.capacity + 2) break;
+      }
+      // other players (multiplayer host): a smaller area around each of them
+      const RG = Math.min(R, 3);
+      for (const [ex, ez] of this.extraCenters) {
+        const ecx = Math.floor(ex) >> 4, ecz = Math.floor(ez) >> 4;
+        for (let dz = -RG; dz <= RG && pool.busy < pool.capacity + 2; dz++) for (let dx = -RG; dx <= RG && pool.busy < pool.capacity + 2; dx++) {
+          const k = chunkKey(ecx + dx, ecz + dz);
+          if (!this.chunks.has(k) && !this.requested.has(k)) this.requestChunk(pool, ecx + dx, ecz + dz);
+        }
       }
     }
     const far = R + 3;
     for (const c of this.chunks.values()) {
-      if (Math.abs(c.cx - pcx) > far || Math.abs(c.cz - pcz) > far) this.removeChunk(c);
+      if (Math.abs(c.cx - pcx) <= far && Math.abs(c.cz - pcz) <= far) continue;
+      let keep = false;
+      for (const [ex, ez] of this.extraCenters) if (Math.abs(c.cx - (Math.floor(ex) >> 4)) <= 5 && Math.abs(c.cz - (Math.floor(ez) >> 4)) <= 5) { keep = true; break; }
+      if (!keep) this.removeChunk(c);
     }
+  }
+  requestChunk(pool, cx, cz) {
+    const k = chunkKey(cx, cz);
+    this.requested.add(k);
+    pool.request({
+      map: this.map, seed: this.seed, cx, cz, edits: this.editsFor(k), vb: this.villageBlock,
+      cb: (blocks, light, spawns, data) => { this.requested.delete(k); if (this.alive) this.addChunk(cx, cz, blocks, light, spawns, data); },
+    });
   }
   rebuildOrder() {
     const pcx = this.centerCX, pcz = this.centerCZ;
@@ -362,14 +414,24 @@ class World {
     em.set(i, id | (data << 8));
     if (old !== id) this.relight(x, y, z, old, id);
     this.markAround(x, y, z, urgent);
+    if (this.onChange) this.onChange(x, y, z, id, data, old);
     if (old !== id) {
       const tileOld = old === B.CHEST || old === B.FURNACE || old === B.FURNACE_LIT;
       const furnaceSwap = (old === B.FURNACE || old === B.FURNACE_LIT) && (id === B.FURNACE || id === B.FURNACE_LIT);
-      if (tileOld && !furnaceSwap) this.dropTile(x, y, z);
+      if (tileOld && !furnaceSwap && !this.remote) this.dropTile(x, y, z);
       if (SAPLING_KIND[id] !== undefined) this.saplings.set(posKey(x, y, z), this.clock + randRange(40, 100));
     }
-    this.neighborChanged(x, y, z);
+    if (!this.remote) this.neighborChanged(x, y, z);
     return true;
+  }
+  /* a change made elsewhere (the other player's iPad): apply now, or remember it for when that chunk loads */
+  applyRemote(x, y, z, id, data) {
+    if (y < 0 || y >= WH) return;
+    if (this.getChunk(x >> 4, z >> 4)) { this.setBlock(x, y, z, id, data, true); return; }
+    const key = chunkKey(x >> 4, z >> 4);
+    let em = this.edits.get(key);
+    if (!em) { em = new Map(); this.edits.set(key, em); }
+    em.set((x & 15) | ((z & 15) << 4) | (y << 8), id | ((data | 0) << 8));
   }
   canStay(x, y, z, id, data) {
     const d = BLOCKS[id];
@@ -412,6 +474,26 @@ class World {
       if (LIQUID[nb]) this.scheduleLiquid(nx, ny, nz);
       if (d === 2 && BLOCKS[nb] && BLOCKS[nb].gravity) this.gravQ.push(nx, ny, nz);
       if (nb && nb !== B.UNLOADED && BLOCKS[nb].plant && d !== 3) this.checkSupport(nx, ny, nz);
+      if (nb === B.NETHER_PORTAL) this.portalQ.push(nx, ny, nz);
+    }
+  }
+  /* A portal block stays only while every neighbour in its own plane is portal or obsidian,
+     so breaking any part of the frame empties the whole portal, one block after another. */
+  tickPortals() {
+    let sound = true;
+    for (let guard = 0; this.portalQ.length && guard < 64; guard++) {
+      const q = this.portalQ;
+      this.portalQ = [];
+      for (let i = 0; i < q.length; i += 3) {
+        const x = q[i], y = q[i + 1], z = q[i + 2];
+        if (this.getBlock(x, y, z) !== B.NETHER_PORTAL) continue;
+        const ax = this.getData(x, y, z) & 1, hx = ax === 0 ? 1 : 0, hz = ax === 0 ? 0 : 1;
+        const ok = b => b === B.NETHER_PORTAL || b === B.OBSIDIAN || b === B.UNLOADED;
+        if (!ok(this.getBlock(x, y - 1, z)) || !ok(this.getBlock(x, y + 1, z)) || !ok(this.getBlock(x - hx, y, z - hz)) || !ok(this.getBlock(x + hx, y, z + hz))) {
+          this.setBlock(x, y, z, B.AIR, 0, true);
+          if (sound && this.onSound) { sound = false; this.onSound('portalBreak', x + 0.5, y + 0.5, z + 0.5); }
+        }
+      }
     }
   }
 
@@ -423,7 +505,7 @@ class World {
     const lava = this.getBlock(x, y, z) === B.LAVA;
     this.liquidQ.push({ x, y, z, k, t: this.clock + (lava ? 1.2 : 0.25) });
   }
-  flowable(b) { return b === B.AIR || (!SOLID[b] && !LIQUID[b] && b !== B.UNLOADED && b !== B.DOOR); }
+  flowable(b) { return b === B.AIR || (!SOLID[b] && !LIQUID[b] && b !== B.UNLOADED && b !== B.DOOR && b !== B.NETHER_PORTAL); }
   flowInto(x, y, z, id, data) {
     const b = this.getBlock(x, y, z);
     if (b !== B.AIR && this.onBreak) this.onBreak(x, y, z, b, true);
@@ -587,36 +669,26 @@ class World {
   tickFurnaces(dt) {
     for (const [k, t] of this.tiles) {
       if (t.type !== 'furnace') continue;
+      if (t.viewers && t.viewers.size) continue;   // open on another player's device: that device runs it until they close it
       const [x, y, z] = k.split(',').map(Number);
-      const b = this.getBlock(x, y, z);
-      if (b === B.UNLOADED) continue;
-      const input = t.slots[0], fuel = t.slots[1], out = t.slots[2];
-      const result = input ? SMELT[input.id] : undefined;
-      const canSmelt = result !== undefined && (!out || (out.id === result && out.count < maxStack(result)));
-      if (t.burn > 0) t.burn -= dt;
-      if (t.burn <= 0 && canSmelt && fuel && fuelValue(fuel.id) > 0) {
-        t.burn = t.burnMax = fuelValue(fuel.id);
-        fuel.count--; if (fuel.count <= 0) t.slots[1] = null;
-      }
-      if (t.burn > 0 && canSmelt) {
-        t.cook += dt;
-        if (t.cook >= SMELT_TIME) {
-          t.cook = 0;
-          input.count--; if (input.count <= 0) t.slots[0] = null;
-          if (out) out.count++; else t.slots[2] = { id: result, count: 1 };
-        }
-      } else if (t.cook > 0) t.cook = Math.max(0, t.cook - dt * 2);
-      if (t.burn < 0) t.burn = 0;
-      const lit = t.burn > 0;
-      if (lit && b === B.FURNACE) this.setBlock(x, y, z, B.FURNACE_LIT, this.getData(x, y, z));
-      else if (!lit && b === B.FURNACE_LIT) this.setBlock(x, y, z, B.FURNACE, this.getData(x, y, z));
+      if (this.getBlock(x, y, z) === B.UNLOADED) continue;
+      stepFurnace(t, dt);
+      this.lightFurnace(x, y, z, t);
     }
+  }
+  /* switch between the lit and unlit furnace block to match its fire */
+  lightFurnace(x, y, z, t) {
+    const b = this.getBlock(x, y, z), lit = t.burn > 0;
+    if (lit && b === B.FURNACE) this.setBlock(x, y, z, B.FURNACE_LIT, this.getData(x, y, z));
+    else if (!lit && b === B.FURNACE_LIT) this.setBlock(x, y, z, B.FURNACE, this.getData(x, y, z));
   }
 
   tick(dt, px, pz) {
     this.clock += dt;
+    if (this.remote) { this.spawnQueue.length = 0; return; }
     this.tickLiquids();
     this.tickGravity();
+    this.tickPortals();
     this.randT += dt;
     if (this.randT > 0.25) { this.randT = 0; this.randomTicks(px, pz); this.tickSaplings(); }
     this.tickFurnaces(dt);

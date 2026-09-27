@@ -41,7 +41,13 @@ function initRenderExtras() {
 }
 
 /* ---- sky, fog and light for a time of day ---- */
+const NETHER_FOG = [0.24, 0.05, 0.035];
 function skyState(time, map, underwater) {
+  if (map === 'nether') {   // no sky, no sun: a red haze and a dim warm glow everywhere
+    const f = NETHER_FOG;
+    return { sunDir: [0, 1, 0], day: 0, zenith: f, horizon: f, bottom: f, glow: f, glowAmt: 0, stars: 0, sunVis: 0, skyLight: 0, skyTint: [1, 1, 1],
+      cloud: f, fog: underwater === 'lava' ? [0.8, 0.28, 0.05] : underwater === 'water' ? [0.1, 0.12, 0.3] : f.slice(), minLight: [0.46, 0.33, 0.29], nether: true };
+  }
   const ang = time * TAU, sy = Math.sin(ang);
   const len = Math.hypot(Math.cos(ang), sy, 0.22);
   const sunDir = [Math.cos(ang) / len, sy / len, 0.22 / len];
@@ -55,7 +61,7 @@ function skyState(time, map, underwater) {
     sunDir, day, zenith, horizon, bottom, glow: [1.0, 0.45, 0.2], glowAmt: sunset,
     stars: clamp(1 - day * 1.8, 0, 1), sunVis: clamp((sy + 0.2) * 4, 0, 1),
     skyLight: lerp(0.4, 1.0, day), skyTint: vmix([0.6, 0.68, 1.0], [1, 1, 1], day),
-    cloud: vmix([0.12, 0.13, 0.2], [1, 1, 1], day), fog: horizon.slice(),
+    cloud: vmix([0.12, 0.13, 0.2], [1, 1, 1], day), fog: horizon.slice(), minLight: [0.035, 0.035, 0.035],
   };
   if (underwater === 'water') { s.fog = vmix([0.05, 0.12, 0.35], [0.1, 0.25, 0.6], day); }
   else if (underwater === 'lava') s.fog = [0.8, 0.28, 0.05];
@@ -111,7 +117,7 @@ function terrainUniforms(s, time, alphaTest) {
   gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D_ARRAY, texTiles); gl.uniform1i(P.u.uTex, 0);
   gl.uniform1f(P.u.uSkyLight, s.skyLight); gl.uniform3fv(P.u.uSkyTint, s.skyTint);
   gl.uniform3fv(P.u.uFogColor, R.fogColor); gl.uniform2f(P.u.uFog, R.fogStart, R.fogEnd);
-  gl.uniform1f(P.u.uAlphaTest, alphaTest); gl.uniform1f(P.u.uMinLight, 0.035);
+  gl.uniform1f(P.u.uAlphaTest, alphaTest); gl.uniform3fv(P.u.uMinLight, s.minLight || [0.035, 0.035, 0.035]);
 }
 function drawTerrainList(list, trans) {
   const P = PROG.terrain, cam = R.cam;
@@ -148,7 +154,7 @@ function entityBegin(tex, vp) {
 }
 function brightAt(world, x, y, z, s) {
   const L = world.getLight(Math.floor(x), Math.floor(y), Math.floor(z));
-  return Math.max(0.05, lightCurve((L >> 4) * s.skyLight), Math.min(1, lightCurve(L & 15) * 1.25));
+  return Math.max(s.nether ? 0.45 : 0.05, lightCurve((L >> 4) * s.skyLight), Math.min(1, lightCurve(L & 15) * 1.25));
 }
 function drawOutline(x, y, z) {
   const P = PROG.line;
@@ -219,10 +225,10 @@ function drawPreview(rect, pose, yaw, t, target) {
   entityBegin(texSkins, _pv);
   gl.uniform2f(PROG.entity.u.uFog, 1000, 2000);
   M4.identity(_pb); M4.rotY(_pb, _pb, yaw);
-  const sc = MODELS.player.scale;
+  const model = playerModelFor(PROFILE.skin), sc = model.scale;
   M4.scale(_pb, _pb, sc, sc, sc);
   gl.enable(gl.CULL_FACE);
-  drawModel(MODELS.player, _pb, pose);
+  drawModel(model, _pb, pose);
   gl.disable(gl.SCISSOR_TEST);
   gl.viewport(0, 0, R.width, R.height);
   if (target) {

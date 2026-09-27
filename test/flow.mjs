@@ -17,9 +17,14 @@ export default async function (E, shot, sleep, page, waitFor) {
   await sleep(300);
   const lockInfo = await E(() => ({ locked: game.locked, drag: game.dragLook, paused: game.paused }));
   if (lockInfo.paused) await E(() => game.resume());
-  await page.keyboard.down('KeyW'); await sleep(1000); await page.keyboard.up('KeyW');
-  const z1 = await E(() => game.player.z);
-  log('keyboard walk -> moved', (z0 - z1).toFixed(2), 'blocks', z0 - z1 > 2 ? 'PASS' : 'FAIL', JSON.stringify(lockInfo));
+  // speed while W is held, after speeding up, per game second (game time runs slower than real time when frames are slow)
+  await page.keyboard.down('KeyW'); await sleep(600);
+  const a = await E(() => [game.player.z, game.world.clock]);
+  await sleep(1200);
+  const b = await E(() => [game.player.z, game.world.clock]);
+  await page.keyboard.up('KeyW');
+  const z1 = b[0], gt = b[1] - a[1], v = (a[0] - b[0]) / gt;
+  log('keyboard walk -> moved', (z0 - z1).toFixed(2), 'blocks, steady speed', v.toFixed(2), 'blocks per game s', v > 3.3 ? 'PASS' : 'FAIL', JSON.stringify(lockInfo));
   await page.keyboard.press('Digit3'); await sleep(100);
   log('hotbar key ->', (await E(() => game.player.sel)) === 2 ? 'PASS' : 'FAIL');
   await page.keyboard.press('KeyE'); await sleep(300);
@@ -52,13 +57,13 @@ export default async function (E, shot, sleep, page, waitFor) {
   const resp = await E(() => ({ state: game.state, hp: game.player.health, alive: game.player.alive }));
   log('respawn ->', resp.state === 'playing' && resp.alive && resp.hp === 20 ? 'PASS' : 'FAIL', JSON.stringify(resp));
   // creeper explosion
-  await E(P => { for (const e of game.entities) if (e.mob) e.removed = true; const pl = game.player; Object.assign(pl, { x: P.bx + 0.5, y: P.by + 1, z: P.bz + 0.5 }); pl.invuln = 0; const c = spawnMob(game, 'creeper', pl.x + 2, pl.y, pl.z); c.burnT = -1e9; }, P);
+  await E(P => { for (const e of game.entities) if (e.mob) e.removed = true; const pl = game.player; Object.assign(pl, { x: P.bx + 0.5, y: P.by + 1, z: P.bz + 0.5 }); pl.invuln = 0; const c = spawnMob(game, 'creeper', pl.x + 2, pl.y, pl.z); c.burnT = -1e9; window.__creeper = c; }, P);
   await sleep(3500);
-  const boom = await E(P => { let holes = 0; for (let x = -6; x <= 6; x++) for (let z = -6; z <= 6; z++) if (game.world.getBlock(P.bx + x, P.by, P.bz + z) === 0) holes++; return { holes, hp: game.player.health, creepers: game.entities.filter(e => e.type === 'creeper').length }; }, P);
+  const boom = await E(P => { let holes = 0; for (let x = -6; x <= 6; x++) for (let z = -6; z <= 6; z++) if (game.world.getBlock(P.bx + x, P.by, P.bz + z) === 0) holes++; return { holes, hp: game.player.health, creepers: game.entities.includes(window.__creeper) ? 1 : 0 }; }, P);
   log('creeper explodes ->', boom.holes > 0 && boom.creepers === 0 ? 'PASS' : 'FAIL', JSON.stringify(boom));
   // bed sleep at night skips to morning
   await E(P => { const w = game.world, pl = game.player; if (game.state !== 'playing') game.respawn(); for (const e of game.entities) if (e.mob) e.removed = true; w.setBlock(P.bx + 5, P.by + 1, P.bz + 5, B.STONE, 0); w.setBlock(P.bx + 5, P.by + 2, P.bz + 5, B.BED, 0); w.time = 0.7; game.trySleep(P.bx + 5, P.by + 2, P.bz + 5); }, P);
-  await sleep(3000);
+  await waitFor(() => game.day >= 2 || game.sleeping <= 0, 20000, 'sleep to finish'); await sleep(200);
   const bed = await E(() => ({ time: +game.world.time.toFixed(3), day: game.day, spawn: game.player.spawn }));
   log('sleep ->', bed.time < 0.2 && bed.day >= 2 ? 'PASS' : 'FAIL', JSON.stringify(bed));
 }

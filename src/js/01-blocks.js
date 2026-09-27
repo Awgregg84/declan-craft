@@ -8,8 +8,9 @@ const B = {
   CHEST: 39, BOOKSHELF: 40, PUMPKIN: 41, JACK_O_LANTERN: 42, IRON_BLOCK: 43, GOLD_BLOCK: 44, DIAMOND_BLOCK: 45,
   COAL_BLOCK: 46, TORCH: 47, TALL_GRASS: 48, DANDELION: 49, POPPY: 50, CORNFLOWER: 51, DEAD_BUSH: 52,
   OAK_SAPLING: 53, BIRCH_SAPLING: 54, SPRUCE_SAPLING: 55, BED: 56,
-  DOOR: 57,
+  DOOR: 57, EMERALD_ORE: 58, EMERALD_BLOCK: 59,
   WOOL: 64, // 64..79
+  NETHERRACK: 80, SOUL_SAND: 81, NETHER_QUARTZ_ORE: 82, QUARTZ_BLOCK: 83, NETHER_BRICKS: 84, NETHER_PORTAL: 85,
   UNLOADED: 255,
 };
 const I = {
@@ -17,8 +18,13 @@ const I = {
   PORKCHOP: 262, COOKED_PORKCHOP: 263, BEEF: 264, STEAK: 265, CHICKEN: 266, COOKED_CHICKEN: 267,
   ROTTEN_FLESH: 268, GUNPOWDER: 269, FEATHER: 270, LEATHER: 271,
   TOOL: 272, // 272..287 = material*4 + kind
-  DOOR: 290,
+  DOOR: 290, EMERALD: 291, BREAD: 292,
+  EGG: 293, // 293..309 spawn eggs, in EGG_MOBS order
+  FLINT: 310, FLINT_AND_STEEL: 311, QUARTZ: 312, NETHER_BRICK: 313,
 };
+const EGG_MOBS = ['pig', 'cow', 'sheep', 'chicken', 'zombie', 'creeper', 'villager', 'piglin', 'magma'];
+const MOB_NAMES = { piglin: 'Zombified Piglin', magma: 'Magma Cube' };
+const mobName = m => MOB_NAMES[m] || m[0].toUpperCase() + m.slice(1);
 const TOOL_MATS = ['wood', 'stone', 'iron', 'diamond'];
 const TOOL_MAT_NAMES = ['Wooden', 'Stone', 'Iron', 'Diamond'];
 const TOOL_KINDS = ['pickaxe', 'axe', 'shovel', 'sword'];
@@ -29,7 +35,7 @@ const WOOL_COLORS = ['#e9ecec', '#f07613', '#bd44b3', '#3aafd9', '#f8c527', '#70
   '#8e8e86', '#158991', '#792aac', '#35399d', '#724728', '#546d1b', '#a12722', '#141519'];
 const toolId = (mat, kind) => I.TOOL + mat * 4 + kind;
 
-const R_NONE = 0, R_CUBE = 1, R_CROSS = 2, R_TORCH = 3, R_LIQUID = 4, R_CACTUS = 5, R_BED = 6, R_DOOR = 7;
+const R_NONE = 0, R_CUBE = 1, R_CROSS = 2, R_TORCH = 3, R_LIQUID = 4, R_CACTUS = 5, R_BED = 6, R_DOOR = 7, R_PORTAL = 8;
 const DOOR_BOXES = [[0, 0, 13 / 16, 1, 1, 1], [0, 0, 0, 3 / 16, 1, 1], [0, 0, 0, 1, 1, 3 / 16], [13 / 16, 0, 0, 1, 1, 1]];
 const doorBox = d => DOOR_BOXES[((d & 3) + ((d & 4) ? 1 : 0)) & 3];
 const BLOCKS = new Array(256).fill(null);
@@ -109,8 +115,18 @@ defBlock(B.OAK_SAPLING, 'Oak Sapling', { tex: 'oak_sapling', solid: false, opaqu
 defBlock(B.BIRCH_SAPLING, 'Birch Sapling', { tex: 'birch_sapling', solid: false, opaque: false, render: R_CROSS, hardness: 0, sound: 'grass', box: PLANT_BOX, plant: 'soil', fuel: 2.5 });
 defBlock(B.SPRUCE_SAPLING, 'Spruce Sapling', { tex: 'spruce_sapling', solid: false, opaque: false, render: R_CROSS, hardness: 0, sound: 'grass', box: PLANT_BOX, plant: 'soil', fuel: 2.5 });
 defBlock(B.BED, 'Bed', { tex: { top: 'bed_top', bottom: 'oak_planks', side: 'bed_side', front: 'bed_end', back: 'bed_end' }, opaque: false, render: R_BED, hardness: 0.2, sound: 'wool', facing: true, ao: false, box: [0, 0, 0, 1, 9 / 16, 1] });
+defBlock(B.EMERALD_ORE, 'Emerald Ore', { tex: 'emerald_ore', hardness: 3, tool: 'pickaxe', tier: 3, drop: I.EMERALD });
+defBlock(B.EMERALD_BLOCK, 'Block of Emerald', { tex: 'emerald_block', hardness: 5, tool: 'pickaxe', tier: 3, sound: 'metal' });
 defBlock(B.DOOR, 'Oak Door', { tex: 'door_bottom', opaque: false, render: R_DOOR, hardness: 3, tool: 'axe', sound: 'wood', drop: I.DOOR, creative: false, ao: false, boxFn: doorBox });
 for (let i = 0; i < 16; i++) defBlock(B.WOOL + i, WOOL_NAMES[i] + ' Wool', { tex: 'wool_' + i, hardness: 0.8, sound: 'wool' });
+defBlock(B.NETHERRACK, 'Netherrack', { tex: 'netherrack', hardness: 0.4, tool: 'pickaxe', tier: 1 });
+defBlock(B.SOUL_SAND, 'Soul Sand', { tex: 'soul_sand', hardness: 0.5, tool: 'shovel', sound: 'sand', slow: 0.45 });
+defBlock(B.NETHER_QUARTZ_ORE, 'Nether Quartz Ore', { tex: 'nether_quartz_ore', hardness: 3, tool: 'pickaxe', tier: 1, drop: I.QUARTZ });
+defBlock(B.QUARTZ_BLOCK, 'Block of Quartz', { tex: { top: 'quartz_block_top', bottom: 'quartz_block_top', side: 'quartz_block_side' }, hardness: 0.8, tool: 'pickaxe', tier: 1 });
+defBlock(B.NETHER_BRICKS, 'Nether Bricks', { tex: 'nether_bricks', hardness: 2, tool: 'pickaxe', tier: 1 });
+// data: 0 = the portal's face runs along x (thin in z), 1 = along z (thin in x)
+defBlock(B.NETHER_PORTAL, 'Nether Portal', { tex: 'nether_portal', solid: false, opaque: false, render: R_PORTAL, pass: 2, emit: 11, hardness: -1, drop: null, creative: false, ao: false, cullSame: true, blast: 1e9 });
+TARGETABLE[B.NETHER_PORTAL] = 0;
 defBlock(B.UNLOADED, 'Unloaded', { tex: 'stone', render: R_NONE, pass: 0, hardness: -1, creative: false, drop: null });
 TARGETABLE[B.UNLOADED] = 0;
 
@@ -134,6 +150,13 @@ defItem(I.GUNPOWDER, 'Gunpowder', { tex: 'gunpowder' });
 defItem(I.FEATHER, 'Feather', { tex: 'feather' });
 defItem(I.LEATHER, 'Leather', { tex: 'leather' });
 defItem(I.DOOR, 'Oak Door', { tex: 'door_item', fuel: 10 });
+defItem(I.EMERALD, 'Emerald', { tex: 'emerald' });
+defItem(I.BREAD, 'Bread', { tex: 'bread', food: 5 });
+EGG_MOBS.forEach((m, i) => defItem(I.EGG + i, mobName(m) + ' Spawn Egg', { tex: 'egg_' + m, egg: m }));
+defItem(I.FLINT, 'Flint', { tex: 'flint' });
+defItem(I.FLINT_AND_STEEL, 'Flint and Steel', { tex: 'flint_and_steel', stack: 1, tool: { kind: 'lighter', tier: 0, speed: 1, dur: 64, dmg: 1 } });
+defItem(I.QUARTZ, 'Nether Quartz', { tex: 'quartz' });
+defItem(I.NETHER_BRICK, 'Nether Brick', { tex: 'nether_brick' });
 for (let m = 0; m < 4; m++) for (let k = 0; k < 4; k++) {
   const dmgs = [[2, 3, 4, 5], [3, 4, 5, 6], [1.5, 2.5, 3.5, 4.5], [4, 5, 6, 7]][k];
   defItem(toolId(m, k), TOOL_MAT_NAMES[m] + ' ' + TOOL_KIND_NAMES[k], {
@@ -175,7 +198,7 @@ shaped(I.DOOR, 3, ['PP', 'PP', 'PP'], { P: 'planks' });
   shaped(toolId(m, 3), 1, ['M', 'M', 'S'], { M: mat, S: I.STICK });
 });
 shaped(B.BED, 1, ['WWW', 'PPP'], { W: 'wool', P: 'planks' });
-[[B.IRON_BLOCK, I.IRON_INGOT], [B.GOLD_BLOCK, I.GOLD_INGOT], [B.DIAMOND_BLOCK, I.DIAMOND], [B.COAL_BLOCK, I.COAL]].forEach(([blk, it]) => {
+[[B.IRON_BLOCK, I.IRON_INGOT], [B.GOLD_BLOCK, I.GOLD_INGOT], [B.DIAMOND_BLOCK, I.DIAMOND], [B.COAL_BLOCK, I.COAL], [B.EMERALD_BLOCK, I.EMERALD]].forEach(([blk, it]) => {
   shaped(blk, 1, ['XXX', 'XXX', 'XXX'], { X: it });
   shapeless(it, 9, [blk]);
 });
@@ -187,6 +210,9 @@ shaped(B.BOOKSHELF, 1, ['PPP', 'LLL', 'PPP'], { P: 'planks', L: I.LEATHER });
 shapeless(B.MOSSY_COBBLE, 1, [B.COBBLE, B.OAK_LEAVES]);
 shaped(B.WOOL, 1, ['FF', 'FF'], { F: I.FEATHER });
 shaped(B.GLOWSTONE, 1, ['TGT', 'GTG', 'TGT'], { T: B.TORCH, G: B.GLASS });
+shapeless(I.FLINT_AND_STEEL, 1, [I.IRON_INGOT, I.FLINT]);
+shaped(B.QUARTZ_BLOCK, 1, ['QQ', 'QQ'], { Q: I.QUARTZ });
+shaped(B.NETHER_BRICKS, 1, ['NN', 'NN'], { N: I.NETHER_BRICK });
 
 function ingredientMatches(want, id) {
   if (want === undefined || want === null) return id === 0;
@@ -236,8 +262,8 @@ function recipeFits(r, n) {
 const SMELT = {
   [B.IRON_ORE]: I.IRON_INGOT, [B.GOLD_ORE]: I.GOLD_INGOT, [B.SAND]: B.GLASS, [B.COBBLE]: B.STONE,
   [I.PORKCHOP]: I.COOKED_PORKCHOP, [I.BEEF]: I.STEAK, [I.CHICKEN]: I.COOKED_CHICKEN, [B.CLAY]: B.BRICKS,
-  [B.OAK_LOG]: I.COAL, [B.BIRCH_LOG]: I.COAL, [B.SPRUCE_LOG]: I.COAL, [B.DIAMOND_ORE]: I.DIAMOND, [B.COAL_ORE]: I.COAL,
-  [B.MOSSY_COBBLE]: B.STONE,
+  [B.OAK_LOG]: I.COAL, [B.BIRCH_LOG]: I.COAL, [B.SPRUCE_LOG]: I.COAL, [B.DIAMOND_ORE]: I.DIAMOND, [B.COAL_ORE]: I.COAL, [B.EMERALD_ORE]: I.EMERALD,
+  [B.MOSSY_COBBLE]: B.STONE, [B.NETHERRACK]: I.NETHER_BRICK, [B.NETHER_QUARTZ_ORE]: I.QUARTZ,
 };
 const SMELT_TIME = 5;
 
@@ -246,15 +272,17 @@ const CREATIVE_LIST = [
   B.GRASS, B.DIRT, B.STONE, B.COBBLE, B.MOSSY_COBBLE, B.STONE_BRICKS, B.BRICKS, B.SANDSTONE, B.SAND, B.GRAVEL, B.CLAY,
   B.OAK_LOG, B.BIRCH_LOG, B.SPRUCE_LOG, B.OAK_PLANKS, B.BIRCH_PLANKS, B.SPRUCE_PLANKS,
   B.OAK_LEAVES, B.BIRCH_LEAVES, B.SPRUCE_LEAVES, B.GLASS, B.ICE, B.SNOW, B.SNOWY_GRASS, B.OBSIDIAN, B.BEDROCK,
-  B.COAL_ORE, B.IRON_ORE, B.GOLD_ORE, B.DIAMOND_ORE, B.COAL_BLOCK, B.IRON_BLOCK, B.GOLD_BLOCK, B.DIAMOND_BLOCK,
+  B.COAL_ORE, B.IRON_ORE, B.GOLD_ORE, B.DIAMOND_ORE, B.EMERALD_ORE, B.COAL_BLOCK, B.IRON_BLOCK, B.GOLD_BLOCK, B.DIAMOND_BLOCK, B.EMERALD_BLOCK,
+  B.NETHERRACK, B.SOUL_SAND, B.NETHER_QUARTZ_ORE, B.QUARTZ_BLOCK, B.NETHER_BRICKS,
   B.GLOWSTONE, B.TORCH, B.JACK_O_LANTERN, B.PUMPKIN, B.TNT, B.CRAFTING_TABLE, B.FURNACE, B.CHEST, B.BOOKSHELF, B.BED, I.DOOR,
   B.CACTUS, B.TALL_GRASS, B.DANDELION, B.POPPY, B.CORNFLOWER, B.DEAD_BUSH, B.OAK_SAPLING, B.BIRCH_SAPLING, B.SPRUCE_SAPLING,
   B.WATER, B.LAVA,
   ...TAGS.wool,
   toolId(0, 0), toolId(0, 1), toolId(0, 2), toolId(0, 3), toolId(1, 0), toolId(1, 1), toolId(1, 2), toolId(1, 3),
-  toolId(2, 0), toolId(2, 1), toolId(2, 2), toolId(2, 3), toolId(3, 0), toolId(3, 1), toolId(3, 2), toolId(3, 3),
-  I.STICK, I.COAL, I.IRON_INGOT, I.GOLD_INGOT, I.DIAMOND, I.GUNPOWDER, I.FEATHER, I.LEATHER,
-  I.APPLE, I.PORKCHOP, I.COOKED_PORKCHOP, I.BEEF, I.STEAK, I.CHICKEN, I.COOKED_CHICKEN, I.ROTTEN_FLESH,
+  toolId(2, 0), toolId(2, 1), toolId(2, 2), toolId(2, 3), toolId(3, 0), toolId(3, 1), toolId(3, 2), toolId(3, 3), I.FLINT_AND_STEEL,
+  I.STICK, I.COAL, I.IRON_INGOT, I.GOLD_INGOT, I.DIAMOND, I.EMERALD, I.FLINT, I.QUARTZ, I.NETHER_BRICK, I.GUNPOWDER, I.FEATHER, I.LEATHER,
+  I.APPLE, I.BREAD, I.PORKCHOP, I.COOKED_PORKCHOP, I.BEEF, I.STEAK, I.CHICKEN, I.COOKED_CHICKEN, I.ROTTEN_FLESH,
+  ...EGG_MOBS.map((m, i) => I.EGG + i),
 ];
 
 /* Block properties shared with the world generator worker. */
