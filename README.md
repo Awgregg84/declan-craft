@@ -35,7 +35,9 @@ Both devices need the internet.
 
 The shared world, and everything a guest collects there, is saved on the host's device. A guest who leaves and joins again gets their things back. When one player goes through a Nether portal, everyone travels together.
 
-How it works: the devices find each other through the free PeerJS service (0.peerjs.com), which only passes along the connection setup, then talk directly over WebRTC. When a direct connection isn't possible, the traffic goes through the PeerJS relay servers. The host's device runs the world; guests send their moves and block changes to it. The host has to allow each player. Names and game messages travel only inside the encrypted WebRTC connection, so the PeerJS service can't read them.
+If joining doesn't work, tap **Check Connection** on the Play Together screen on both devices. It tests each matchmaking service and the network, and failed joins show a short code (for example `S0` for no internet, `G1` for a wrong room code, `D1` when the two devices can't reach each other).
+
+How it works: the devices find each other through matchmaking services that only pass along the connection setup: the free PeerJS service (0.peerjs.com) and, because PeerJS is often slow or busy, two public MQTT message services (HiveMQ and EMQX) at the same time. Setup messages sent through the MQTT services are encrypted with a key made from the room code. The devices then talk directly over WebRTC; when a direct connection isn't possible, the traffic goes through the free Open Relay TURN server. The host's device runs the world; guests send their moves and block changes to it. The host has to allow each player. Names and game messages travel only inside the encrypted WebRTC connection, so none of these services can read them.
 
 ## Building
 
@@ -43,7 +45,7 @@ Requires Node.js.
 
 - `node build.mjs` writes `dist/site/` (the website, published on the `gh-pages` branch) and `dist/declan-craft.html` (a single file that opens in a desktop browser).
 - `node tools/make-assets.mjs` regenerates the icons and link-preview picture in `assets/`. It needs Playwright.
-- `test/` holds browser tests that use Playwright with Chromium, for example `node test/site.mjs`. The playing-together tests (`test/mp.mjs`, `test/mp-touch.mjs`, `test/mp-nether.mjs`) run a local copy of the PeerJS service; install it first with `npm install` in `tools/`.
+- `test/` holds browser tests that use Playwright with Chromium, for example `node test/site.mjs`. The playing-together tests (`test/mp.mjs`, `test/mp-touch.mjs`, `test/mp-nether.mjs`, `test/mp-backup.mjs`) run local copies of the PeerJS and MQTT services; install them first with `npm install` in `tools/`.
 
 ## Layout
 

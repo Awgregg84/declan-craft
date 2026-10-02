@@ -24,7 +24,7 @@ const overlap = (a, b) => a && b && a.left < b.right && b.left < a.right && a.to
   for (const su of setups) {
     const ctx = await browser.newContext(su.ctx);
     await ctx.addInitScript(port => {
-      window.DC_NET = { host: '127.0.0.1', port, secure: false, path: '/', key: 'peerjs', iceServers: [] };
+      window.DC_NET = { host: '127.0.0.1', port, secure: false, path: '/', key: 'peerjs', iceServers: [], mqtt: [] };
       localStorage.setItem('declancraft:v1:profile', JSON.stringify({ skin: 'declan', name: 'Declan', pid: 'touchhost01' }));
     }, PEER_PORT);
     const p = await ctx.newPage();

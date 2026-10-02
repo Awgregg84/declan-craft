@@ -274,6 +274,10 @@ kbd { font: inherit; font-size: 0.9em; background: #3a3a3a; border: 1px solid #1
 .dialog img { width: 56px; height: 56px; image-rendering: pixelated; border: 2px solid #111; }
 .dialog p { margin: 0; font-size: 19px; text-shadow: 2px 2px 0 #222; }
 .dialog .btn-row { width: 100%; }
+.net-check { width: min(400px, 100%); background: rgba(0, 0, 0, 0.45); border: 2px solid #111; padding: 8px 12px; font-size: 15px; line-height: 1.5; text-shadow: 2px 2px 0 #222; }
+.net-check .ok { color: #8f8; }
+.net-check .bad { color: #f99; }
+.net-check .verdict { margin: 6px 0 0; color: #fff; }
 .dialog .small-note { font-size: 15px; color: var(--ink-dim); }
 .trade-panel { width: min(380px, 100%); }
 .trades { display: flex; flex-direction: column; gap: 6px; }

@@ -23,7 +23,7 @@ const HOST = { skin: 'declan', name: 'Declan', pid: 'hostpid0001' }, GUEST = { s
   async function open(profile, label) {
     const ctx = await browser.newContext({ viewport: { width: 960, height: 640 } });
     await ctx.addInitScript(([port, prof]) => {
-      window.DC_NET = { host: '127.0.0.1', port, secure: false, path: '/', key: 'peerjs', iceServers: [] };
+      window.DC_NET = { host: '127.0.0.1', port, secure: false, path: '/', key: 'peerjs', iceServers: [], mqtt: [] };
       if (!localStorage.getItem('declancraft:v1:profile')) localStorage.setItem('declancraft:v1:profile', JSON.stringify(prof));
     }, [PEER_PORT, profile]);
     const p = await ctx.newPage();
@@ -96,7 +96,7 @@ const HOST = { skin: 'declan', name: 'Declan', pid: 'hostpid0001' }, GUEST = { s
   check('guest is welcomed', await chatHas(G, "You joined Declan's world!"));
 
   // ---- 4b. the host's link to the room service drops for a moment ----
-  await H.evaluate(() => { window.__codeLines = [...el('chat-log').children].filter(d => d.textContent.startsWith('Your room code')).length; MP.sig.ws.close(); });
+  await H.evaluate(() => { window.__codeLines = [...el('chat-log').children].filter(d => d.textContent.startsWith('Your room code')).length; for (const l of MP.sig.lines) if (l.ws) l.ws.close(); });   // every way to the room services drops
   check('room comes back with the same code after a network blip', await waitFor(H, code => !MP.roomOpen, 5000, code) && await waitFor(H, code => MP.roomOpen && MP.code === code, 20000, code), await H.evaluate(() => MP.code));
   check('...without repeating the code in chat', await H.evaluate(() => [...el('chat-log').children].filter(d => d.textContent.startsWith('Your room code')).length === window.__codeLines));
   check('the game connection is not affected', await G.evaluate(() => MP.welcomed && MP.hostLink && MP.hostLink.ready));
@@ -250,7 +250,7 @@ const HOST = { skin: 'declan', name: 'Declan', pid: 'hostpid0001' }, GUEST = { s
   check('her things and place come back', back.emerald === 1 && back.near, back);
 
   // ---- 12b. the room service re-attaches quietly when the same room reconnects with its token ----
-  const quiet = await H.evaluate(() => new Promise(res => { const s = new Signal(roomPeerId(MP.code), { onOpen: () => { res(true); s.close(); }, onClose: why => res(why) }, MP.token); setTimeout(() => res('timeout'), 8000); }));
+  const quiet = await H.evaluate(() => new Promise(res => { const s = new Signal(roomPeerId(MP.code), { onOpen: () => { res(true); s.close(); }, onClose: why => res(why) }, MP.token, null, true); setTimeout(() => res('timeout'), 8000); }));
   check('same room and token re-attach quietly', quiet === true, quiet);
 
   // ---- 13. Declan saves and quits: Cora is told, and her last things are kept ----

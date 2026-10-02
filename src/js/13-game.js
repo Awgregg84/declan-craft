@@ -914,6 +914,7 @@ function wireButtons() {
   click('btn-char', () => showCharScreen('scr-title'));
   click('btn-mp-char', () => showCharScreen('scr-mp'));
   click('btn-mp-back', () => showScreen('scr-title'));
+  click('btn-net-check', runNetCheck);
   const needName = then => { if (cleanName(PROFILE.name)) then(); else showCharScreen('scr-mp', 'Type your name first, so the other player knows who you are.', then); };
   click('btn-host', () => needName(() => { ui.hostMode = true; buildWorldCards(); showScreen('scr-worlds'); }));
   click('btn-join', () => needName(() => { el('join-status').textContent = ''; el('btn-join-go').disabled = false; showScreen('scr-join'); }));

@@ -22,7 +22,7 @@ const HOST = { skin: 'declan', name: 'Declan', pid: 'hostpid0001' }, GUEST = { s
   async function open(profile, label) {
     const ctx = await browser.newContext({ viewport: { width: 900, height: 600 } });
     await ctx.addInitScript(([port, prof]) => {
-      window.DC_NET = { host: '127.0.0.1', port, secure: false, path: '/', key: 'peerjs', iceServers: [] };
+      window.DC_NET = { host: '127.0.0.1', port, secure: false, path: '/', key: 'peerjs', iceServers: [], mqtt: [] };
       if (!localStorage.getItem('declancraft:v1:profile')) localStorage.setItem('declancraft:v1:profile', JSON.stringify(prof));
     }, [PEER_PORT, profile]);
     const p = await ctx.newPage();
@@ -54,8 +54,8 @@ const HOST = { skin: 'declan', name: 'Declan', pid: 'hostpid0001' }, GUEST = { s
     Object.assign(pl, { x: x + 1, y, z: z + 3.5, vx: 0, vy: 0, vz: 0, flying: false, yaw: Math.PI, pitch: 0 });
     return { x, y, z };
   });
-  await G.evaluate(F => Object.assign(game.player, { x: F.x + 3.5, y: F.y, z: F.z + 3.5, vx: 0, vy: 0, vz: 0, flying: false }), F);
-  check('guest sees the lit portal', await waitFor(G, F => game.world.getBlock(F.x, F.y + 1, F.z) === B.NETHER_PORTAL, 10000, F));
+  check('guest sees the lit portal', await waitFor(G, F => game.world.getBlock(F.x, F.y + 1, F.z) === B.NETHER_PORTAL && game.world.getBlock(F.x + 3, F.y - 1, F.z + 3) === B.STONE, 10000, F));
+  await G.evaluate(F => Object.assign(game.player, { x: F.x + 3.5, y: F.y, z: F.z + 3.5, vx: 0, vy: 0, vz: 0, flying: false }), F);   // only once the platform is there
   // a chest by the portal, open on her screen as everyone travels
   const C = { x: F.x - 3, y: F.y, z: F.z + 2 };
   await H.evaluate(C => { const w = game.world; w.setBlock(C.x, C.y, C.z, B.CHEST, 0); w.getTile(C.x, C.y, C.z, 'chest').slots[0] = { id: I.DIAMOND, count: 10 }; }, C);

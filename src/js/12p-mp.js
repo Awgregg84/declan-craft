@@ -6,6 +6,14 @@ const MP_PROTO = 1;
 const MP_MAX_GUESTS = 3;
 const r2 = v => Math.round(v * 100) / 100;
 const okXYZ = a => Array.isArray(a) && a.length === 3 && a.every(v => typeof v === 'number' && isFinite(v));
+/* what went wrong with each way of finding each other, short enough to read out: P = PeerJS, H = HiveMQ, E = EMQX */
+const netFails = fails => Array.from(new Set((fails || []).map(f => (f.way === 'peerjs' ? 'P' : f.way.replace(/^broker\./, '').charAt(0).toUpperCase()) + '-' + f.why + (f.detail && f.why === 'error' ? ' "' + String(f.detail).slice(0, 60) + '"' : '')))).join(', ');
+function serviceTrouble(why, fails) {
+  const code = ' (' + ({ offline: 'S0', error: 'S1', lost: 'S2', slow: 'S3' }[why] || 'S9') + (fails && fails.length ? ': ' + netFails(fails) : '') + ')';
+  if (why === 'offline') return "Couldn't reach the connection services. Check that this iPad is online." + code;
+  if (why === 'slow') return "The connection services aren't answering right now. Please try again in a minute." + code;
+  return 'The connection services had a problem. Please try again in a minute.' + code;
+}
 function lerpAngle(a, b, k) { const d = ((b - a + Math.PI) % TAU + TAU) % TAU - Math.PI; return a + d * k; }
 
 class RemotePlayer {
@@ -99,6 +107,7 @@ function cleanGuestSave(d) {
   };
 }
 const FX_KINDS = ['break', 'place', 'door', 'boom'];
+const LINK_FAIL = "Found the game, but the two iPads couldn't connect to each other. Put both on the same Wi-Fi, then try again.";
 const STALE_T = new Set(['st', 'set', 'open', 'tile', 'close', 'tnt', 'egg', 'portal']);
 
 const MP = {
@@ -122,28 +131,29 @@ const MP = {
     this.updateUI();
   },
   openRoom(newCode) {
-    if (newCode || !this.code) { this.code = randomRoomCode(); this.token = randomId(12); }
+    if (newCode || !this.code) { this.code = randomRoomCode(); this.token = randomId(12); this.hadRoom = false; }
     this.roomOpen = false;
     const sig = this.sig = new Signal(roomPeerId(this.code), {
       onOpen: () => {
         if (this.sig !== sig) return;
-        this.roomOpen = true; this.tries = 0;
+        this.roomOpen = true; this.tries = 0; this.roomTrouble = ''; this.hadRoom = true;
         this.updateUI();
         if (this.told === this.code) return;   // back after a network blip, same code
         this.told = this.code;
         chat('Your room code is ' + this.code + '. On the other iPad: Play Together, Join a Game, then type ' + this.code + '.', '#ffff55');
       },
       onSignal: m => { if (this.sig === sig) this.hostSignal(m); },
-      onClose: why => {
+      onClose: (why, fails) => {
         if (this.sig !== sig || this.role !== 'host') return;
         this.roomOpen = false;
+        if (why === 'taken' && this.tries++ < 5) { this.updateUI(); this.openRoom(true); return; }
+        this.roomTrouble = serviceTrouble(why, fails);
         this.updateUI();
-        if (why === 'taken' && this.tries++ < 5) { this.openRoom(true); return; }
-        if (why === 'offline' && this.tries++ === 0) toast("Couldn't open a room yet. The iPad needs to be online. Trying again...", 4);
+        if (this.tries++ === 0) toast("Couldn't open a room yet. Trying again...", 4);
         clearTimeout(this.reopenT);
         this.reopenT = setTimeout(() => { if (this.role === 'host' && !this.roomOpen) this.openRoom(false); }, 5000);
       },
-    }, this.token);
+    }, this.token, roomPeerId(this.code), this.hadRoom);
   },
   hostSignal(m) {
     const cid = m.payload && m.payload.connectionId;
@@ -404,35 +414,49 @@ const MP = {
     this.role = 'guest'; game.net = this; this.code = code; this.welcomed = false;
     status('Connecting...');
     el('btn-join-go').disabled = true;
+    const room = roomPeerId(code);
+    const notFound = 'No game found with the code ' + code + '. Check the code, and that the other iPad is hosting (Play Together, then Host a Game).';
+    let stage = 'service', notOnPeer = false;
+    const until = (ms, fn) => {
+      clearTimeout(this.joinTimer);
+      this.joinTimer = setTimeout(() => { if (this.role === 'guest' && !this.welcomed && this.sig === sig) fn(); }, ms);
+    };
+    // 1. reach a matchmaking service, 2. find the room, 3. connect the two iPads, 4. wait to be let in
     const sig = this.sig = new Signal(PEER_PREFIX + 'g' + randomId(10), {
       onOpen: () => {
         if (this.sig !== sig) return;
-        this.hostLink = new Link(sig, roomPeerId(code), 'dc_' + randomId(10), true, {
+        stage = 'find';
+        status('Looking for the game ' + code + '...');
+        until(20000, () => this.joinFailed(notFound + ' (G1' + (notOnPeer ? ', P-none' : '') + ')'));
+        this.hostLink = new Link(sig, room, 'dc_' + randomId(10), true, {
+          onRemote: () => {
+            if (stage !== 'find') return;
+            stage = 'link';
+            status('Found it! Connecting the two iPads...');
+            until(25000, () => this.joinFailed(LINK_FAIL + ' (D2)'));
+          },
           onOpen: l => {
+            stage = 'wait';
             status('Connected! Waiting for the host to let you in...');
             l.send({ t: 'hello', v: MP_PROTO, name: playerName(), skin: PROFILE.skin, pid: PROFILE.pid });
-            // the host may take a while to tap Let them in
-            clearTimeout(this.joinTimer);
-            this.joinTimer = setTimeout(() => { if (this.role === 'guest' && !this.welcomed) this.joinFailed('The host did not answer. Ask them to tap Let them in, then try again.'); }, 150000);
+            until(150000, () => this.joinFailed('The host did not answer. Ask them to tap Let them in, then try again.'));   // they may take a while to tap it
           },
           onMessage: (l, msg) => this.guestMsg(msg),
           onClose: (l, why) => this.guestClosed(why, l),
         });
       },
       onSignal: m => { if (this.sig === sig && this.hostLink) this.hostLink.onSignal(m); },
-      onGone: src => {
-        if (this.sig !== sig || this.welcomed || src !== roomPeerId(code) || (this.hostLink && this.hostLink.ready)) return;
-        this.joinFailed('No game found with the code ' + code + '. Check the code, and that the other iPad tapped Invite a Player.');
+      onGone: src => {   // PeerJS doesn't know the room; the backup services still might
+        if (this.sig !== sig || this.welcomed || src !== room || stage !== 'find') return;
+        notOnPeer = true;
+        if (!sig.backupAlive()) this.joinFailed(notFound + ' (G2)');
       },
-      onClose: why => {
-        if (this.sig !== sig || this.welcomed || (this.hostLink && this.hostLink.ready)) return;
-        this.joinFailed(why === 'offline' ? "Couldn't reach the connection service. Check that this iPad is online." : 'Connection problem. Please try again.');
+      onClose: (why, fails) => {
+        if (this.sig !== sig || this.welcomed || stage === 'link' || stage === 'wait') return;   // the iPads already have what they need from the services
+        this.joinFailed(stage === 'find' && notOnPeer ? notFound + ' (G2)' : serviceTrouble(why, fails));
       },
-    });
-    this.joinTimer = setTimeout(() => {
-      if (this.role !== 'guest' || this.welcomed || (this.hostLink && this.hostLink.opened)) return;
-      this.joinFailed("Couldn't connect to that game. Check the code, and that both iPads are online.");
-    }, 35000);
+    }, null, room);
+    until(20000, () => this.joinFailed(serviceTrouble('slow', sig.fails.concat(sig.lines.filter(l => l.state === 'connecting').map(l => ({ way: l.kind, why: 'slow' }))))));
   },
   cancelJoin() { if (this.role === 'guest' && !this.welcomed) { if (this.hostLink) this.hostLink.send({ t: 'bye' }); this.reset(); } },
   joinFailed(msg) {
@@ -446,7 +470,9 @@ const MP = {
   guestClosed(why, l) {
     if (this.role !== 'guest' || (l && l !== this.hostLink)) return;
     if (!this.welcomed) {
-      this.joinFailed(why === 'deny' ? 'The host said not now.' : l && !l.opened ? "Couldn't connect to that game. Check the code, and that both iPads are online." : 'The connection closed. Please try again.');
+      if (why === 'deny') this.joinFailed('The host said not now.');
+      else if (l && !l.opened) this.joinFailed(LINK_FAIL + ' (D' + (why === 'error' ? 3 : why === 'timeout' ? 2 : 1) + ')');
+      else this.joinFailed('The connection closed while joining. Please try again. (C1)');
       return;
     }
     const who = this.hostName || 'The host';
@@ -736,7 +762,7 @@ const MP = {
       badge.textContent = this.roomOpen ? 'Room ' + this.code + (n > 1 ? ' - ' + n + ' players' : '') : (n > 1 ? n + ' players' : 'Opening room...');
       el('btn-invite').hidden = true; box.hidden = false;
       el('room-code-big').textContent = this.roomOpen ? this.code : '...';
-      el('room-help').textContent = (this.roomOpen ? 'On the other iPad, tap Play Together, then Join a Game, and type ' + this.code + '.' : 'Opening a room. The iPad needs to be online.') +
+      el('room-help').textContent = (this.roomOpen ? 'On the other iPad, tap Play Together, then Join a Game, and type ' + this.code + '.' : 'Opening a room. The iPad needs to be online.' + (this.roomTrouble ? ' ' + this.roomTrouble : '')) +
         (this.remotes.size ? ' Playing now: ' + Array.from(this.remotes.values(), r => r.name).join(', ') + '.' : '');
       el('btn-quit').textContent = 'Save and Quit to Title';
     } else if (this.role === 'guest' && this.welcomed) {
@@ -838,6 +864,26 @@ function patchSavedGuest(map, id, d) {
     data.players[id] = d;
     store.set(key, JSON.stringify(data));
   } catch (e) { /* leave the save as it was */ }
+}
+/* Play Together screen: Check Connection */
+function runNetCheck() {
+  const box = el('net-check'), btn = el('btn-net-check');
+  if (btn.disabled) return;
+  btn.disabled = true; box.hidden = false; box.textContent = 'Checking the connection. This takes about 10 seconds...';
+  netCheck(r => {
+    btn.disabled = false; box.textContent = '';
+    const row = (ok, text) => box.appendChild(h('div', { class: ok ? 'ok' : 'bad' }, (ok ? '\u2713 ' : '\u2717 ') + text));
+    for (const w of r.ways) row(w.ok, 'Matchmaking (' + w.name + '): ' + w.text);
+    if (!r.webrtc) row(false, "This browser can't connect directly to another iPad");
+    else {
+      row(r.ice.srflx > 0, 'Internet path finder: ' + (r.ice.srflx > 0 ? 'OK' : 'no answer'));
+      row(r.ice.relay > 0, 'Relay (for strict networks): ' + (r.ice.relay > 0 ? 'OK' : 'not available'));
+    }
+    const any = r.ways.some(w => w.ok);
+    box.appendChild(h('p', { class: 'verdict' }, !r.webrtc ? "Playing together doesn't work in this browser." :
+      !any ? "This iPad can't reach any matchmaking service. Check the Wi-Fi, and any website limits (like Screen Time's content restrictions)." :
+      r.ice.srflx || r.ice.relay ? 'Playing together should work from this iPad.' : 'Matchmaking works. This network may block direct connections, so put both iPads on the same Wi-Fi.'));
+  });
 }
 function showMsg(title, text) {
   el('msg-title').textContent = title;

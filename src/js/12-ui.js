@@ -646,7 +646,8 @@ function buildHelp() {
     '<li>The host taps Let them in. The world, and everything the guest collects, is saved on the host\'s device.</li>' +
     '<li>Up to 4 players can share a world. Tap Chat (or press T) to send a message.</li>' +
     '<li>To skip the night, everyone gets in a bed.</li>' +
-    '<li>If the connection drops, join again with the same code. Your things come back.</li></ol></section>';
+    '<li>If the connection drops, join again with the same code. Your things come back.</li>' +
+    '<li>If joining doesn\'t work, tap Check Connection on the Play Together screen, on both devices. It says what is getting in the way.</li></ol></section>';
 }
 
 /* ---------- touch controls ---------- */

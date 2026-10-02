@@ -13,6 +13,8 @@
     "acorn": "^8.18.0"
   },
   "devDependencies": {
+    "aedes": "^1.2.0",
+    "aedes-server-factory": "^0.2.1",
     "peer": "^1.0.2"
   }
 }
