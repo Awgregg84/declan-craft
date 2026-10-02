@@ -1,7 +1,7 @@
 /* Declan-craft offline support: keeps a copy of the game on the device so it starts without internet.
    Online, the newest version is used; the saved copy covers no connection, a very slow one,
    or the website being unavailable. */
-const CACHE = 'declan-craft-f4099a24e94b';
+const CACHE = 'declan-craft-2d4e011a0c13';
 const CORE = ['./', 'manifest.webmanifest', 'apple-touch-icon.png', 'icon-192.png', 'icon-512.png'];
 
 self.addEventListener('install', e => {
