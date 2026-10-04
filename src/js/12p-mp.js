@@ -405,17 +405,21 @@ const MP = {
   },
 
   /* ---------- guest ---------- */
-  join(code) {
-    code = normalizeCode(code);
+  join(typed) {
+    typed = normalizeCode(typed);
+    const fix = fixRoomCode(typed), code = fix.code;
     const status = t => { el('join-status').textContent = t; };
     if (code.length < 3) { status('Type the room code shown on the other iPad.'); return; }
+    if (code !== typed) el('join-code').value = code;   // a mistyped code, put right
+    const was = code !== typed ? ' (you typed ' + typed + ')' : '';
     if (!window.RTCPeerConnection || !window.WebSocket) { status("This browser can't play together."); return; }
     this.reset();
     this.role = 'guest'; game.net = this; this.code = code; this.welcomed = false;
-    status('Connecting...');
+    status(was ? 'Looking for ' + code + was + '...' : 'Connecting...');
     el('btn-join-go').disabled = true;
     const room = roomPeerId(code);
-    const notFound = 'No game found with the code ' + code + '. Check the code, and that the other iPad is hosting (Play Together, then Host a Game).';
+    const notFound = 'No game found with the code ' + code + was + '. ' + (fix.near.length ? 'Did you mean ' + fix.near.join(' or ') + '? ' : '') +
+      'Check the code, and that the other iPad is hosting (Play Together, then Host a Game).';
     let stage = 'service', notOnPeer = false;
     const until = (ms, fn) => {
       clearTimeout(this.joinTimer);
@@ -426,7 +430,7 @@ const MP = {
       onOpen: () => {
         if (this.sig !== sig) return;
         stage = 'find';
-        status('Looking for the game ' + code + '...');
+        status('Looking for the game ' + code + was + '...');
         until(20000, () => this.joinFailed(notFound + ' (G1' + (notOnPeer ? ', P-none' : '') + ')'));
         this.hostLink = new Link(sig, room, 'dc_' + randomId(10), true, {
           onRemote: () => {

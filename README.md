@@ -30,7 +30,7 @@ Both devices need the internet.
 
 1. On the host's device: **Play Together**, **Host a Game**, then pick a world. (Or tap **Invite a Player** in the game menu of a world you are already playing.)
 2. The game shows a room code, like FROG7. It is also in the game menu.
-3. On the other device: **Play Together**, **Join a Game**, type the code, then **Join**.
+3. On the other device: **Play Together**, **Join a Game**, type the code, then **Join**. A small typing mistake (WORSE8 for HORSE8) is corrected automatically.
 4. The host taps **Let them in**.
 
 The shared world, and everything a guest collects there, is saved on the host's device. A guest who leaves and joins again gets their things back. When one player goes through a Nether portal, everyone travels together.

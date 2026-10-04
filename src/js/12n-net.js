@@ -20,6 +20,30 @@ const NET_CHUNK = 15000;
 function randomRoomCode() { return ROOM_WORDS[randInt(0, ROOM_WORDS.length - 1)] + randInt(2, 9); }
 function normalizeCode(s) { return String(s || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 12); }
 function roomPeerId(code) { return PEER_PREFIX + normalizeCode(code).toLowerCase(); }
+/* Room codes are a word from ROOM_WORDS and a number 2-9, so a mistyped code can usually be put
+   right: WORSE8 is HORSE8, HORSEB is HORSE8. Returns { code, near } (near: other likely codes). */
+const CODE_LETTER = { 0: 'O', 1: 'I', 2: 'Z', 3: 'E', 4: 'A', 5: 'S', 6: 'G', 7: 'T', 8: 'B', 9: 'G' };
+const CODE_DIGIT = { Z: '2', E: '3', A: '4', S: '5', G: '6', T: '7', B: '8', Q: '9' };
+function editDistance(a, b) {
+  let prev = Array.from({ length: b.length + 1 }, (_, j) => j);
+  for (let i = 1; i <= a.length; i++) {
+    const cur = [i];
+    for (let j = 1; j <= b.length; j++) cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+    prev = cur;
+  }
+  return prev[b.length];
+}
+function fixRoomCode(typed) {
+  const code = normalizeCode(typed), last = code.slice(-1), head = code.slice(0, -1).replace(/[0-9]/g, d => CODE_LETTER[d]);
+  if (code.length < 3) return { code, near: [] };
+  if (/[2-9]/.test(last) && ROOM_WORDS.includes(head)) return { code: head + last, near: [] };
+  if (CODE_DIGIT[last] && ROOM_WORDS.includes(head)) return { code: head + CODE_DIGIT[last], near: [] };   // a letter that looks like the number
+  if (!/[2-9]/.test(last)) return { code, near: [] };
+  const ranked = ROOM_WORDS.map(w => [editDistance(head, w), w]).sort((a, b) => a[0] - b[0]);
+  const max = head.length >= 5 ? 2 : 1, near = ranked.filter(r => r[0] <= max);
+  if (near.length && (near.length === 1 || near[1][0] > near[0][0])) return { code: near[0][1] + last, near: [] };
+  return { code, near: near.slice(0, 3).map(r => r[1] + last) };
+}
 function randomId(n) { let s = ''; while (s.length < n) s += Math.random().toString(36).slice(2); return s.slice(0, n); }
 const canSeal = () => !!(window.crypto && crypto.subtle && window.TextEncoder);
 

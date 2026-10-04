@@ -59,13 +59,19 @@ async function silentPeer() {
   const done = async (...pages) => { for (const p of pages) { errs.push(...p.errs); await p.context().close(); } };
 
   /* host a creative world and let a guest in; returns how long joining took */
-  async function playTogether(cfg, label) {
+  async function playTogether(cfg, label, mistype) {
     const H = await open(HOST, label + ' host', cfg), G = await open(GUEST, label + ' guest', cfg);
     await H.evaluate(() => { game.dragLook = true; ui.hostMode = true; game.startWorld('valley', 'creative', true); });
     const roomOk = await waitFor(H, () => game.state === 'playing' && MP.roomOpen, 120000);
     const code = await H.evaluate(() => MP.code);
     const t0 = Date.now();
-    await G.evaluate(code => { game.dragLook = true; MP.join(code); }, code);
+    // mistype: one wrong letter that the game can put right (like WORSE8 for HORSE8)
+    const typed = !mistype ? code : await G.evaluate(code => {
+      for (let i = 0; i < code.length - 1; i++) for (const ch of 'WQXJVK') { const t = code.slice(0, i) + ch + code.slice(i + 1); if (t !== code && fixRoomCode(t).code === code) return t; }
+      return code;
+    }, code);
+    await G.evaluate(t => { game.dragLook = true; showScreen('scr-join'); el('join-code').value = t; MP.join(t); }, typed);
+    const fixedShown = await G.evaluate(() => ({ box: el('join-code').value, status: el('join-status').textContent }));
     const asked = await waitFor(H, () => !el('join-prompt').hidden, 40000);
     const prompts = await H.evaluate(() => MP.pending.length);
     await H.evaluate(() => MP.answerPrompt(true));
@@ -79,14 +85,15 @@ async function silentPeer() {
       const b = await waitFor(H, B0 => game.world.getBlock(B0.x, B0.y + 1, B0.z) === B.DIAMOND_BLOCK, 15000, B0);
       blocks = a && b;
     }
-    return { H, G, roomOk, asked, prompts, joined, blocks, secs };
+    return { H, G, roomOk, asked, prompts, joined, blocks, secs, code, typed, fixedShown };
   }
 
   // 1. PeerJS is down: both backups carry the setup
   {
     const b1 = await broker(), b2 = await broker(), dead = await deadPort();
-    const r = await playTogether({ port: dead, mqtt: [b1.url, b2.url] }, 'down');
+    const r = await playTogether({ port: dead, mqtt: [b1.url, b2.url] }, 'down', true);
     check('PeerJS down: the room still opens', r.roomOk);
+    check('a mistyped room code is put right', r.typed !== r.code && r.fixedShown.box === r.code && r.fixedShown.status.includes('(you typed ' + r.typed + ')'), { code: r.code, typed: r.typed, shown: r.fixedShown });
     check('...the guest gets in through the backup services', r.asked && r.joined, { secs: r.secs, prompts: r.prompts });
     check('...and they play together (blocks both ways)', r.blocks);
     check('...each setup message was shown to the host only once', r.prompts === 1, r.prompts);
@@ -148,6 +155,14 @@ async function silentPeer() {
     const slow = await waitFor(G, () => { const t = el('join-status').textContent; return /aren't answering.*\(S3: /.test(t) && /P-slow/.test(t) && /1-slow/.test(t); }, 40000);
     check('services that never answer: "not answering" (S3), naming each', slow, await G.evaluate(() => el('join-status').textContent));
     await done(G); sp.close(); sb.close();
+  }
+
+  // room code corrections
+  {
+    const P = await open(GUEST, 'codes', { port: await deadPort(), mqtt: [] });
+    const t = await P.evaluate(() => ['WORSE8', 'HORSEB', 'M00N5', 'horse 8', 'COX4', 'TIGRE6'].map(c => { const f = fixRoomCode(c); return c + '>' + f.code + (f.near.length ? '?' + f.near.join('/') : ''); }).join(' '));
+    check('room code corrections', t === 'WORSE8>HORSE8 HORSEB>HORSE8 M00N5>MOON5 horse 8>HORSE8 COX4>COX4?COW4/FOX4 TIGRE6>TIGER6', t);
+    await done(P);
   }
 
   check('no script errors', errs.length === 0, errs.slice(0, 4));

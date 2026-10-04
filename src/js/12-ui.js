@@ -642,7 +642,7 @@ function buildHelp() {
     '<li>Both players need the game open and the internet on.</li>' +
     '<li>The host taps Play Together, then Host a Game, and picks a world. (Or taps Invite a Player in the game menu.)</li>' +
     '<li>The game shows a room code, like FROG7.</li>' +
-    '<li>The other player taps Play Together, then Join a Game, and types the code.</li>' +
+    '<li>The other player taps Play Together, then Join a Game, and types the code. A small typing mistake (like WORSE8 for HORSE8) is put right.</li>' +
     '<li>The host taps Let them in. The world, and everything the guest collects, is saved on the host\'s device.</li>' +
     '<li>Up to 4 players can share a world. Tap Chat (or press T) to send a message.</li>' +
     '<li>To skip the night, everyone gets in a bed.</li>' +
