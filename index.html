@@ -236,6 +236,7 @@ kbd { font: inherit; font-size: 0.9em; background: #3a3a3a; border: 1px solid #1
 .flame .fill { position: absolute; left: 0; right: 0; bottom: 0; background: linear-gradient(#ffd23a, #ff6a00); }
 .char-box { width: calc(var(--s) * 2.2); height: calc(var(--s) * 3); background: #0a0d14; padding: 2px; box-shadow: inset 2px 2px 0 var(--slot-lo), inset -2px -2px 0 var(--slot-hi); }
 .char-box canvas { width: 100%; height: 100%; display: block; }
+.disp { display: flex; justify-content: center; }
 .fur { display: grid; grid-template-columns: auto auto auto; grid-template-rows: auto auto auto; align-items: center; justify-items: center; gap: 4px 14px; }
 .side-btns { display: flex; gap: 6px; flex-wrap: wrap; }
 .side-btns .btn { font-size: 15px; padding: 0.3em 0.7em; min-height: 40px; }
@@ -700,6 +701,7 @@ const B = {
   DOOR: 57, EMERALD_ORE: 58, EMERALD_BLOCK: 59,
   WOOL: 64, // 64..79
   NETHERRACK: 80, SOUL_SAND: 81, NETHER_QUARTZ_ORE: 82, QUARTZ_BLOCK: 83, NETHER_BRICKS: 84, NETHER_PORTAL: 85,
+  MEGA_TNT: 86, ICE_TNT: 87, DIG_TNT: 88, PARTY_TNT: 89, CLUSTER_TNT: 90, DISPENSER: 91, LEVER: 92, BUTTON: 93, RAIL: 94,
   UNLOADED: 255,
 };
 const I = {
@@ -710,8 +712,10 @@ const I = {
   DOOR: 290, EMERALD: 291, BREAD: 292,
   EGG: 293, // 293..309 spawn eggs, in EGG_MOBS order
   FLINT: 310, FLINT_AND_STEEL: 311, QUARTZ: 312, NETHER_BRICK: 313,
+  BOW: 314, ARROW: 315, CROSSBOW: 316, CROSSBOW_LOADED: 317, ENDER_PEARL: 318, GHAST_TEAR: 319, FIRE_CHARGE: 320,
+  MINECART: 321, CAR: 322, STRING: 323,
 };
-const EGG_MOBS = ['pig', 'cow', 'sheep', 'chicken', 'zombie', 'creeper', 'villager', 'piglin', 'magma'];
+const EGG_MOBS = ['pig', 'cow', 'sheep', 'chicken', 'zombie', 'creeper', 'villager', 'piglin', 'magma', 'enderman', 'ghast'];
 const MOB_NAMES = { piglin: 'Zombified Piglin', magma: 'Magma Cube' };
 const mobName = m => MOB_NAMES[m] || m[0].toUpperCase() + m.slice(1);
 const TOOL_MATS = ['wood', 'stone', 'iron', 'diamond'];
@@ -724,7 +728,7 @@ const WOOL_COLORS = ['#e9ecec', '#f07613', '#bd44b3', '#3aafd9', '#f8c527', '#70
   '#8e8e86', '#158991', '#792aac', '#35399d', '#724728', '#546d1b', '#a12722', '#141519'];
 const toolId = (mat, kind) => I.TOOL + mat * 4 + kind;
 
-const R_NONE = 0, R_CUBE = 1, R_CROSS = 2, R_TORCH = 3, R_LIQUID = 4, R_CACTUS = 5, R_BED = 6, R_DOOR = 7, R_PORTAL = 8;
+const R_NONE = 0, R_CUBE = 1, R_CROSS = 2, R_TORCH = 3, R_LIQUID = 4, R_CACTUS = 5, R_BED = 6, R_DOOR = 7, R_PORTAL = 8, R_RAIL = 9, R_LEVER = 10, R_BUTTON = 11;
 const DOOR_BOXES = [[0, 0, 13 / 16, 1, 1, 1], [0, 0, 0, 3 / 16, 1, 1], [0, 0, 0, 1, 1, 3 / 16], [13 / 16, 0, 0, 1, 1, 1]];
 const doorBox = d => DOOR_BOXES[((d & 3) + ((d & 4) ? 1 : 0)) & 3];
 const BLOCKS = new Array(256).fill(null);
@@ -782,7 +786,7 @@ defBlock(B.STONE_BRICKS, 'Stone Bricks', { tex: 'stone_bricks', hardness: 1.5, t
 defBlock(B.MOSSY_COBBLE, 'Mossy Cobblestone', { tex: 'mossy_cobblestone', hardness: 2, tool: 'pickaxe', tier: 1 });
 defBlock(B.OBSIDIAN, 'Obsidian', { tex: 'obsidian', hardness: 25, tool: 'pickaxe', tier: 4, blast: 1e9 });
 defBlock(B.GLOWSTONE, 'Glowstone', { tex: 'glowstone', emit: 15, hardness: 0.3, sound: 'glass' });
-defBlock(B.TNT, 'TNT', { tex: { top: 'tnt_top', bottom: 'tnt_bottom', side: 'tnt_side' }, hardness: 0, sound: 'grass' });
+defBlock(B.TNT, 'TNT', { tex: { top: 'tnt_top', bottom: 'tnt_bottom', side: 'tnt_side' }, hardness: 0, sound: 'grass', tnt: 'normal' });
 defBlock(B.CRAFTING_TABLE, 'Crafting Table', { tex: { top: 'crafting_table_top', bottom: 'oak_planks', side: 'crafting_table_side', front: 'crafting_table_front' }, hardness: 2.5, tool: 'axe', sound: 'wood', facing: true, fuel: 7.5 });
 defBlock(B.FURNACE, 'Furnace', { tex: { top: 'furnace_top', bottom: 'furnace_top', side: 'furnace_side', front: 'furnace_front' }, hardness: 3.5, tool: 'pickaxe', tier: 1, facing: true });
 defBlock(B.FURNACE_LIT, 'Furnace', { tex: { top: 'furnace_top', bottom: 'furnace_top', side: 'furnace_side', front: 'furnace_front_lit' }, emit: 13, hardness: 3.5, tool: 'pickaxe', tier: 1, facing: true, drop: B.FURNACE, creative: false });
@@ -816,6 +820,35 @@ defBlock(B.NETHER_BRICKS, 'Nether Bricks', { tex: 'nether_bricks', hardness: 2, 
 // data: 0 = the portal's face runs along x (thin in z), 1 = along z (thin in x)
 defBlock(B.NETHER_PORTAL, 'Nether Portal', { tex: 'nether_portal', solid: false, opaque: false, render: R_PORTAL, pass: 2, emit: 11, hardness: -1, drop: null, creative: false, ao: false, cullSame: true, blast: 1e9 });
 TARGETABLE[B.NETHER_PORTAL] = 0;
+// TNT that does different things (see 09k-tnt.js); Digging TNT digs a tunnel the way you faced when you placed it
+defBlock(B.MEGA_TNT, 'Mega TNT', { tex: { top: 'mega_tnt_top', bottom: 'tnt_bottom', side: 'mega_tnt_side' }, hardness: 0, sound: 'grass', tnt: 'mega' });
+defBlock(B.ICE_TNT, 'Ice TNT', { tex: { top: 'ice_tnt_top', bottom: 'ice_tnt_top', side: 'ice_tnt_side' }, hardness: 0, sound: 'glass', tnt: 'ice' });
+defBlock(B.DIG_TNT, 'Digging TNT', { tex: { top: 'dig_tnt_top', bottom: 'tnt_bottom', side: 'dig_tnt_side', front: 'dig_tnt_front' }, hardness: 0, sound: 'grass', facing: true, tnt: 'dig' });
+defBlock(B.PARTY_TNT, 'Party TNT', { tex: { top: 'party_tnt_top', bottom: 'party_tnt_top', side: 'party_tnt_side' }, hardness: 0, sound: 'wool', tnt: 'party' });
+defBlock(B.CLUSTER_TNT, 'Cluster TNT', { tex: { top: 'cluster_tnt_top', bottom: 'tnt_bottom', side: 'cluster_tnt_side' }, hardness: 0, sound: 'grass', tnt: 'cluster' });
+// data: 0-3 faces like a furnace, 4 = up, 5 = down. Shoots what is inside when a lever or button next to it is switched on.
+defBlock(B.DISPENSER, 'Dispenser', { tex: { top: 'furnace_top', bottom: 'furnace_top', side: 'furnace_side', front: 'dispenser_front' }, hardness: 3.5, tool: 'pickaxe', tier: 1, facing: true });
+// levers and buttons: data & 7 = the side their support is on (an index into DX/DY/DZ), data & 8 = on / pressed
+const ATTACH_BOXES = { lever: [4, 0, 5, 12, 3, 11], button: [5, 0, 6, 11, 2, 10] };
+function attachedBox(kind, data) {
+  const b = ATTACH_BOXES[kind], f = data & 7, pressed = kind === 'button' && (data & 8);
+  return attachBox(f, b[0], b[1], b[2], b[3], pressed ? 1 : b[4], b[5]).map(v => v / 16);
+}
+/* a box given as if its support were below (y up from the support), turned to face the support side f */
+function attachBox(f, x0, y0, z0, x1, y1, z1) {
+  switch (f) {
+    case 2: return [x0, 16 - y1, z0, x1, 16 - y0, z1];   // support above
+    case 0: return [16 - y1, x0, z0, 16 - y0, x1, z1];   // support at +x
+    case 1: return [y0, x0, z0, y1, x1, z1];             // support at -x
+    case 4: return [x0, z0, 16 - y1, x1, z1, 16 - y0];   // support at +z
+    case 5: return [x0, z0, y0, x1, z1, y1];             // support at -z
+    default: return [x0, y0, z0, x1, y1, z1];            // support below
+  }
+}
+defBlock(B.LEVER, 'Lever', { tex: 'lever', solid: false, opaque: false, render: R_LEVER, hardness: 0.5, sound: 'wood', plant: 'attached', ao: false, boxFn: d => attachedBox('lever', d) });
+defBlock(B.BUTTON, 'Button', { tex: 'button', solid: false, opaque: false, render: R_BUTTON, hardness: 0.5, sound: 'stone', plant: 'attached', ao: false, boxFn: d => attachedBox('button', d) });
+// data: the rail's shape, 0-9 (see RAIL_EXITS in 09c-vehicles.js)
+defBlock(B.RAIL, 'Rail', { tex: 'rail', solid: false, opaque: false, render: R_RAIL, hardness: 0.7, tool: 'pickaxe', sound: 'metal', plant: 'rail', ao: false, box: [0, 0, 0, 1, 2 / 16, 1] });
 defBlock(B.UNLOADED, 'Unloaded', { tex: 'stone', render: R_NONE, pass: 0, hardness: -1, creative: false, drop: null });
 TARGETABLE[B.UNLOADED] = 0;
 
@@ -846,6 +879,17 @@ defItem(I.FLINT, 'Flint', { tex: 'flint' });
 defItem(I.FLINT_AND_STEEL, 'Flint and Steel', { tex: 'flint_and_steel', stack: 1, tool: { kind: 'lighter', tier: 0, speed: 1, dur: 64, dmg: 1 } });
 defItem(I.QUARTZ, 'Nether Quartz', { tex: 'quartz' });
 defItem(I.NETHER_BRICK, 'Nether Brick', { tex: 'nether_brick' });
+// ranged weapons don't wear out from hitting or digging, only from shooting
+defItem(I.BOW, 'Bow', { tex: 'bow', stack: 1, tool: { kind: 'bow', tier: 0, speed: 1, dur: 384, dmg: 1, ranged: true } });
+defItem(I.ARROW, 'Arrow', { tex: 'arrow' });
+defItem(I.CROSSBOW, 'Crossbow', { tex: 'crossbow', stack: 1, tool: { kind: 'crossbow', tier: 0, speed: 1, dur: 465, dmg: 1, ranged: true } });
+defItem(I.CROSSBOW_LOADED, 'Crossbow (loaded)', { tex: 'crossbow_loaded', stack: 1, tool: { kind: 'crossbow', tier: 0, speed: 1, dur: 465, dmg: 1, ranged: true } });
+defItem(I.ENDER_PEARL, 'Ender Pearl', { tex: 'ender_pearl', stack: 16 });
+defItem(I.GHAST_TEAR, 'Ghast Tear', { tex: 'ghast_tear' });
+defItem(I.FIRE_CHARGE, 'Fire Charge', { tex: 'fire_charge' });
+defItem(I.MINECART, 'Minecart', { tex: 'minecart', stack: 1 });
+defItem(I.CAR, 'Car', { tex: 'car', stack: 1 });
+defItem(I.STRING, 'String', { tex: 'string' });
 for (let m = 0; m < 4; m++) for (let k = 0; k < 4; k++) {
   const dmgs = [[2, 3, 4, 5], [3, 4, 5, 6], [1.5, 2.5, 3.5, 4.5], [4, 5, 6, 7]][k];
   defItem(toolId(m, k), TOOL_MAT_NAMES[m] + ' ' + TOOL_KIND_NAMES[k], {
@@ -867,6 +911,7 @@ const TAGS = {
   log: [B.OAK_LOG, B.BIRCH_LOG, B.SPRUCE_LOG],
   wool: Array.from({ length: 16 }, (_, i) => B.WOOL + i),
   stone: [B.COBBLE, B.MOSSY_COBBLE],
+  cold: [B.ICE, B.SNOW],
 };
 const RECIPES = [];
 function shaped(out, count, pattern, key) { RECIPES.push({ out, count, pattern, key }); }
@@ -902,6 +947,22 @@ shaped(B.GLOWSTONE, 1, ['TGT', 'GTG', 'TGT'], { T: B.TORCH, G: B.GLASS });
 shapeless(I.FLINT_AND_STEEL, 1, [I.IRON_INGOT, I.FLINT]);
 shaped(B.QUARTZ_BLOCK, 1, ['QQ', 'QQ'], { Q: I.QUARTZ });
 shaped(B.NETHER_BRICKS, 1, ['NN', 'NN'], { N: I.NETHER_BRICK });
+shapeless(I.STRING, 4, ['wool']);
+shaped(I.BOW, 1, [' ST', 'S T', ' ST'], { S: I.STICK, T: I.STRING });
+shaped(I.ARROW, 4, ['F', 'S', 'E'], { F: I.FLINT, S: I.STICK, E: I.FEATHER });
+shaped(I.CROSSBOW, 1, ['SIS', 'TFT', ' S '], { S: I.STICK, I: I.IRON_INGOT, T: I.STRING, F: I.FLINT });
+shapeless(I.FIRE_CHARGE, 3, [I.GUNPOWDER, I.COAL, I.FLINT]);
+shaped(B.DISPENSER, 1, ['CCC', 'CBC', 'CCC'], { C: 'stone', B: I.BOW });
+shaped(B.LEVER, 1, ['S', 'C'], { S: I.STICK, C: 'stone' });
+shapeless(B.BUTTON, 1, [B.STONE]);
+shaped(B.RAIL, 16, ['I I', 'ISI', 'I I'], { I: I.IRON_INGOT, S: I.STICK });
+shaped(I.MINECART, 1, ['I I', 'III'], { I: I.IRON_INGOT });
+shaped(I.CAR, 1, [' G ', 'III', 'C C'], { G: B.GLASS, I: I.IRON_INGOT, C: I.COAL });
+shaped(B.MEGA_TNT, 1, ['TT', 'TT'], { T: B.TNT });
+shapeless(B.ICE_TNT, 1, [B.TNT, 'cold']);
+shapeless(B.DIG_TNT, 1, [B.TNT, I.IRON_INGOT, I.FLINT]);
+shapeless(B.PARTY_TNT, 1, [B.TNT, I.FEATHER, 'wool']);
+shapeless(B.CLUSTER_TNT, 1, [B.TNT, I.GUNPOWDER, I.GUNPOWDER, I.GUNPOWDER]);
 
 function ingredientMatches(want, id) {
   if (want === undefined || want === null) return id === 0;
@@ -963,13 +1024,15 @@ const CREATIVE_LIST = [
   B.OAK_LEAVES, B.BIRCH_LEAVES, B.SPRUCE_LEAVES, B.GLASS, B.ICE, B.SNOW, B.SNOWY_GRASS, B.OBSIDIAN, B.BEDROCK,
   B.COAL_ORE, B.IRON_ORE, B.GOLD_ORE, B.DIAMOND_ORE, B.EMERALD_ORE, B.COAL_BLOCK, B.IRON_BLOCK, B.GOLD_BLOCK, B.DIAMOND_BLOCK, B.EMERALD_BLOCK,
   B.NETHERRACK, B.SOUL_SAND, B.NETHER_QUARTZ_ORE, B.QUARTZ_BLOCK, B.NETHER_BRICKS,
-  B.GLOWSTONE, B.TORCH, B.JACK_O_LANTERN, B.PUMPKIN, B.TNT, B.CRAFTING_TABLE, B.FURNACE, B.CHEST, B.BOOKSHELF, B.BED, I.DOOR,
+  B.GLOWSTONE, B.TORCH, B.JACK_O_LANTERN, B.PUMPKIN, B.TNT, B.MEGA_TNT, B.ICE_TNT, B.DIG_TNT, B.PARTY_TNT, B.CLUSTER_TNT,
+  B.CRAFTING_TABLE, B.FURNACE, B.CHEST, B.BOOKSHELF, B.BED, I.DOOR, B.DISPENSER, B.LEVER, B.BUTTON, B.RAIL, I.MINECART, I.CAR,
   B.CACTUS, B.TALL_GRASS, B.DANDELION, B.POPPY, B.CORNFLOWER, B.DEAD_BUSH, B.OAK_SAPLING, B.BIRCH_SAPLING, B.SPRUCE_SAPLING,
   B.WATER, B.LAVA,
   ...TAGS.wool,
   toolId(0, 0), toolId(0, 1), toolId(0, 2), toolId(0, 3), toolId(1, 0), toolId(1, 1), toolId(1, 2), toolId(1, 3),
   toolId(2, 0), toolId(2, 1), toolId(2, 2), toolId(2, 3), toolId(3, 0), toolId(3, 1), toolId(3, 2), toolId(3, 3), I.FLINT_AND_STEEL,
-  I.STICK, I.COAL, I.IRON_INGOT, I.GOLD_INGOT, I.DIAMOND, I.EMERALD, I.FLINT, I.QUARTZ, I.NETHER_BRICK, I.GUNPOWDER, I.FEATHER, I.LEATHER,
+  I.BOW, I.CROSSBOW, I.ARROW, I.FIRE_CHARGE, I.ENDER_PEARL,
+  I.STICK, I.COAL, I.IRON_INGOT, I.GOLD_INGOT, I.DIAMOND, I.EMERALD, I.FLINT, I.QUARTZ, I.NETHER_BRICK, I.GUNPOWDER, I.FEATHER, I.LEATHER, I.STRING, I.GHAST_TEAR,
   I.APPLE, I.BREAD, I.PORKCHOP, I.COOKED_PORKCHOP, I.BEEF, I.STEAK, I.CHICKEN, I.COOKED_CHICKEN, I.ROTTEN_FLESH,
   ...EGG_MOBS.map((m, i) => I.EGG + i),
 ];
@@ -2292,6 +2355,73 @@ function buildTiles() {
   })();
   addTile('smoke', p => p.fill((x, y) => { const d = Math.hypot(x - 7.5, y - 7.5); return d < 5.5 ? (d < 3 ? [230, 230, 230] : [190, 190, 190]) : null; }));
   addTile('spark', p => p.fill((x, y) => { const d = Math.hypot(x - 7.5, y - 7.5); return d < 3.5 ? (d < 2 ? [255, 255, 220] : [255, 190, 60]) : null; }));
+  // party sparks, snow, Enderman sparkles, flames
+  for (const [nm, hot, edge] of [['red', '#ffd0d0', '#ff3a3a'], ['green', '#d8ffd0', '#3adf4a'], ['blue', '#d0e4ff', '#3a7aff'], ['yellow', '#fffbd0', '#ffd23a'], ['pink', '#ffd8f6', '#ff5ad2']])
+    addTile('spark_' + nm, p => p.fill((x, y) => { const d = Math.hypot(x - 7.5, y - 7.5); return d < 4 ? (d < 2 ? C(hot) : C(edge)) : null; }));
+  addTile('snowflake', p => p.fill((x, y) => { const dx = Math.abs(x - 7.5), dy = Math.abs(y - 7.5); return (dx < 1 && dy < 6) || (dy < 1 && dx < 6) || (Math.abs(dx - dy) < 1 && dx < 4.5) ? [250, 252, 255] : null; }));
+  addTile('ender_dot', p => p.fill((x, y) => { const d = Math.hypot(x - 7.5, y - 7.5); return d < 3.5 ? (d < 1.6 ? C('#f6c8ff') : C('#c23ae8')) : null; }));
+  addTile('flame', p => p.fill((x, y) => { const d = Math.hypot((x - 7.5) * 1.3, y - 9); return d < 6 - (y < 9 ? (9 - y) * 0.45 : 0) ? (d < 2.5 ? C('#fff3a0') : d < 4 ? C('#ffb030') : C('#e8521a')) : null; }));
+  addTile('fireball', p => p.fill((x, y) => { const v = p.r(); return v < 0.25 ? C('#4a1a08') : v < 0.55 ? C('#e8521a') : v < 0.85 ? C('#ffa030') : C('#fff080'); }));
+  // ---- TNT kinds ----
+  const GLYPH = {
+    T: ['###', '.#.', '.#.', '.#.', '.#.'], N: ['#.#', '###', '###', '#.#', '#.#'], M: ['#.#', '###', '#.#', '#.#', '#.#'], E: ['###', '#..', '##.', '#..', '###'],
+    G: ['###', '#..', '#.#', '#.#', '###'], A: ['.#.', '#.#', '###', '#.#', '#.#'], I: ['###', '.#.', '.#.', '.#.', '###'], C: ['###', '#..', '#..', '#..', '###'],
+    D: ['##.', '#.#', '#.#', '#.#', '##.'],
+  };
+  const word = (p, txt, y0, col) => { const w = txt.length * 4 - 1; let x = Math.floor((16 - w) / 2); for (const ch of txt) { glyphs(p, x, y0, GLYPH[ch], typeof col === 'function' ? col(ch, x) : col); x += 4; } };
+  const tntBody = (p, base, dark, band) => p.fill((x, y) => (y >= 4 && y <= 11) ? p.jit(C(band), 4) : p.jit(x % 4 === 0 ? C(dark) : C(base), 6));
+  const tntTop = (p, a, b) => p.fill((x, y) => { const d = Math.hypot(x - 7.5, y - 7.5); if (d < 2) return C('#5f5f5f'); if (d < 3) return C('#333333'); return p.jit((((x >> 2) + (y >> 2)) % 2) ? C(a) : C(b), 6); });
+  addTile('mega_tnt_side', p => { tntBody(p, '#8a1a14', '#5a0e0a', '#1b1b1b'); word(p, 'MEGA', 5, C('#ffcf3a')); });
+  addTile('mega_tnt_top', p => { tntTop(p, '#8a1a14', '#6a1410'); for (let i = 0; i < 16; i++) { p.px(i, 0, C('#ffcf3a')); p.px(i, 15, C('#ffcf3a')); p.px(0, i, C('#ffcf3a')); p.px(15, i, C('#ffcf3a')); } });
+  addTile('ice_tnt_side', p => { tntBody(p, '#7ec8f0', '#4a9ad0', '#f2fbff'); word(p, 'ICE', 5, C('#1f5a9a')); });
+  addTile('ice_tnt_top', p => { tntTop(p, '#9ad8f8', '#7ec8f0'); glyphs(p, 4, 4, ['#..#..#', '.#.#.#.', '..###..', '#######', '..###..', '.#.#.#.', '#..#..#'], C('#ffffff')); });
+  addTile('dig_tnt_side', p => { tntBody(p, '#b0702a', '#7a4a18', '#e8e6e0'); word(p, 'DIG', 5, C('#3a2a1a')); });
+  addTile('dig_tnt_front', p => { tntBody(p, '#b0702a', '#7a4a18', '#e8e6e0'); glyphs(p, 4, 3, ['...#...', '..###..', '.#####.', '#######', '..###..', '..###..', '..###..', '..###..', '..###..'], C('#3a2a1a')); });
+  addTile('dig_tnt_top', p => { tntTop(p, '#b0702a', '#966022'); });
+  const RAINBOW = ['#e8483a', '#f09a2a', '#f2d43a', '#4ac84a', '#3a8ae8', '#9a4ae8'];
+  addTile('party_tnt_side', p => {
+    p.fill((x, y) => (y >= 4 && y <= 11) ? p.jit(C('#fafafa'), 3) : p.jit(C(RAINBOW[(x >> 1) % 6]), 5));
+    word(p, 'TNT', 5, (ch, x) => C(RAINBOW[(x >> 2) % 6]));
+    for (const [x, y] of [[1, 5], [14, 10], [2, 10], [13, 5]]) p.px(x, y, C(RAINBOW[(x + y) % 6]));
+  });
+  addTile('party_tnt_top', p => p.fill((x, y) => p.r() < 0.18 ? C(RAINBOW[p.ri(6)]) : p.jit(C('#fafafa'), 3)));
+  addTile('cluster_tnt_side', p => {
+    tntBody(p, '#cc352b', '#a02820', '#e8e6e0');
+    for (const x0 of [1, 6, 11]) { p.rect(x0, 5, 4, 6, (x, y) => (y === 2 || y === 3) ? C('#e8e6e0') : C('#cc352b')); p.px(x0 + 1, 7, C('#1b1b1b')); p.px(x0 + 2, 8, C('#1b1b1b')); }
+  });
+  addTile('cluster_tnt_top', p => { tntTop(p, '#c8342a', '#b02c22'); for (const [x, y] of [[3, 3], [12, 3], [3, 12], [12, 12]]) { p.px(x, y, C('#333333')); p.px(x + 1, y, C('#5f5f5f')); } });
+  // ---- dispenser, lever, button, rails ----
+  addTile('dispenser_front', p => {
+    furnaceBase(p);
+    p.fill((x, y) => { const d = Math.hypot(x - 7.5, y - 7.5); return d < 2.4 ? C('#101010') : d < 3.6 ? C('#3a3a3a') : d < 4.4 ? C('#5a5a5a') : null; });
+    p.rect(3, 2, 10, 1, C('#4a4a4a')); p.rect(3, 13, 10, 1, C('#4a4a4a'));
+  });
+  addTile('lever_stick', p => p.fill((x, y) => p.jit(x % 3 === 0 ? C('#6b4f2a') : C('#8a6a3c'), 6)));
+  addTile('lever', p => {
+    p.rect(3, 11, 10, 4, (x, y) => p.jit(y === 0 ? C('#9a9a9a') : C('#7a7a7a'), 10));
+    for (let i = 0; i < 8; i++) { p.px(5 + i * 0.6, 11 - i, C('#8a6a3c')); p.px(6 + i * 0.6, 11 - i, C('#6b4f2a')); }
+    p.px(10, 3, C('#5a4020')); p.px(10, 4, C('#5a4020'));
+  });
+  addTile('button', p => { p.rect(4, 6, 8, 5, (x, y) => (y === 0 || x === 0) ? C('#a8a8a8') : (y === 4 || x === 7) ? C('#5a5a5a') : p.jit(C('#8a8a8a'), 8)); });
+  const railTies = (p, pts) => { for (const [x, y] of pts) p.px(x, y, p.jit((x + y) % 5 === 0 ? C('#6b4f2a') : C('#8a6a3c'), 6)); };
+  addTile('rail', p => {
+    const ties = [];
+    for (const y0 of [1, 5, 9, 13]) for (let y = y0; y < y0 + 2; y++) for (let x = 1; x < 15; x++) ties.push([x, y]);
+    railTies(p, ties);
+    for (let y = 0; y < 16; y++) for (const x of [3, 4, 11, 12]) p.px(x, y, (x === 3 || x === 11) ? C('#c8c8c8') : C('#8a8a8a'));
+  });
+  addTile('rail_corner', p => {   // joins the bottom edge (south) and the right edge (east)
+    const ties = [];
+    for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) {
+      const d = Math.hypot(16 - (x + 0.5), 16 - (y + 0.5)), a = Math.atan2(16 - (y + 0.5), 16 - (x + 0.5));
+      if (d > 2 && d < 14.5 && Math.floor(a / (Math.PI / 2) * 5 + 0.25) !== Math.floor(a / (Math.PI / 2) * 5 + 0.6)) ties.push([x, y]);
+    }
+    railTies(p, ties);
+    for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) {
+      const d = Math.hypot(16 - (x + 0.5), 16 - (y + 0.5));
+      if (Math.abs(d - 4.5) < 0.75 || Math.abs(d - 12) < 0.75) p.px(x, y, (d < 4.5 || (d > 8 && d < 12)) ? C('#8a8a8a') : C('#c8c8c8'));
+    }
+  });
   buildItemTiles();
 }
 
@@ -2366,7 +2496,8 @@ function buildItemTiles() {
   });
   addTile('nether_brick', p => ingot(p, [C('#5a2226'), C('#843e40'), C('#381216'), C('#180608')]));
   const EGG_PAL = { pig: ['#f0a5a2', '#db635f'], cow: ['#443626', '#a1a1a1'], sheep: ['#e7e7e7', '#ffb5b5'], chicken: ['#a1a1a1', '#ff3030'],
-    zombie: ['#00afaf', '#799c65'], creeper: ['#0da70b', '#1a1a1a'], villager: ['#563c33', '#bd8b72'], piglin: ['#ea9393', '#4c7129'], magma: ['#340000', '#fcfc00'] };
+    zombie: ['#00afaf', '#799c65'], creeper: ['#0da70b', '#1a1a1a'], villager: ['#563c33', '#bd8b72'], piglin: ['#ea9393', '#4c7129'], magma: ['#340000', '#fcfc00'],
+    enderman: ['#161616', '#000000'], ghast: ['#f9f9f9', '#bcbcbc'] };
   for (const m of EGG_MOBS) {
     addTile('egg_' + m, p => {
       const base = C(EGG_PAL[m][0]), spot = C(EGG_PAL[m][1]);
@@ -2375,6 +2506,67 @@ function buildItemTiles() {
       for (const [x, y] of [[6, 6], [9, 8], [7, 11], [10, 12], [5, 9], [9, 4]]) if (eg[y * 16 + x]) { p.px(x, y, spot); if (eg[y * 16 + x + 1]) p.px(x + 1, y, spot); }
     });
   }
+  // ---- bows, arrows, crossbows ----
+  const STRING_C = C('#e8e8e8');
+  // positions along a diagonal: u runs up and right, v down and right, from the middle of the tile
+  const diag = (u, v) => [8 + (u + v) * 0.7071, 8 + (v - u) * 0.7071];
+  const bezier = (a, c, b, n) => { const out = []; for (let i = 0; i <= n; i++) { const t = i / n, s = 1 - t; out.push([s * s * a[0] + 2 * t * s * c[0] + t * t * b[0], s * s * a[1] + 2 * t * s * c[1] + t * t * b[1]]); } return out; };
+  const bowArc = (p, pull) => {   // pull 0 (resting) .. 3 (fully drawn): the wood bulges up and right, the string lies on the diagonal
+    const k = pull * 0.6, A = diag(-1 + k * 0.4, -7 + k * 0.5), Bt = diag(-1 + k * 0.4, 7 - k * 0.5), Cp = diag(9 + k * 0.3, 0);
+    const pts = bezier(A, Cp, Bt, 10);
+    shadeMask(p, mask((x, y) => capsule(pts, 1.8)(x, y) || capsule(pts.slice(4, 7), 2.6)(x, y)), PAL.wood, true);
+    const [sx, sy] = diag(-1 - k * 2.2, 0);
+    for (let t = 0; t <= 1; t += 0.04) { p.px(lerp(A[0], sx, t), lerp(A[1], sy, t), STRING_C); p.px(lerp(sx, Bt[0], t), lerp(sy, Bt[1], t), STRING_C); }
+    return [sx, sy];
+  };
+  const arrowShaft = (p, x0, y0, x1, y1) => {
+    for (let t = 0; t <= 1; t += 0.04) p.px(lerp(x0, x1, t), lerp(y0, y1, t), C('#8a6a3c'));
+    const dx = x1 - x0, dy = y1 - y0, l = Math.hypot(dx, dy), ux = dx / l, uy = dy / l;
+    for (const [a, b] of [[0, 0], [-1, 0], [0, 1], [-1, 1], [1, -1]]) p.px(x1 + a + ux, y1 + b + uy, C('#b0b0b0'));
+    p.px(x1 + ux * 1.6, y1 + uy * 1.6, C('#6a6a6a'));
+    for (const [a, b] of [[-1, 0], [0, 1], [-2, 1], [-1, 2], [0, 0]]) p.px(x0 + a, y0 + b, C('#f0f0f0'));
+  };
+  addTile('bow', p => bowArc(p, 0));
+  for (let i = 0; i < 3; i++) addTile('bow_pull_' + i, p => { const [sx, sy] = bowArc(p, i + 1), [tx, ty] = diag(5.6, 0); arrowShaft(p, sx, sy, tx, ty); });
+  addTile('arrow', p => arrowShaft(p, 3.5, 12.5, 11.5, 4.5));
+  const crossbowBase = (p, loaded) => {   // the stock runs up and right; the bow crosses it near the front, bent forward
+    shadeMask(p, mask(capsule([diag(-7, 0), diag(6, 0)], 2.6)), PAL.wood, true);
+    for (const [x, y] of [diag(-4, 1.6), diag(-4.6, 2.2)]) p.px(x, y, C('#3a2a16'));   // trigger
+    const tipA = diag(0, -6), tipB = diag(0, 6);
+    shadeMask(p, mask(capsule(bezier(tipA, diag(5, 0), tipB, 10), 1.6)), [C('#4a4a4a'), C('#7a7a7a'), C('#2a2a2a'), C('#0a0a0a')], true);
+    const [sx, sy] = loaded ? diag(-2.6, 0) : diag(0, 0);
+    for (let t = 0; t <= 1; t += 0.04) { p.px(lerp(tipA[0], sx, t), lerp(tipA[1], sy, t), STRING_C); p.px(lerp(sx, tipB[0], t), lerp(sy, tipB[1], t), STRING_C); }
+    if (loaded) { const [tx, ty] = diag(5.4, 0); arrowShaft(p, sx, sy, tx, ty); }
+  };
+  addTile('crossbow', p => crossbowBase(p, false));
+  addTile('crossbow_loaded', p => crossbowBase(p, true));
+  addTile('string', p => {
+    for (let t = 0; t <= 1; t += 0.02) { const x = 2.5 + t * 11, y = 8 + Math.sin(t * TAU * 1.5) * 3.5; p.px(x, y, STRING_C); p.px(x, y + 1, C('#a8a8a8')); }
+  });
+  addTile('ender_pearl', p => {
+    shadeMask(p, mask(circle(8, 8, 5.2)), [C('#0d5a4a'), C('#2a9a80'), C('#063a30'), C('#021a14')], true);
+    p.px(6, 6, C('#5ad0b0')); p.px(7, 6, C('#5ad0b0')); p.px(6, 7, C('#3ab89a')); p.px(9, 9, C('#0a3a30')); p.px(10, 10, C('#0a3a30'));
+  });
+  addTile('ghast_tear', p => {
+    shadeMask(p, mask((x, y) => circle(8, 10, 3.6)(x, y) || poly([[8, 2.4], [11.2, 8.6], [4.8, 8.6]])(x, y)), [C('#d0f0f0'), C('#ffffff'), C('#9ac8c8'), C('#4a7070')], true);
+    p.px(7, 9, C('#ffffff'));
+  });
+  addTile('fire_charge', p => {
+    shadeMask(p, mask(circle(8, 8, 5.4)), [C('#3a2a1a'), C('#5a4228'), C('#1a120a'), C('#0a0604')], true);
+    for (const [x, y, c] of [[6, 6, '#ffa030'], [9, 7, '#e8521a'], [7, 9, '#ffcf3a'], [10, 10, '#e8521a'], [5, 9, '#ffa030'], [8, 5, '#ffcf3a'], [9, 11, '#ffa030']]) p.px(x, y, C(c));
+  });
+  addTile('minecart', p => {
+    shadeMask(p, mask(poly([[1.5, 5.5], [14.5, 5.5], [13, 12], [3, 12]])), [C('#7a7a7a'), C('#a8a8a8'), C('#4a4a4a'), C('#1a1a1a')], true);
+    p.rect(3, 6, 10, 2, C('#2a2a2a'));
+    for (const cx of [4.5, 11.5]) shadeMask(p, mask(circle(cx, 12.5, 1.9)), [C('#3a3a3a'), C('#5a5a5a'), C('#1a1a1a'), C('#0a0a0a')], true);
+  });
+  addTile('car', p => {
+    shadeMask(p, mask(poly([[0.8, 7.5], [4, 7.5], [5.5, 3.5], [11, 3.5], [13, 7.5], [15.2, 8], [15.2, 11.5], [0.8, 11.5]])), [C('#d42a2a'), C('#ff6a5a'), C('#9a1a1a'), C('#3a0606')], true);
+    p.rect(6, 4, 2, 3, C('#9ad8f8')); p.rect(9, 4, 2, 3, C('#9ad8f8'));
+    p.px(14, 8, C('#fff3a0')); p.px(1, 8, C('#ff3030'));
+    for (const cx of [4, 12]) shadeMask(p, mask(circle(cx, 12, 2.2)), [C('#2a2a2a'), C('#4a4a4a'), C('#141414'), C('#050505')], true);
+    p.px(4, 12, C('#b0b0b0')); p.px(12, 12, C('#b0b0b0'));
+  });
   for (let m = 0; m < 4; m++) {
     const mat = TOOL_MATS[m], pal = PAL[mat];
     addTile(mat + '_pickaxe', p => {
@@ -2690,6 +2882,74 @@ function buildSkins() {
     cleric: { robe: C('#6a2a8a'), robeDk: C('#4a1a64'), trim: C('#e0b830'), hat: 'hood' },
   };
   for (const prof in VILLAGER_LOOKS) addSkin('villager_' + prof, S => paintVillager(S, VILLAGER_LOOKS[prof]));
+  // --- Endermen: tall and black, purple eyes; the jaw drops when one is angry ---
+  const ENDER = C('#161616'), ENDER_LT = C('#242424'), EYE = C('#e079fa'), EYE_IN = C('#cc00fa');
+  const enderSkin = S => {
+    const blk = () => S.r() < 0.12 ? ENDER_LT : S.jit(ENDER, 4);
+    paintBox(S, 0, 0, 8, 6, 8, (f, x, y) => {   // upper head
+      if (f === 'front' && y === 3 && (x <= 2 || x >= 5)) return (x === 1 || x === 6) ? EYE_IN : EYE;
+      if (f === 'bottom') return C('#3a0a3a');
+      return blk();
+    });
+    paintBox(S, 32, 0, 8, 2, 8, (f) => f === 'top' ? C('#3a0a3a') : blk());   // jaw
+    paintBox(S, 16, 16, 8, 12, 4, () => blk());
+    paintBox(S, 48, 16, 2, 30, 2, () => blk());
+    paintBox(S, 56, 16, 2, 30, 2, () => blk());
+  };
+  addSkin('enderman', enderSkin);
+  // --- Ghasts: big, white, crying; eyes and mouth open when one shoots ---
+  const ghastSkin = (S, fire) => {
+    const wh = C('#f2f2f2'), gr = C('#d6d6d6');
+    paintBox(S, 0, 0, 16, 16, 16, (f, x, y) => {
+      if (f === 'front') {
+        const eye = (x >= 3 && x <= 5) || (x >= 10 && x <= 12);
+        if (fire) {
+          if (eye && y >= 5 && y <= 7) return (x === 4 || x === 11) && y === 6 ? C('#1a0000') : C('#b01818');
+          if (y >= 10 && y <= 13 && x >= 5 && x <= 10) return y === 10 || x === 5 || x === 10 ? C('#5a0a0a') : C('#2a0505');
+        } else {
+          if (eye && y === 6) return C('#4a4a4a');
+          if ((x === 4 || x === 11) && y >= 7 && y <= 10) return C('#a8b8c0');   // tears
+          if (y === 12 && x >= 6 && x <= 9) return C('#4a4a4a');
+        }
+      }
+      return S.r() < 0.1 ? gr : S.jit(wh, 4);
+    });
+    paintBox(S, 0, 32, 2, 14, 2, (f, x, y) => S.jit(y > 10 ? gr : wh, 5));
+  };
+  addSkin('ghast', S => ghastSkin(S, false));
+  addSkin('ghast_fire', S => ghastSkin(S, true));
+  // --- minecart: riveted iron, darker inside ---
+  addSkin('minecart', S => {
+    const plate = (f, x, y, fw, fh) => {
+      if (x === 0 || y === 0) return C('#9a9a9a');
+      if (x === fw - 1 || y === fh - 1) return C('#4a4a4a');
+      if ((x === 1 || x === fw - 2) && (y === 1 || y === fh - 2)) return C('#bcbcbc');   // rivets
+      return S.jit(f === 'top' ? C('#5a5a5a') : C('#727272'), 5);
+    };
+    paintBox(S, 0, 0, 14, 2, 18, plate);       // floor
+    paintBox(S, 0, 20, 2, 7, 14, plate);       // long sides
+    paintBox(S, 32, 20, 14, 7, 2, plate);      // ends
+    paintBox(S, 32, 30, 1, 3, 3, (f, x, y) => (f === 'left' || f === 'right') && x === 1 && y === 1 ? C('#9a9a9a') : C('#2a2a2a'));   // wheels
+  });
+  // --- the car: a red convertible with a windscreen, headlights and black wheels (1 pixel = 1/8 block) ---
+  addSkin('car', S => {
+    const red = C('#d42a2a'), redLt = C('#ff5a4a'), redDk = C('#9a1a1a');
+    const paint = (f, x, y, fw, fh) => f === 'top' ? S.jit(redLt, 4) : f === 'bottom' ? C('#2a2a2a') : y === fh - 1 ? redDk : S.jit(red, 4);
+    paintBox(S, 0, 0, 11, 2, 18, (f, x, y, fw, fh) => f === 'top' ? S.jit(C('#3a3a3a'), 4) : paint(f, x, y, fw, fh));   // floor pan
+    paintBox(S, 0, 20, 1, 3, 18, paint);   // sides
+    paintBox(S, 0, 41, 9, 3, 6, (f, x, y, fw, fh) => {   // hood, with headlights and a grille in front
+      if (f === 'front' && y === 1 && (x <= 1 || x >= fw - 2)) return C('#fff3a0');
+      if (f === 'front' && y >= 1 && x >= 3 && x <= fw - 4) return (x % 2) ? C('#3a3a3a') : C('#8a8a8a');
+      return paint(f, x, y, fw, fh);
+    });
+    paintBox(S, 30, 41, 9, 3, 5, paint);   // trunk
+    paintBox(S, 0, 50, 8, 1, 4, () => S.jit(C('#5a3a20'), 6));   // seat cushion
+    paintBox(S, 24, 50, 8, 4, 1, () => S.jit(C('#4a3018'), 6));   // seat back
+    paintBox(S, 42, 50, 9, 3, 1, (f, x, y, fw) => (f === 'front' || f === 'back') && x > 0 && x < fw - 1 && y > 0 ? null : C('#c8c8c8'));   // windscreen frame
+    paintBox(S, 0, 56, 1, 3, 3, (f, x, y) => (f === 'left' || f === 'right') ? (x === 1 && y === 1 ? C('#d0d0d0') : C('#1e1e1e')) : C('#2a2a2a'));   // wheels with hubcaps
+    paintBox(S, 8, 56, 2, 2, 1, () => C('#1a1a1a'));   // steering wheel
+    paintBox(S, 14, 56, 9, 1, 1, (f, x) => f === 'back' && (x <= 1 || x >= 7) ? C('#ff3030') : C('#2a2a2a'));   // back bumper, tail lights
+  });
   addSkin('item_glint', S => { /* reserved */ });
 }
 /* a player's face as a small picture, for menus */
@@ -2728,7 +2988,7 @@ function blockFaceTiles(id) {
 }
 function buildIcons() {
   const S = 64, s = S / 32;
-  const all = CREATIVE_LIST.concat([B.FURNACE_LIT]);
+  const all = CREATIVE_LIST.concat([B.FURNACE_LIT, I.CROSSBOW_LOADED]);
   for (const id of all) {
     const cv = document.createElement('canvas'); cv.width = cv.height = S;
     const ctx = cv.getContext('2d'); ctx.imageSmoothingEnabled = false;
@@ -2785,8 +3045,8 @@ let gl = null, glCanvas = null;
 const PROG = {};
 let texTiles = null, texSkins = null, texClouds = null, quadEBO = null;
 const MAX_QUADS = 40000;
-const CUTOUT_TILE = new Uint8Array(256);   // coverage-preserving mips
-const TRANS_TILE = new Uint8Array(256);
+const CUTOUT_TILE = new Uint8Array(1024);   // coverage-preserving mips
+const TRANS_TILE = new Uint8Array(1024);
 
 const TERRAIN_VS = `#version 300 es
 precision highp float;
@@ -3003,7 +3263,7 @@ function initGL() {
 
 function buildTileTexture() {
   const n = TILE_DATA.length;
-  for (const nm of ['door_top', 'oak_leaves', 'birch_leaves', 'spruce_leaves', 'glass', 'torch', 'tall_grass', 'dandelion', 'poppy', 'cornflower', 'dead_bush', 'oak_sapling', 'birch_sapling', 'spruce_sapling', 'cactus_side', 'cactus_top', 'cactus_bottom', 'bed_side', 'bed_end'])
+  for (const nm of ['door_top', 'oak_leaves', 'birch_leaves', 'spruce_leaves', 'glass', 'torch', 'tall_grass', 'dandelion', 'poppy', 'cornflower', 'dead_bush', 'oak_sapling', 'birch_sapling', 'spruce_sapling', 'cactus_side', 'cactus_top', 'cactus_bottom', 'bed_side', 'bed_end', 'rail', 'rail_corner', 'lever', 'button'])
     CUTOUT_TILE[TILE[nm]] = 1;
   for (const nm of ['water', 'ice', 'nether_portal']) TRANS_TILE[TILE[nm]] = 1;   // see-through from far away too
   for (const nm of TILE_NAMES) if (TILE[nm] >= TILE.stick) CUTOUT_TILE[TILE[nm]] = 1;
@@ -3245,6 +3505,10 @@ class World {
     this.remote = false;       // true on a guest: the host runs liquids, falling sand, plants and furnaces
     this.extraCenters = [];    // host: other players' positions to keep loaded
     this.villageBlock = [];    // villages kept out of areas that were built before villages existed
+    this.lightBatch = null;    // during a blast: cleared blocks whose light is worked out at the end
+    this.diggers = [];         // Digging TNT on its way through the ground
+    this.powerQ = [];          // levers and buttons that changed, and machines placed (host or single player)
+    this.buttons = [];         // pressed buttons: [x, y, z, clock to pop back up]
     this.alive = true;
   }
   getChunk(cx, cz) {
@@ -3373,6 +3637,22 @@ class World {
       if (y === WH - 1) { c.light[i] = (c.light[i] & 15) | 0xf0; qa.push(x, y, z); }
       for (let d = 0; d < 6; d++) { const ny = y + DY[d]; if (ny >= 0 && ny < WH) qa.push(x + DX[d], ny, z + DZ[d]); }
     }
+    this.lightAdd(qa, true);
+  }
+
+  /* many blocks cleared at once (explosions): open up the light for all of them in one go */
+  beginBlast() { if (!this.lightBatch) this.lightBatch = []; }
+  endBlast() {
+    const list = this.lightBatch, qa = this._qa, qb = this._qb;
+    this.lightBatch = null;
+    if (!list || !list.length) return;
+    for (let i = 0; i < list.length; i += 4) if (EMIT[list[i + 3]]) this.lightRemove(list[i], list[i + 1], list[i + 2], false, qb);
+    for (let i = 0; i < list.length; i += 4) {
+      const x = list[i], y = list[i + 1], z = list[i + 2];
+      if (y === WH - 1) { const c = this.getChunk(x >> 4, z >> 4); if (c) { const k = (x & 15) | ((z & 15) << 4) | (y << 8); c.light[k] = (c.light[k] & 15) | 0xf0; qa.push(x, y, z); } }
+      for (let d = 0; d < 6; d++) { const ny = y + DY[d]; if (ny >= 0 && ny < WH) { qb.push(x + DX[d], ny, z + DZ[d]); qa.push(x + DX[d], ny, z + DZ[d]); } }
+    }
+    this.lightAdd(qb, false);
     this.lightAdd(qa, true);
   }
 
@@ -3532,11 +3812,15 @@ class World {
     let em = this.edits.get(c.key);
     if (!em) { em = new Map(); this.edits.set(c.key, em); }
     em.set(i, id | (data << 8));
-    if (old !== id) this.relight(x, y, z, old, id);
+    if (old !== id) {
+      if (this.lightBatch && !OPAQUE[id] && !FILTER[id] && !EMIT[id]) this.lightBatch.push(x, y, z, old);   // blasting: light is worked out once at the end
+      else this.relight(x, y, z, old, id);
+    }
     this.markAround(x, y, z, urgent);
     if (this.onChange) this.onChange(x, y, z, id, data, old);
+    if (!this.remote && (POWER_SRC[old] || POWER_SRC[id] || (old !== id && POWER_DEV[id]))) this.powerQ.push(x, y, z, old, od, id, data);   // levers, buttons and machines
     if (old !== id) {
-      const tileOld = old === B.CHEST || old === B.FURNACE || old === B.FURNACE_LIT;
+      const tileOld = old === B.CHEST || old === B.FURNACE || old === B.FURNACE_LIT || old === B.DISPENSER;
       const furnaceSwap = (old === B.FURNACE || old === B.FURNACE_LIT) && (id === B.FURNACE || id === B.FURNACE_LIT);
       if (tileOld && !furnaceSwap && !this.remote) this.dropTile(x, y, z);
       if (SAPLING_KIND[id] !== undefined) this.saplings.set(posKey(x, y, z), this.clock + randRange(40, 100));
@@ -3560,6 +3844,11 @@ class World {
     if (below === B.UNLOADED) return true;
     if (d.plant === 'soil') return below === B.GRASS || below === B.DIRT || below === B.SNOWY_GRASS;
     if (d.plant === 'sand') return id === B.CACTUS ? (below === B.SAND || below === B.CACTUS) : (below === B.SAND || below === B.DIRT || below === B.GRASS);
+    if (d.plant === 'attached') {   // levers and buttons: on the side of a solid block
+      const f = (data | 0) & 7, b = this.getBlock(x + DX[f], y + DY[f], z + DZ[f]);
+      return b === B.UNLOADED || (SOLID[b] && OPAQUE[b]);
+    }
+    if (d.plant === 'rail') return SOLID[below] && OPAQUE[below];
     if (d.plant === 'torch') {
       if (!data) return SOLID[below] && OPAQUE[below];
       const o = TORCH_DIRS[data];
@@ -3593,7 +3882,7 @@ class World {
       const nb = this.getBlock(nx, ny, nz);
       if (LIQUID[nb]) this.scheduleLiquid(nx, ny, nz);
       if (d === 2 && BLOCKS[nb] && BLOCKS[nb].gravity) this.gravQ.push(nx, ny, nz);
-      if (nb && nb !== B.UNLOADED && BLOCKS[nb].plant && d !== 3) this.checkSupport(nx, ny, nz);
+      if (nb && nb !== B.UNLOADED && BLOCKS[nb].plant && (d !== 3 || BLOCKS[nb].plant === 'attached')) this.checkSupport(nx, ny, nz);
       if (nb === B.NETHER_PORTAL) this.portalQ.push(nx, ny, nz);
     }
   }
@@ -3770,12 +4059,13 @@ class World {
     }
   }
 
-  /* ---- tile entities (chests and furnaces) ---- */
+  /* ---- tile entities (chests, furnaces and dispensers) ---- */
   getTile(x, y, z, create) {
     const k = tileKey(x, y, z);
     let t = this.tiles.get(k);
     if (!t && create) {
-      t = create === 'chest' ? { type: 'chest', slots: new Array(27).fill(null) } : { type: 'furnace', slots: [null, null, null], burn: 0, burnMax: 0, cook: 0 };
+      t = create === 'chest' ? { type: 'chest', slots: new Array(27).fill(null) } : create === 'dispenser' ? { type: 'dispenser', slots: new Array(9).fill(null) }
+        : { type: 'furnace', slots: [null, null, null], burn: 0, burnMax: 0, cook: 0 };
       this.tiles.set(k, t);
     }
     return t || null;
@@ -3785,6 +4075,8 @@ class World {
     if (!t) return;
     this.tiles.delete(k);
     if (this.onDrop) for (const s of t.slots) if (s) this.onDrop(x + 0.5, y + 0.5, z + 0.5, s);
+    t.slots.fill(null);   // they are on the ground now, so an open screen can't hand them out again
+    if (this.onTileGone) this.onTileGone(t);
   }
   tickFurnaces(dt) {
     for (const [k, t] of this.tiles) {
@@ -3820,7 +4112,7 @@ class World {
     for (const [k, em] of this.edits) {
       const cx = Math.floor(k / 65536) - 32768, cz = (k % 65536) - 32768;
       const a = [];
-      for (const [i, v] of em) a.push(i, v);
+      for (const [i, v] of em) a.push(i, (v & 255) === B.BUTTON && (v >> 8) & 8 ? B.BUTTON | (((v >> 8) & 7) << 8) : v);   // a pressed button is saved popped up
       edits[cx + ',' + cz] = a;
     }
     const tiles = {};
@@ -3859,8 +4151,11 @@ function buildBlockTiles() {
     if (typeof t === 'object' && t.back) BACK_T[id] = TILE[t.back];
   }
 }
+const UPDOWN = new Uint8Array(256);   // facing blocks that can also point up (data 4) or down (data 5)
+UPDOWN[B.DISPENSER] = UPDOWN[B.DIG_TNT] = 1;
 function tileFor(id, d, data) {
   if (FRONT_T[id] >= 0) {
+    if (UPDOWN[id] && (data & 7) >= 4) return d === ((data & 7) === 4 ? 2 : 3) ? FRONT_T[id] : BT[id * 6 + d];
     const f = data & 3;
     if (d === FRONT_FACE[f]) return FRONT_T[id];
     if (BACK_T[id] >= 0 && d === BACK_FACE[f]) return BACK_T[id];
@@ -3969,6 +4264,43 @@ const BED_UV = [[0, 7, 16, 16], [0, 7, 16, 16], FULL_UV, FULL_UV, [0, 7, 16, 16]
 const SIX_FULL = [FULL_UV, FULL_UV, FULL_UV, FULL_UV, FULL_UV, FULL_UV];
 const _tiles6 = [0, 0, 0, 0, 0, 0];
 
+/* rails: a flat (or sloping) picture just above the ground, turned to the rail's shape */
+const RAIL_UV = [
+  [[0, 0], [16, 0], [16, 16], [0, 16]], [[0, 16], [0, 0], [16, 0], [16, 16]],   // straight: north-south, east-west
+  [[16, 16], [0, 16], [0, 0], [16, 0]], [[0, 0], [16, 0], [16, 16], [0, 16]], [[16, 16], [0, 16], [0, 0], [16, 0]], [[0, 0], [16, 0], [16, 16], [0, 16]],
+];
+const RAIL_CORNER_UV = [[[0, 0], [16, 0], [16, 16], [0, 16]], [[16, 0], [0, 0], [0, 16], [16, 16]], [[16, 16], [0, 16], [0, 0], [16, 0]], [[0, 16], [16, 16], [16, 0], [0, 0]]];
+const RAIL_RISE = [[0, 0, 0, 0], [0, 0, 0, 0], [0, 16, 16, 0], [16, 0, 0, 16], [16, 16, 0, 0], [0, 0, 16, 16]];   // corner heights: (x0,z0) (x1,z0) (x1,z1) (x0,z1)
+function emitRail(x, y, z, pi, data) {
+  const shape = data < 10 ? data : 0, curve = shape >= 6;
+  const t = curve ? TILE.rail_corner : BT[B.RAIL * 6], uv = curve ? RAIL_CORNER_UV[shape - 6] : shape === 1 || shape === 2 || shape === 3 ? RAIL_UV[1] : RAIL_UV[0];
+  const h = curve ? RAIL_RISE[0] : RAIL_RISE[shape];
+  const L = padL[pi], sky = (L >> 4) * 17, blk = (L & 15) * 17, w = 2 * 4 + 3, x0 = x * 16, y0 = y * 16 + 1, z0 = z * 16;
+  const C = [[x0, z0], [x0 + 16, z0], [x0 + 16, z0 + 16], [x0, z0 + 16]];
+  for (const side of [0, 1]) {   // both faces, so a slope looks right from underneath too
+    const q = WO.quad(), order = side ? [0, 1, 2, 3] : [3, 2, 1, 0];
+    for (let k = 0; k < 4; k++) { const c = order[k]; WO.vtx(q, k, C[c][0], y0 + h[c], C[c][1], w, uv[c][0], uv[c][1], t, sky, blk); }
+    if (!h[0] && !h[1] && !h[2] && !h[3]) break;
+  }
+}
+/* a lever: a cobblestone base and a wooden handle leaning one way when off and the other way when on */
+const _lb = [0, 0, 0, 0, 0, 0];
+function emitLever(x, y, z, pi, data) {
+  const f = data & 7, s = (data & 8) ? 1 : -1, alongZ = f === 4 || f === 5;
+  const box = (x0, y0, z0, x1, y1, z1, tile) => {
+    const b = attachBox(f, x0, y0, z0, x1, y1, z1);
+    for (let k = 0; k < 6; k++) _tiles6[k] = tile;
+    emitBox(WO, x, y, z, pi, b[0], b[1], b[2], b[3], b[4], b[5], _tiles6, SIX_FULL, 63, 0, 0);
+  };
+  box(4, 0, 5, 12, 3, 11, BT[B.COBBLE * 6]);
+  const stick = TILE.lever_stick;
+  [1, 3, 5].forEach((o, k) => {
+    const lo = 7 + s * o, y0 = 3 + k * 3;
+    if (alongZ) box(7, y0, Math.min(lo, lo + 2), 9, y0 + 3, Math.max(lo, lo + 2), stick);
+    else box(Math.min(lo, lo + 2), y0, 7, Math.max(lo, lo + 2), y0 + 3, 9, stick);
+  });
+}
+
 function meshSection(world, c, s) {
   c.dirty[s] = 0;
   if (!c.counts[s]) {
@@ -4044,6 +4376,14 @@ function meshSection(world, c, s) {
         for (let f = 0; f < 6; f++) _tiles6[f] = BT[id * 6];
         if (ax === 0) emitBox(WT, x, y, z, pi, 0, 0, 6, 16, 16, 10, _tiles6, SIX_FULL, faces, 2, 0);
         else emitBox(WT, x, y, z, pi, 6, 0, 0, 10, 16, 16, _tiles6, SIX_FULL, faces, 2, 0);
+      } else if (r === R_RAIL) {
+        emitRail(x, y, z, pi, padD[pi]);
+      } else if (r === R_BUTTON) {
+        const bb = attachedBox('button', padD[pi]);
+        for (let f = 0; f < 6; f++) _tiles6[f] = BT[B.STONE * 6];
+        emitBox(WO, x, y, z, pi, bb[0] * 16, bb[1] * 16, bb[2] * 16, bb[3] * 16, bb[4] * 16, bb[5] * 16, _tiles6, SIX_FULL, 63, 0, 0);
+      } else if (r === R_LEVER) {
+        emitLever(x, y, z, pi, padD[pi]);
       } else if (r === R_BED) {
         const data = padD[pi], f = data & 3;
         for (let d = 0; d < 6; d++) _tiles6[d] = tileFor(id, d, data);
@@ -4090,8 +4430,7 @@ function defModel(name, skin, scale, parts) {
   const m = { name, scale, parts: {}, list: [] };
   for (const p of parts) {
     const mb = new MeshBuilder();
-    const b = p.box;
-    addBox(mb, b[0], b[1], b[2], b[3], b[4], b[5], p.uv[0], p.uv[1], SKIN[p.skin || skin], p.inflate);
+    for (const b of p.boxes || [p.box.concat(p.uv)]) addBox(mb, b[0], b[1], b[2], b[3], b[4], b[5], b[6], b[7], SKIN[p.skin || skin], p.inflate);   // boxes: [x, y, z, w, h, d, u, v] each
     const part = { name: p.name, mesh: mb.build(), pivot: p.pivot || [0, 0, 0], follow: p.follow || null, tint: !!p.tint };
     m.parts[p.name] = part; m.list.push(part);
   }
@@ -4142,6 +4481,47 @@ function buildModels() {
     { name: 'lleg', box: [0, 0, -2, 4, 12, 4], uv: [16, 48], pivot: [2, 12, 0] },
   ]);
   defModel('magma', 'magma', 1 / 16, [{ name: 'body', box: [-4, 0, -4, 8, 8, 8], uv: [0, 0] }]);
+  defModel('enderman', 'enderman', 0.95 / 16, [
+    { name: 'head', box: [-4, 41, -4, 8, 6, 8], uv: [0, 0], pivot: [0, 39, 0] },
+    { name: 'jaw', box: [-4, 39, -4, 8, 2, 8], uv: [32, 0], pivot: [0, 39, 0] },
+    { name: 'body', box: [-4, 27, -2, 8, 12, 4], uv: [16, 16] },
+    { name: 'rarm', box: [-6, 9, -1, 2, 30, 2], uv: [48, 16], pivot: [-5, 38, 0] },
+    { name: 'larm', box: [4, 9, -1, 2, 30, 2], uv: [48, 16], pivot: [5, 38, 0] },
+    { name: 'rleg', box: [-3, 0, -1, 2, 30, 2], uv: [56, 16], pivot: [-2, 29, 0] },
+    { name: 'lleg', box: [1, 0, -1, 2, 30, 2], uv: [56, 16], pivot: [2, 29, 0] },
+  ]);
+  for (const nm of ['ghast', 'ghast_fire']) {
+    const parts = [{ name: 'body', box: [-8, 12, -8, 16, 16, 16], uv: [0, 0] }];
+    const LEN = [9, 11, 8, 12, 10, 9, 11, 8, 10];
+    for (let i = 0; i < 9; i++) {
+      const x = -6 + (i % 3) * 5 + (i % 2), z = -6 + Math.floor(i / 3) * 5 + ((i >> 1) % 2), len = LEN[i];
+      parts.push({ name: 't' + i, box: [x, 12 - len, z, 2, len, 2], uv: [0, 32], pivot: [x + 1, 12, z + 1] });
+    }
+    defModel(nm, nm, 3 / 16, parts);
+  }
+  defModel('minecart', 'minecart', 1 / 16, [
+    { name: 'body', boxes: [
+      [-7, 1, -9, 14, 2, 18, 0, 0],
+      [-7, 3, -7, 2, 7, 14, 0, 20], [5, 3, -7, 2, 7, 14, 0, 20],
+      [-7, 3, 7, 14, 7, 2, 32, 20], [-7, 3, -9, 14, 7, 2, 32, 20],
+      [-8, 0, -7, 1, 3, 3, 32, 30], [7, 0, -7, 1, 3, 3, 32, 30], [-8, 0, 4, 1, 3, 3, 32, 30], [7, 0, 4, 1, 3, 3, 32, 30],
+    ] },
+  ]);
+  defModel('car', 'car', 2 / 16, [
+    { name: 'body', boxes: [
+      [-5.5, 1, -9, 11, 2, 18, 0, 0],
+      [-5.5, 3, -9, 1, 3, 18, 0, 20], [4.5, 3, -9, 1, 3, 18, 0, 20],
+      [-4.5, 3, 3, 9, 3, 6, 0, 41], [-4.5, 3, -9, 9, 3, 5, 30, 41],
+      [-4, 3, -4, 8, 1, 4, 0, 50], [-4, 4, -4, 8, 4, 1, 24, 50],
+      [-4.5, 6, 2.5, 9, 3, 1, 42, 50],
+      [-1, 5, 1.5, 2, 2, 1, 8, 56],
+      [-4.5, 2, -10, 9, 1, 1, 14, 56],
+    ] },
+    { name: 'wfl', box: [-6.5, 0, 4, 1, 3, 3], uv: [0, 56], pivot: [-6, 1.5, 5.5] },
+    { name: 'wfr', box: [5.5, 0, 4, 1, 3, 3], uv: [0, 56], pivot: [6, 1.5, 5.5] },
+    { name: 'wbl', box: [-6.5, 0, -7, 1, 3, 3], uv: [0, 56], pivot: [-6, 1.5, -5.5] },
+    { name: 'wbr', box: [5.5, 0, -7, 1, 3, 3], uv: [0, 56], pivot: [6, 1.5, -5.5] },
+  ]);
   defModel('creeper', 'creeper', 1 / 16, [
     { name: 'head', box: [-4, 18, -4, 8, 8, 8], uv: [0, 0], pivot: [0, 18, 0] },
     { name: 'body', box: [-4, 6, -2, 8, 12, 4], uv: [16, 16] },
@@ -4540,8 +4920,11 @@ const MOB_DEFS = {
   creeper: { model: 'creeper', w: 0.3, h: 1.7, hp: 20, speed: 2.2, hostile: true, drops: [[I.GUNPOWDER, 1, 2]], sound: 'creeper' },
   villager: { model: 'villager_farmer', w: 0.3, h: 1.9, hp: 20, speed: 1.1, drops: [], sound: 'villager', villager: true },
   // the Nether: piglins leave you alone until one is hit; magma cubes hop after you and don't mind lava
-  piglin: { model: 'piglin', w: 0.3, h: 1.95, hp: 20, speed: 2.4, neutral: true, dmg: 4, fireproof: true, nether: true, drops: [[I.ROTTEN_FLESH, 0, 1], [I.GOLD_INGOT, 0, 1]], sound: 'piglin' },
+  piglin: { model: 'piglin', w: 0.3, h: 1.95, hp: 20, speed: 2.4, neutral: true, group: true, dmg: 4, fireproof: true, nether: true, drops: [[I.ROTTEN_FLESH, 0, 1], [I.GOLD_INGOT, 0, 1]], sound: 'piglin' },
   magma: { model: 'magma', w: 0.3, h: 0.6, hp: 6, speed: 3, hostile: true, hopper: true, dmg: 3, fireproof: true, nether: true, drops: [], sound: 'magma' },
+  // endermen leave you alone unless you look them in the eyes or hit them; ghasts float in the Nether and shoot fireballs
+  enderman: { model: 'enderman', w: 0.3, h: 2.8, hp: 40, speed: 3.4, neutral: true, ender: true, dmg: 5, drops: [[I.ENDER_PEARL, 0, 1]], sound: 'enderman' },
+  ghast: { model: 'ghast', w: 1.5, h: 3, hp: 10, speed: 1.6, hostile: true, flyer: true, fireproof: true, nether: true, drops: [[I.GHAST_TEAR, 0, 1], [I.GUNPOWDER, 0, 2]], sound: 'ghast' },
 };
 const MOB_TYPES = Object.keys(MOB_DEFS);
 let ENTITY_NID = 0;
@@ -4741,11 +5124,12 @@ function hurtMob(game, e, dmg, fx, fz, cause, by) {
   if (d.neutral && cause === 'player' && game.settings.difficulty > 0) {   // on Peaceful they just take the hit
     const who = by || 'me';
     for (const o of game.entities) {
-      if (o.type !== e.type || o.dead || o.removed || Math.hypot(o.x - e.x, o.z - e.z) > 16) continue;
+      if (o.type !== e.type || o.dead || o.removed || Math.hypot(o.x - e.x, o.z - e.z) > 16 || (!d.group && o !== e)) continue;
       if (!(o.angryT > 0)) sfx(d.sound + 'Angry', o.x, o.y + 1.6, o.z);
       o.angryAt = who; o.angryT = 30;
     }
   }
+  if (e.frozen > 0) e.frozen = Math.min(e.frozen, 1);   // a hit cracks the ice
   e.hp -= dmg;
   sfx(d.sound + (e.hp <= 0 ? 'Death' : 'Hurt'), e.x, e.y + 0.5, e.z);
   if (e.hp <= 0) {
@@ -4757,6 +5141,7 @@ function hurtMob(game, e, dmg, fx, fz, cause, by) {
         const n = randInt(a, b);
         if (n > 0) loot.push([id === 'wool' ? B.WOOL + (e.wool || 0) : id, n]);
       }
+      if (e.carry) loot.push([e.carry, 1]);   // what an enderman was carrying
       if (killer) MP.sendDrops(killer, loot, e.x, e.y + 0.5, e.z);
       else for (const [id, n] of loot) dropItem(game, e.x, e.y + 0.5, e.z, id, n);
     }
@@ -4768,15 +5153,17 @@ function explode(game, x, y, z, power) {
   sfx('explode', x, y, z);
   smokeParticles(x, y, z, 40, r * 0.6, true);
   const cx = Math.floor(x), cy = Math.floor(y), cz = Math.floor(z), R = Math.ceil(r) + 1;
+  world.beginBlast();
   for (let dy = -R; dy <= R; dy++) for (let dz = -R; dz <= R; dz++) for (let dx = -R; dx <= R; dx++) {
     const d = Math.hypot(dx, dy, dz);
     if (d > r + randRange(-0.6, 0.4)) continue;
     const bx = cx + dx, by = cy + dy, bz = cz + dz, b = world.getBlock(bx, by, bz);
     if (!b || b === B.UNLOADED || LIQUID[b] || BLOCKS[b].blast >= 1e9) continue;
-    if (b === B.TNT) { world.setBlock(bx, by, bz, B.AIR, 0, true); primeTNT(game, bx, by, bz, randRange(0.4, 1.2)); continue; }
+    if (BLOCKS[b].tnt) { igniteTNT(game, bx, by, bz, randRange(0.4, 1.2)); continue; }
     world.setBlock(bx, by, bz, B.AIR, 0, true);
-    if (game.mode === 'survival' && Math.random() < 0.3) for (const [id, n] of blockDrops(b, toolId(3, 0))) dropItem(game, bx + 0.5, by + 0.5, bz + 0.5, id, n);
+    if (game.mode === 'survival' && Math.random() < (r > 5 ? 0.12 : 0.3)) for (const [id, n] of blockDrops(b, toolId(3, 0))) dropItem(game, bx + 0.5, by + 0.5, bz + 0.5, id, n);
   }
+  world.endBlast();
   const reach = r * 2;
   const hit = (e, isPlayer) => {
     const ex = e.x, ey = e.y + e.h * 0.5, ez = e.z, d = Math.hypot(ex - x, ey - y, ez - z);
@@ -4792,9 +5179,11 @@ function explode(game, x, y, z, power) {
   if (MP.role === 'host') MP.explosion(x, y, z, power, reach);
   game.shake = Math.max(game.shake || 0, 0.25 + power * 0.08);
 }
-function primeTNT(game, x, y, z, fuse) {
+function primeTNT(game, x, y, z, fuse, kind, data) {
   const e = new Entity('tnt', x + 0.5, y, z + 0.5);
   e.w = 0.49; e.h = 0.98; e.fuse = fuse; e.vy = 3; e.vx = randRange(-0.5, 0.5); e.vz = randRange(-0.5, 0.5);
+  e.kind = TNT_KINDS.includes(kind) ? kind : 'normal'; e.dir = data | 0;   // (Digging TNT: which way its drill faces)
+  if (e.kind === 'dig') e.vx = e.vz = 0;
   game.entities.push(e);
   sfx('fuse', x + 0.5, y + 0.5, z + 0.5);
   return e;
@@ -4805,7 +5194,7 @@ function updateEntities(game, dt) {
   const world = game.world, pl = game.player;
   for (const e of game.entities) {
     if (e.removed) continue;
-    if (e.proxy) { updateProxy(e, dt); continue; }   // the host's creatures, TNT and sand: only glide to where the host says
+    if (e.proxy && !e.local) { updateProxy(e, dt); continue; }   // the host's creatures, TNT and sand: only glide to where the host says
     e.age += dt;
     if (e.type === 'item') {
       physicsStep(world, e, dt, 20);
@@ -4839,12 +5228,15 @@ function updateEntities(game, dt) {
       physicsStep(world, e, dt, 24);
       if (e.onGround) { e.vx *= 0.8; e.vz *= 0.8; }
       e.fuse -= dt;
-      if (Math.random() < dt * 20) smokeParticles(e.x, e.y + 1.1, e.z, 1, 0.05, false);
-      if (e.fuse <= 0) { e.removed = true; explode(game, e.x, e.y + 0.5, e.z, 4); }
+      if (Math.random() < dt * 20) smokeParticles(e.x, e.y + e.h + 0.1, e.z, 1, 0.05, false);
+      if (e.fuse <= 0) { e.removed = true; tntGoesOff(game, e); }
       continue;
     }
+    if (e.type === 'proj') { updateProjectile(game, e, dt); continue; }
+    if (e.vehicle) { updateVehicle(game, e, dt); continue; }
     if (e.mob) updateMob(game, e, dt);
   }
+  if (!world.remote) { tickDiggers(game, dt); tickPower(game, dt); }
   let j = 0;
   for (const e of game.entities) if (!e.removed) game.entities[j++] = e;
   game.entities.length = j;
@@ -4933,7 +5325,18 @@ function updateMob(game, e, dt) {
     return;
   }
   let mx = 0, mz = 0, speed = d.speed;
+  if (e.partyT > 0) e.partyT -= dt;
+  if (e.frozen > 0) {   // Ice TNT: stuck in place for a while
+    e.frozen -= dt;
+    e.vx *= 0.5; e.vz *= 0.5;
+    if (!d.flyer) physicsStep(world, e, dt, 26);
+    if (e.landed) e.fallDist = 0;
+    if (Math.random() < dt * 4) PARTICLES.push({ x: e.x + randRange(-e.w, e.w), y: e.y + Math.random() * e.h, z: e.z + randRange(-e.w, e.w), vx: 0, vy: -0.3, vz: 0, life: 0.8, tile: TILE.snowflake, u: 0, v: 0, us: 16, size: 0.06, grav: 0.5, bright: 1 });
+    return;
+  }
   if (e.angryT > 0) e.angryT -= dt;
+  if (d.ender) { enderTick(game, e, dt); if (e.removed || e.dead) return; }
+  if (d.flyer) { updateGhast(game, e, d, dt); return; }
   const tg = d.hostile ? mobTarget(game, e) : d.neutral && e.angryT > 0 ? angryTarget(game, e) : null, chase = !!tg;
   if (d.hopper) { hopMob(game, e, d, dt, tg); return; }
   const dxp = tg ? tg.dx : 0, dzp = tg ? tg.dz : 0, dist = tg ? tg.dist : 0;
@@ -4969,7 +5372,7 @@ function updateMob(game, e, dt) {
         else { e.moving = true; e.yaw = Math.random() * TAU; e.aiT = randRange(1.5, 4); }
         if (Math.random() < 0.08) sfx(d.sound + 'Say', e.x, e.y + 0.5, e.z);
       }
-      if (e.moving) { mx = -Math.sin(e.yaw); mz = -Math.cos(e.yaw); speed *= d.hostile ? 0.45 : 0.55; }
+      if (e.moving) { mx = -Math.sin(e.yaw); mz = -Math.cos(e.yaw); speed *= d.hostile ? 0.45 : d.ender ? 0.35 : 0.55; }
     }
   }
   if ((mx || mz) && !chase) {
@@ -4985,7 +5388,7 @@ function updateMob(game, e, dt) {
   if (e.inWater && e.type !== 'zombie') e.vy += 16 * dt;
   if (e.type === 'chicken' && !e.onGround && e.vy < -2) e.vy = -2;
   physicsStep(world, e, dt, 26);
-  if (e.landed) { if (e.fallDist > 4 && e.type !== 'chicken') hurtMob(game, e, Math.floor(e.fallDist - 3), e.x, e.z, 'fall'); e.fallDist = 0; }
+  if (e.landed) { if (e.fallDist > 4 && e.type !== 'chicken' && !(e.partyT > 0)) hurtMob(game, e, Math.floor(e.fallDist - 3), e.x, e.z, 'fall'); e.fallDist = 0; }
   if (e.inLava && !d.fireproof && e.age % 0.5 < dt) hurtMob(game, e, 2, e.x, e.z, 'lava');
   if (e.type === 'zombie') {
     const s = game.sky;
@@ -5019,7 +5422,7 @@ function spawnTick(game) {
   if (MP.role === 'guest') { world.spawnQueue.length = 0; return; }
   if (game.settings.difficulty === 0) for (const e of game.entities) if (e.mob) { if (MOB_DEFS[e.type].hostile) e.removed = true; else if (e.angryT) e.angryT = 0; }   // Peaceful: no monsters, and nothing stays angry
   let passive = 0, hostile = 0;
-  for (const e of game.entities) if (e.mob && !e.dead) { const d = MOB_DEFS[e.type]; if (d.hostile) hostile++; else if (!d.villager) passive++; }
+  for (const e of game.entities) if (e.mob && !e.dead) { const d = MOB_DEFS[e.type]; if (d.hostile || d.ender) hostile++; else if (!d.villager) passive++; }
   while (world.spawnQueue.length) {
     const sp = world.spawnQueue.shift(), [type, x, y, z, count] = sp;
     if (type === 'villager') { spawnVillagers(game, sp); continue; }
@@ -5052,7 +5455,8 @@ function spawnTick(game) {
     const L = world.getLight(x, found, z);
     const eff = Math.max(L & 15, (L >> 4) - Math.round((1 - s.day) * 11));
     if (eff >= 7) continue;
-    spawnMob(game, Math.random() < 0.6 ? 'zombie' : 'creeper', x + 0.5, found, z + 0.5);
+    const r = Math.random(), tall = world.getBlock(x, found + 2, z) === B.AIR;
+    spawnMob(game, r < 0.5 ? 'zombie' : r < 0.85 || !tall ? 'creeper' : 'enderman', x + 0.5, found, z + 0.5);
     return;
   }
 }
@@ -5061,6 +5465,7 @@ function spawnTick(game) {
 function netherSpawnTick(game) {
   const world = game.world, players = allPlayers(game).filter(p => p.alive && (p === game.player || p.lastState));
   if (!players.length) return;
+  if (game.settings.difficulty > 0) ghastSpawnTick(game, players);
   let pig = 0, mag = 0;
   for (const e of game.entities) if (e.mob && !e.dead) { if (e.type === 'piglin') pig++; else if (e.type === 'magma') mag++; }
   const n = Math.min(2, players.length), wantMagma = game.settings.difficulty > 0 && mag < 4 * n && Math.random() < 0.35;
@@ -5101,20 +5506,33 @@ function mobPose(e, t) {
     return { head, rarm: [-a * 0.6 + up - sw, 0, 0.05], larm: [a * 0.6, 0, -0.05], rleg: [a, 0, 0], lleg: [-a, 0, 0] };
   }
   if (e.type === 'chicken') return { head, leg1: [a, 0, 0], leg2: [-a, 0, 0], wing1: [0, 0, e.onGround ? 0 : Math.sin(t * 25) * 0.6 + 0.6], wing2: [0, 0, e.onGround ? 0 : -(Math.sin(t * 25) * 0.6 + 0.6)] };
+  if (e.type === 'enderman') {
+    const angry = e.angryT > 0 || e.angry, sw = e.armSwing > 0 ? Math.sin(e.armSwing / 0.3 * Math.PI) * 0.8 : 0, hold = e.carry ? -0.75 : 0;
+    const shake = angry && !REDUCED_MOTION ? Math.sin(t * 40) * 0.05 : 0, b = a * 0.5;
+    return { head: [head[0] + shake, head[1], shake], jaw: [head[0] + (angry ? 0.35 : 0), head[1], 0], rarm: [hold || -b - sw, 0, 0.05], larm: [hold || b, 0, -0.05], rleg: [b, 0, 0], lleg: [-b, 0, 0] };
+  }
+  if (e.type === 'ghast') {
+    const p = {};
+    for (let i = 0; i < 9; i++) p['t' + i] = [Math.sin(t * 2.2 + i * 1.3) * 0.25, 0, Math.cos(t * 1.7 + i) * 0.12];
+    return p;
+  }
   return { head, leg1: [a, 0, 0], leg2: [-a, 0, 0], leg3: [-a, 0, 0], leg4: [a, 0, 0] };
 }
 function drawEntities(game, s, t, cam) {
   const world = game.world, P = PROG.entity;
   entityBegin(texSkins);
   gl.enable(gl.CULL_FACE);
+  const held = [];
   for (const e of game.entities) {
-    if (!e.mob) continue;
+    if (!e.mob && !e.vehicle) continue;
     const dx = e.x - cam.x, dy = e.y - cam.y, dz = e.z - cam.z;
     if (dx * dx + dz * dz > R.fogEnd * R.fogEnd) continue;
-    if (!boxInFrustum(R.planes, dx - 1, dy, dz - 1, dx + 1, dy + 2.2, dz + 1)) continue;
-    const def = MOB_DEFS[e.type], model = MODELS[e.type === 'villager' ? 'villager_' + (e.prof || 'farmer') : def.model];
+    const bw = Math.max(1, e.w + 0.6), low = e.type === 'ghast' ? 2.4 : 0;
+    if (!boxInFrustum(R.planes, dx - bw, dy - low, dz - bw, dx + bw, dy + Math.max(2.2, e.h + 0.4), dz + bw)) continue;
+    if (e.vehicle) { drawVehicle(game, e, dx, dy, dz, s); continue; }
+    const def = MOB_DEFS[e.type], model = MODELS[e.type === 'villager' ? 'villager_' + (e.prof || 'farmer') : e.type === 'ghast' && e.firing > 0 ? 'ghast_fire' : def.model];
     gl.uniform1f(P.u.uBright, brightAt(world, e.x, e.y + e.h * 0.7, e.z, s));
-    let tint = e.hurt > 0 || e.dead ? [0.8, 0.1, 0.1, 0.45] : [0, 0, 0, 0];
+    let tint = e.hurt > 0 || e.dead ? [0.8, 0.1, 0.1, 0.45] : e.frozen > 0 ? [0.6, 0.85, 1, 0.5] : [0, 0, 0, 0];
     let sc = model.scale;
     if (e.type === 'creeper' && e.fuse > 0) {
       const f = e.fuse / 1.5;
@@ -5126,6 +5544,8 @@ function drawEntities(game, s, t, cam) {
     M4.translate(_eb, _eb, dx, dy, dz);
     M4.rotY(_eb, _eb, e.bodyYaw + Math.PI);
     if (e.dead) M4.rotZ(_eb, _eb, Math.min(1, e.dead / 0.4) * Math.PI / 2);
+    if (e.type === 'ghast') M4.translate(_eb, _eb, 0, -2.25, 0);   // its tentacles hang below it
+    if (e.carry) held.push(e);
     if (e.type === 'magma') {
       const k = e.squash > 0 ? -e.squash * 1.4 : e.onGround ? 0 : clamp((e.vy || 0) / 14, -0.25, 0.4), z = (e.size || 1) * 1.2;
       M4.scale(_eb, _eb, sc * z * (1 - k * 0.5), sc * z * (1 + k), sc * z * (1 - k * 0.5));
@@ -5136,12 +5556,29 @@ function drawEntities(game, s, t, cam) {
   if (MP.remotes.size) drawRemotePlayers(game, s, t, cam);
   entityBegin(texTiles);
   gl.disable(gl.CULL_FACE);
+  for (const e of held) {   // the block an enderman carries, held out in front
+    if (!itemDef(e.carry)) continue;
+    gl.uniform1f(P.u.uBright, brightAt(world, e.x, e.y + 1.4, e.z, s));
+    gl.uniform4f(P.u.uTint, 0, 0, 0, 0);
+    M4.identity(_eb);
+    M4.translate(_eb, _eb, e.x - cam.x, e.y - cam.y, e.z - cam.z);
+    M4.rotY(_eb, _eb, e.bodyYaw + Math.PI);
+    const sc = MODELS.enderman.scale;
+    M4.scale(_eb, _eb, sc, sc, sc);
+    M4.translate(_eb, _eb, 0, 13, 13);
+    M4.scale(_eb, _eb, 0.55, 0.55, 0.55);
+    gl.enable(gl.CULL_FACE);
+    drawMesh(itemMesh(e.carry), _eb);
+    gl.disable(gl.CULL_FACE);
+  }
   for (const e of game.entities) {
-    if (e.mob) continue;
+    if (e.mob || e.vehicle) continue;
     const dx = e.x - cam.x, dy = e.y - cam.y, dz = e.z - cam.z;
     if (dx * dx + dz * dz > R.fogEnd * R.fogEnd) continue;
     gl.uniform1f(P.u.uBright, brightAt(world, e.x, e.y + 0.3, e.z, s));
     M4.identity(_eb);
+    if (e.type === 'proj') { gl.uniform4f(P.u.uTint, 0, 0, 0, 0); drawProjectile(e, dx, dy, dz); continue; }
+    if (e.type === 'tnt') { drawTNT(e, dx, dy, dz, _eb); continue; }
     if (e.type === 'item') {
       const cube = isCubeItem(e.id), bob = Math.sin(e.age * 2.5 + e.spin) * 0.06 + 0.08;
       M4.translate(_eb, _eb, dx, dy + bob, dz);
@@ -5152,18 +5589,984 @@ function drawEntities(game, s, t, cam) {
       const mesh = itemMesh(e.id);
       drawMesh(mesh, _eb);
       if (e.count > 1 && cube) { M4.translate(_eb, _eb, 3, 3, 3); drawMesh(mesh, _eb); }
-    } else if (e.type === 'falling' || e.type === 'tnt') {
-      const grow = e.type === 'tnt' && e.fuse < 0.4 ? 1 + (0.4 - e.fuse) * 0.4 : 1;
+    } else if (e.type === 'falling') {
       M4.translate(_eb, _eb, dx, dy, dz);
-      M4.scale(_eb, _eb, grow / 16, grow / 16, grow / 16);
-      const flash = e.type === 'tnt' && Math.floor(e.fuse * 5) % 2 === 0;
-      gl.uniform4f(P.u.uTint, 1, 1, 1, flash ? 0.5 : 0);
+      M4.scale(_eb, _eb, 1 / 16, 1 / 16, 1 / 16);
+      gl.uniform4f(P.u.uTint, 0, 0, 0, 0);
       gl.enable(gl.CULL_FACE);
-      drawMesh(itemMesh(e.type === 'tnt' ? B.TNT : e.id), _eb);
+      drawMesh(itemMesh(e.id), _eb);
       gl.disable(gl.CULL_FACE);
     }
   }
   gl.uniform4f(P.u.uTint, 0, 0, 0, 0);
+}
+
+/* ---- 09c-vehicles.js ---- */
+/* ===================== Rails, minecarts and the car ===================== */
+// Rail shapes (the block's data), as in Minecraft: 0 north-south, 1 east-west, 2-5 sloping up to the east,
+// west, north and south, 6-9 curves joining south+east, south+west, north+west and north+east
+// (north is -z, east is +x). Each shape lists its two ends; [dx, 1, dz] is the uphill end of a slope.
+const RAIL_EXITS = [
+  [[0, 0, -1], [0, 0, 1]], [[1, 0, 0], [-1, 0, 0]],
+  [[1, 1, 0], [-1, 0, 0]], [[-1, 1, 0], [1, 0, 0]], [[0, 1, -1], [0, 0, 1]], [[0, 1, 1], [0, 0, -1]],
+  [[0, 0, 1], [1, 0, 0]], [[0, 0, 1], [-1, 0, 0]], [[0, 0, -1], [-1, 0, 0]], [[0, 0, -1], [1, 0, 0]],
+];
+const HDIRS = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+const railExits = data => RAIL_EXITS[data] || RAIL_EXITS[0];
+/* a rail at x, y, z, or one lower (the bottom of a slope going down) */
+function railNear(w, x, y, z) {
+  if (w.getBlock(x, y, z) === B.RAIL) return y;
+  if (w.getBlock(x, y - 1, z) === B.RAIL) return y - 1;
+  return null;
+}
+/* the ends of the rail at x, y, z that really join another rail: [dx, dz, up] each */
+function railLinks(w, x, y, z) {
+  const out = [];
+  for (const [dx, dy, dz] of railExits(w.getData(x, y, z))) {
+    const ny = railNear(w, x + dx, y + dy, z + dz);
+    if (ny === null) continue;
+    if (railExits(w.getData(x + dx, ny, z + dz)).some(e => e[0] === -dx && e[2] === -dz)) out.push([dx, dz, dy > 0]);
+  }
+  return out;
+}
+/* the shape joining two ends (or one end and straight on); an end is [dx, dz, up] */
+function railShapeFor(a, b) {
+  if (!b) return a[0] ? (a[2] ? (a[0] > 0 ? 2 : 3) : 1) : (a[2] ? (a[1] < 0 ? 4 : 5) : 0);
+  if (a[0] && b[0]) { const up = a[2] ? a : b[2] ? b : null; return up ? (up[0] > 0 ? 2 : 3) : 1; }
+  if (a[1] && b[1]) { const up = a[2] ? a : b[2] ? b : null; return up ? (up[1] < 0 ? 4 : 5) : 0; }
+  const sx = a[0] || b[0], sz = a[1] || b[1];
+  return sz > 0 ? (sx > 0 ? 6 : 7) : (sx < 0 ? 8 : 9);
+}
+/* a rail was just put down: shape it to join the rails around it, and bend them to meet it */
+function shapeRail(w, x, y, z, yaw) {
+  const cands = [];
+  for (const [dx, dz] of HDIRS) {
+    for (const dy of [0, 1, -1]) {
+      const ny = y + dy;
+      if (w.getBlock(x + dx, ny, z + dz) !== B.RAIL) continue;
+      const here = railExits(w.getData(x + dx, ny, z + dz)).some(e => e[0] === -dx && e[2] === -dz);
+      if (here || railLinks(w, x + dx, ny, z + dz).length < 2) cands.push({ dx, dz, dy, ny, here });
+      break;
+    }
+  }
+  cands.sort((p, q) => q.here - p.here);
+  const A = cands[0], B2 = A ? (cands.find(c => c !== A && c.dx === -A.dx && c.dz === -A.dz) || cands.find(c => c !== A)) : null;
+  const end = c => [c.dx, c.dz, c.dy === 1];
+  const shape = A ? railShapeFor(end(A), B2 ? end(B2) : null) : (facingFromYaw(yaw) % 2 === 0 ? 0 : 1);
+  w.setBlock(x, y, z, B.RAIL, shape, true);
+  for (const c of [A, B2]) {
+    if (!c || (c.here && c.dy !== -1)) continue;   // a lower rail always turns into a slope up to this one
+    const nx = x + c.dx, nz = z + c.dz, toMe = [-c.dx, -c.dz, c.dy === -1];
+    const other = railLinks(w, nx, c.ny, nz).filter(l => !(l[0] === -c.dx && l[1] === -c.dz))[0];
+    w.setBlock(nx, c.ny, nz, B.RAIL, railShapeFor(toMe, other || null), true);
+  }
+}
+
+/* ---- vehicles ---- */
+const VEHICLES = { minecart: { w: 0.45, h: 0.7, item: I.MINECART, hits: 3 }, car: { w: 0.8, h: 1.0, item: I.CAR, hits: 4 } };
+const VEHICLE_TYPES = Object.keys(VEHICLES);
+const isVehicleType = t => typeof t === 'string' && Object.prototype.hasOwnProperty.call(VEHICLES, t);   // (not "constructor" and the like)
+function spawnVehicle(game, type, x, y, z, yaw) {
+  if (!isVehicleType(type)) return null;
+  const e = new Entity(type, x, y, z), d = VEHICLES[type];
+  e.vehicle = true; e.w = d.w; e.h = d.h; e.yaw = e.bodyYaw = yaw || 0; e.rider = null; e.hits = 0; e.wheel = 0; e.slope = 0;
+  game.entities.push(e);
+  return e;
+}
+/* where the rider sits, and how high their feet are */
+function seatOf(v) {
+  if (v.type === 'car') { const b = 0.25; return [v.x + Math.sin(v.yaw) * b, v.y - 0.15, v.z + Math.cos(v.yaw) * b]; }
+  return [v.x, v.y - 0.37, v.z];
+}
+function updateVehicle(game, e, dt) {
+  const w = game.world;
+  if (e.hurt > 0) e.hurt -= dt;
+  if (w.getBlock(Math.floor(e.x), Math.floor(e.y + 0.3), Math.floor(e.z)) === B.UNLOADED) return;   // wait for the ground to load
+  if (e.rider && e.rider !== 'me' && !e.local) { e.age += dt; return; }   // a guest is driving it on their iPad
+  if (e.rider === 'me' && game.player.riding !== e) e.rider = null;
+  if (e.rider === 'me' && (game.paused || game.uiOpen || game.state !== 'playing')) { e.ctrlX = e.ctrlZ = 0; e.push = null; }   // the menu is open: let go of the wheel
+  const steps = Math.max(1, Math.ceil(Math.hypot(e.vx, e.vy, e.vz) * dt / 0.3));
+  for (let i = 0; i < steps; i++) { if (e.type === 'car') carStep(game, e, dt / steps); else cartStep(game, e, dt / steps); }
+  if (e.y < -40) { e.removed = true; return; }
+  if (e.rider === 'me') sitRider(game.player, e);
+  e.sndT = (e.sndT || 0) - dt;
+  const sp = Math.hypot(e.vx, e.vz);
+  if (e.sndT <= 0 && sp > 0.5) {
+    if (e.type === 'car' && e.rider) { e.sndT = 0.16; sfx('carEngine', e.x, e.y, e.z, clamp(0.4 + sp / 12, 0.4, 1)); }
+    else if (e.type === 'minecart' && e.onRail) { e.sndT = 0.32 - Math.min(0.2, sp * 0.02); sfx('minecartRoll', e.x, e.y, e.z, clamp(sp / 8, 0.25, 1)); }
+  }
+}
+function sitRider(pl, v) {
+  const [x, y, z] = seatOf(v);
+  pl.x = x; pl.y = y; pl.z = z; pl.vx = v.vx; pl.vz = v.vz; pl.vy = 0; pl.fallDist = 0; pl.onGround = true;
+  if (v.type === 'car') {   // the view turns with the car
+    const d = ((v.yaw - (v.lastYaw === undefined ? v.yaw : v.lastYaw) + Math.PI) % TAU + TAU) % TAU - Math.PI;
+    pl.yaw += d;
+    pl.bodyYaw = v.yaw;
+  } else pl.bodyYaw = pl.yaw;
+  v.lastYaw = v.yaw;
+}
+/* minecarts follow the rails: along straight bits, round corners, up and down slopes; they stop at a dead end */
+function cartStep(game, e, dt) {
+  const w = game.world, x = Math.floor(e.x), z = Math.floor(e.z), ry = railNear(w, x, Math.floor(e.y + 0.2), z);
+  if (ry === null) {   // off the rails: an ordinary heavy box
+    e.onRail = false;
+    physicsStep(w, e, dt, 24);
+    if (e.onGround) { const f = Math.pow(0.05, dt); e.vx *= f; e.vz *= f; }
+    return;
+  }
+  const ex = railExits(w.getData(x, ry, z));
+  const ax = x + 0.5 + ex[0][0] * 0.5, az = z + 0.5 + ex[0][2] * 0.5, ay = ry + (ex[0][1] > 0 ? 1 : 0);
+  const bx = x + 0.5 + ex[1][0] * 0.5, bz = z + 0.5 + ex[1][2] * 0.5, by = ry + (ex[1][1] > 0 ? 1 : 0);
+  const hl = Math.hypot(bx - ax, bz - az), ux = (bx - ax) / hl, uz = (bz - az) / hl;
+  // speed along the rail (toward end b); going round a corner keeps the speed
+  const hs = Math.hypot(e.vx, e.vz), dot = e.vx * ux + e.vz * uz;
+  let v = Math.abs(dot) > hs * 0.2 ? Math.sign(dot) * hs : dot;
+  const slope = (by - ay) / hl;
+  if (slope) v -= slope * 10 * dt;   // rolls downhill
+  if (e.rider && e.push) { v += (e.push[0] * ux + e.push[1] * uz) * 6 * dt; }   // the rider pushes along
+  v *= Math.pow(e.rider ? 0.85 : 0.45, dt);
+  v = clamp(v, -8, 8);
+  let t = (e.x - ax) * ux + (e.z - az) * uz + v * dt;
+  if (t < 0 || t > hl) {   // reaching an end: on to the next rail, or stop here
+    const end = t > hl ? ex[1] : ex[0], ny = railNear(w, x + end[0], ry + end[1], z + end[2]);
+    if (ny === null) {
+      t = t > hl ? hl - 0.01 : 0.01;
+      if (Math.abs(v) > 3) sfx('break_metal', e.x, e.y, e.z, 0.5);
+      v = 0;
+    }
+  }
+  e.x = ax + ux * t; e.z = az + uz * t;
+  e.y = lerp(ay, by, clamp(t / hl, 0, 1)) + 0.0625;
+  e.vx = ux * v; e.vz = uz * v; e.vy = 0; e.onGround = true; e.onRail = true;
+  e.slope = Math.atan(slope);
+  if (Math.abs(v) > 0.05 || e.yaw === undefined) e.yaw = Math.atan2(-ux, -uz);
+  e.wheel += v * dt / 0.1;
+}
+/* the car: the joystick drives (forward and back) and steers (left and right); it hops up one-block steps */
+function carStep(game, e, dt) {
+  const w = game.world, driven = !!e.rider;
+  const throttle = driven ? e.ctrlZ || 0 : 0, steer = driven ? e.ctrlX || 0 : 0;
+  let fx = -Math.sin(e.yaw), fz = -Math.cos(e.yaw), v = e.vx * fx + e.vz * fz;
+  if (throttle > 0.1) v += throttle * (v < 0 ? 16 : 8) * dt;
+  else if (throttle < -0.1) v += throttle * (v > 0 ? 16 : 6) * dt;
+  else v *= Math.pow(e.onGround ? 0.3 : 0.9, dt);
+  v = clamp(v, -4, 11);
+  if (e.inWater) v = clamp(v, -1.2, 2);
+  e.yaw -= steer * clamp(Math.abs(v) / 3, 0, 1) * 2 * Math.sign(v || 1) * dt;
+  fx = -Math.sin(e.yaw); fz = -Math.cos(e.yaw);
+  e.vx = fx * v; e.vz = fz * v;
+  const before = e.onGround, want = Math.abs(v) > 0.5 ? Math.sign(v) : Math.abs(throttle) > 0.1 ? Math.sign(throttle) : 0;
+  physicsStep(w, e, dt, 24);
+  if (e.collidedH && before && want && boxFree(w, e.x + fx * 0.35 * want, e.y + 1.05, e.z + fz * 0.35 * want, e.w, e.h)) {   // a one-block step: hop up it
+    const sp = Math.max(Math.abs(v), 2.5) * want;
+    e.vy = 7.2; e.vx = fx * sp; e.vz = fz * sp;
+  }
+  e.fallDist = 0;
+  e.wheel += v * dt / 0.19;
+  e.steer = lerp(e.steer || 0, steer * 0.45, Math.min(1, dt * 8));
+  // driving into creatures knocks them flying
+  if (Math.abs(v) > 3.5) {
+    for (const m of game.entities) {
+      if (!m.mob || m.dead || m.removed || (m.carHitT || 0) > e.age) continue;
+      if (Math.abs(m.x - e.x) < e.w + m.w + 0.2 && Math.abs(m.z - e.z) < e.w + m.w + 0.2 && m.y < e.y + e.h && m.y + m.h > e.y) {
+        m.carHitT = e.age + 0.6;
+        hurtMob(game, m, Math.round(Math.abs(v) / 2), e.x, e.z, e.rider ? 'player' : 'car', e.rider && e.rider !== 'me' ? e.rider : undefined);
+        if (!m.proxy) { m.vx += fx * v * 0.8; m.vz += fz * v * 0.8; m.vy = 6; }
+      }
+    }
+  }
+}
+/* punching a vehicle: a few hits break it (one in Creative), and it drops back as an item in Survival */
+function hitVehicle(game, e, mode, by) {
+  if (e.removed) return;
+  e.hits++; e.hurt = 0.3;
+  sfx('dig_metal', e.x, e.y + 0.4, e.z);
+  if (mode === 'creative' || e.hits >= VEHICLES[e.type].hits) {
+    e.removed = true;
+    sfx('break_metal', e.x, e.y + 0.4, e.z);
+    blockParticles(e.x - 0.5, e.y, e.z - 0.5, B.IRON_BLOCK, 10, true);
+    if (mode === 'survival') {
+      if (by && by !== 'me') MP.sendDrops(MP.remotes.get(by), [[VEHICLES[e.type].item, 1, 0]], e.x, e.y + 0.5, e.z);
+      else dropItem(game, e.x, e.y + 0.5, e.z, VEHICLES[e.type].item, 1);
+    }
+  }
+}
+/* get in (tap) and out (sneak) */
+function mountVehicle(game, v) {
+  const pl = game.player;
+  if (v.removed || pl.riding) return;
+  if (v.rider) { toast('Someone is already in it.', 2); return; }
+  if (MP.role === 'guest') { if (!v.askT || performance.now() - v.askT > 1500) { v.askT = performance.now(); MP.send({ t: 'mount', e: v.nid }); } return; }   // the host says yes or no
+  boardVehicle(game, v);
+}
+function boardVehicle(game, v) {
+  const pl = game.player;
+  v.rider = 'me'; v.lastYaw = v.yaw;
+  pl.riding = v; pl.sneakHeld = true; pl.flying = false; pl.drawT = pl.loadT = 0;
+  if (v.type === 'car') pl.yaw = v.yaw;
+  sitRider(pl, v);
+  sfx(v.type === 'car' ? 'carStart' : 'click', v.x, v.y, v.z);
+  if (!game.tipped) game.tipped = {};
+  if (!game.tipped[v.type]) { game.tipped[v.type] = 1; toast(v.type === 'car' ? 'Drive with the joystick (or W A S D). Tap to honk! Press Sneak to get out.' : 'Push forward to roll along the rails. Press Sneak to get out.', 5); }
+}
+/* host: where a guest's vehicle has got to */
+function applyVehState(v, s) {
+  const sp = clamp(s[5], -12, 12);
+  v.x = s[0]; v.y = s[1]; v.z = s[2]; v.yaw = s[3] % TAU; v.slope = clamp(s[4], -1, 1);
+  v.vx = -Math.sin(v.yaw) * sp; v.vz = -Math.cos(v.yaw) * sp;
+  v.wheel += sp * 0.1 / (v.type === 'car' ? 0.19 : 0.1);
+}
+function dismountVehicle(game) {
+  const pl = game.player, v = pl.riding;
+  if (!v) return;
+  pl.riding = null;
+  if (MP.role === 'guest') { if (v.local) { MP.send({ t: 'dismount', e: v.nid, s: vehicleState(v) }); v.local = false; v.tx = v.x; v.ty = v.y; v.tz = v.z; } }
+  else if (v.rider === 'me') v.rider = null;
+  v.ctrlX = v.ctrlZ = 0; v.push = null;
+  [pl.x, pl.y, pl.z] = dismountSpot(game.world, v);
+  pl.vx = pl.vz = pl.vy = 0; pl.fallDist = 0;
+}
+/* where you step out: beside it to the left, the right, behind or in front, or else on top */
+function dismountSpot(w, v) {
+  const spots = [[Math.cos(v.yaw), -Math.sin(v.yaw)], [-Math.cos(v.yaw), Math.sin(v.yaw)], [Math.sin(v.yaw), Math.cos(v.yaw)], [-Math.sin(v.yaw), -Math.cos(v.yaw)]];
+  const d = v.w + 0.6;
+  for (const [ox, oz] of spots) for (const oy of [0, 1, -1]) {
+    const x = v.x + ox * d, z = v.z + oz * d, y = Math.floor(v.y + 0.2) + oy;
+    if (boxFree(w, x, y, z, 0.3, 1.8) && SOLID[w.getBlock(Math.floor(x), y - 1, Math.floor(z))]) return [x, y, z];
+  }
+  return [v.x, v.y + v.h + 0.05, v.z];
+}
+/* where a player is kept in a save: someone sitting in a car or minecart is saved standing beside it */
+const restPos = pl => (pl.riding && !pl.riding.removed ? dismountSpot(game.world, pl.riding) : [pl.x, pl.y, pl.z]);
+const vehicleState = v => [r2(v.x), r2(v.y), r2(v.z), r2(v.yaw), r2(v.slope || 0), r2(Math.hypot(v.vx, v.vz) * (v.vx * -Math.sin(v.yaw) + v.vz * -Math.cos(v.yaw) < 0 ? -1 : 1))];
+/* what the rider does each frame (before the vehicle moves) */
+function rideControls(game, pl, fx, fz, inp, dt) {
+  const v = pl.riding;
+  if (!v || v.removed || (MP.role === 'guest' && !v.local)) {
+    if (v && v.removed && v.local && MP.role === 'guest') MP.send({ t: 'dismount', e: v.nid });   // it fell out of the world here: free it on the host
+    if (v) pl.riding = null;
+    return;
+  }
+  if (inp.sneak && !pl.sneakHeld) { pl.sneakHeld = true; dismountVehicle(game); return; }
+  pl.sneakHeld = !!inp.sneak;
+  if (v.type === 'car') { v.ctrlX = fx; v.ctrlZ = fz; }
+  else { const s = Math.sin(pl.yaw), c = Math.cos(pl.yaw); v.push = [(-s * fz + c * fx), (-c * fz - s * fx)]; }
+}
+/* save and load the vehicles left in a world */
+function saveVehicles(game) {
+  return game.entities.filter(e => e.vehicle && !e.removed && !e.proxy).map(e => ({ k: e.type, x: r2(e.x), y: r2(e.y), z: r2(e.z), yaw: r2(e.yaw) }));
+}
+function loadVehicles(game, list) {
+  if (!Array.isArray(list)) return;
+  for (const v of list.slice(0, 200)) if (v && isVehicleType(v.k) && [v.x, v.y, v.z].every(n => typeof n === 'number' && isFinite(n))) spawnVehicle(game, v.k, v.x, v.y, v.z, +v.yaw || 0);
+}
+
+/* ---- drawing ---- */
+function drawVehicle(game, e, dx, dy, dz, s) {
+  const P = PROG.entity, model = MODELS[e.type];
+  gl.uniform1f(P.u.uBright, brightAt(game.world, e.x, e.y + 0.5, e.z, s));
+  gl.uniform4fv(P.u.uTint, e.hurt > 0 ? [0.8, 0.1, 0.1, 0.35] : [0, 0, 0, 0]);
+  M4.identity(_eb);
+  M4.translate(_eb, _eb, dx, dy, dz);
+  M4.rotY(_eb, _eb, e.yaw + Math.PI);
+  if (e.slope) M4.rotX(_eb, _eb, -e.slope);
+  if (e.hurt > 0) M4.rotZ(_eb, _eb, Math.sin(e.hurt * 40) * 0.08);
+  M4.scale(_eb, _eb, model.scale, model.scale, model.scale);
+  const wr = e.wheel || 0, st = e.steer || 0;
+  drawModel(model, _eb, e.type === 'car' ? { wfl: [wr, st, 0], wfr: [wr, st, 0], wbl: [wr, 0, 0], wbr: [wr, 0, 0] } : null);
+}
+
+/* ---- 09e-ender.js ---- */
+/* ===================== Endermen and ghasts ===================== */
+// Endermen wander at night and leave you alone, unless you look one in the eyes or hit it. They
+// teleport (and always dodge arrows), hate water, and sometimes carry a block about.
+// Ghasts float in the Nether's big caves and shoot fireballs, which you can hit straight back.
+const ENDER_TAKES = new Set([B.GRASS, B.DIRT, B.SAND, B.GRAVEL, B.DANDELION, B.POPPY, B.PUMPKIN, B.NETHERRACK, B.SOUL_SAND].filter(v => v !== undefined));
+
+function isNatural(world, x, y, z) {
+  const em = world.edits.get(chunkKey(x >> 4, z >> 4));
+  return !em || !em.has((x & 15) | ((z & 15) << 4) | (y << 8));
+}
+/* who (if anyone) is looking an enderman right in the eyes, with nothing in between */
+function enderStaredBy(game, e) {
+  if (game.settings.difficulty === 0) return null;
+  for (const p of allPlayers(game)) {
+    const remote = p !== game.player;
+    if (!p.alive || (remote && !p.lastState) || (remote ? p.mode : game.mode) !== 'survival') continue;
+    const ex = remote ? p.tx : p.x, ey = (remote ? p.ty : p.y) + 1.62, ez = remote ? p.tz : p.z;
+    const hx = e.x - ex, hy = e.y + e.h - 0.3 - ey, hz = e.z - ez, d = Math.hypot(hx, hy, hz);
+    if (d > 32 || d < 0.6) continue;
+    const L = p.lookDir();
+    if ((hx * L[0] + hy * L[1] + hz * L[2]) / d < 1 - 0.025 / d) continue;
+    if (raycast(game.world, ex, ey, ez, hx / d, hy / d, hz / d, d - 0.4, true)) continue;
+    return remote ? p.id : 'me';
+  }
+  return null;
+}
+/* jump somewhere close by (mode 'toward': near the one it is after) */
+function enderTeleport(game, e, mode) {
+  const w = game.world;
+  let ox = e.x, oy = e.y, oz = e.z, R = mode === 'dodge' ? 8 : 16;
+  if (mode === 'toward') { const tg = angryTarget(game, e); if (!tg) return false; ox = e.x + tg.dx; oz = e.z + tg.dz; oy = tg.p === game.player ? tg.p.y : tg.p.ty; R = 4; }
+  for (let k = 0; k < 16; k++) {
+    const x = Math.floor(ox + randRange(-R, R)) + 0.5, z = Math.floor(oz + randRange(-R, R)) + 0.5;
+    if (mode === 'toward' && Math.hypot(x - ox, z - oz) < 1.5) continue;
+    for (let y = Math.floor(oy) + 6; y > Math.floor(oy) - 8; y--) {
+      const under = w.getBlock(Math.floor(x), y - 1, Math.floor(z));
+      if (under === B.UNLOADED) break;
+      if (!SOLID[under] || !OPAQUE[under] || !boxFree(w, x, y, z, e.w, e.h)) continue;
+      const feet = w.getBlock(Math.floor(x), y, Math.floor(z));
+      if (LIQUID[feet]) continue;
+      enderParticles(e.x, e.y, e.z, 20); sfx('endermanPortal', e.x, e.y + 1.4, e.z);
+      MP.fx('tele', e.x, e.y, e.z);
+      e.x = x; e.y = y; e.z = z; e.vx = e.vy = e.vz = 0; e.fallDist = 0;
+      enderParticles(e.x, e.y, e.z, 20); sfx('endermanPortal', e.x, e.y + 1.4, e.z);
+      MP.fx('tele', e.x, e.y, e.z);
+      return true;
+    }
+  }
+  return false;
+}
+/* the enderman's own business, before it walks: staring, teleporting, water, carrying blocks */
+function enderTick(game, e, dt) {
+  const w = game.world;
+  e.tpT = (e.tpT || 0) - dt;
+  if (!(e.angryT > 0)) {
+    const by = enderStaredBy(game, e);
+    if (by) {
+      e.stareT = (e.stareT || 0) + dt;
+      if (e.stareT > 0.25) { e.angryAt = by; e.angryT = 40; e.stareT = 0; e.screamT = 1.2; sfx('endermanStare', e.x, e.y + 2.5, e.z); }
+    } else e.stareT = 0;
+  }
+  if (e.screamT > 0) e.screamT -= dt;
+  const wet = w.getBlock(Math.floor(e.x), Math.floor(e.y + 0.2), Math.floor(e.z)) === B.WATER || w.getBlock(Math.floor(e.x), Math.floor(e.y + 1.5), Math.floor(e.z)) === B.WATER;
+  if (wet && e.tpT <= 0) { e.tpT = 0.5; hurtMob(game, e, 1, e.x, e.z, 'water'); if (!e.dead) enderTeleport(game, e, 'random'); return; }
+  if (e.angryT > 0) {
+    const tg = angryTarget(game, e);
+    if (tg && tg.dist > 10 && e.tpT <= 0 && Math.random() < dt * 0.8) { e.tpT = 2; enderTeleport(game, e, 'toward'); }
+    return;
+  }
+  if (e.tpT <= 0 && Math.random() < dt * 0.01) { e.tpT = 5; enderTeleport(game, e, 'random'); return; }
+  // calm: now and then pick up a natural block, and later put it down somewhere else
+  if (!e.carry && Math.random() < dt * 0.04) {
+    const x = Math.floor(e.x + randRange(-2, 2)), y = Math.floor(e.y + randRange(-1, 2.5)), z = Math.floor(e.z + randRange(-2, 2)), b = w.getBlock(x, y, z);
+    if (ENDER_TAKES.has(b) && isNatural(w, x, y, z) && !LIQUID[w.getBlock(x, y + 1, z)] && w.getBlock(x, y + 1, z) !== B.UNLOADED) {
+      w.setBlock(x, y, z, B.AIR, 0, true);
+      e.carry = b;
+    }
+  } else if (e.carry && Math.random() < dt * 0.025) {
+    const x = Math.floor(e.x + randRange(-1.5, 1.5)), y = Math.floor(e.y + randRange(-0.5, 1.5)), z = Math.floor(e.z + randRange(-1.5, 1.5));
+    const b = w.getBlock(x, y, z), under = w.getBlock(x, y - 1, z), flower = e.carry === B.DANDELION || e.carry === B.POPPY;
+    const fits = b === B.AIR && (flower ? under === B.GRASS || under === B.DIRT : SOLID[under] && OPAQUE[under]);
+    if (fits && !spotTaken(game, x, y, z)) { w.setBlock(x, y, z, e.carry, 0, true); e.carry = 0; }
+  }
+}
+/* is a creature or player in the way of a block at x, y, z? */
+function spotTaken(game, x, y, z) {
+  const hits = (ox, oy, oz, ow, oh) => ox + ow > x && ox - ow < x + 1 && oz + ow > z && oz - ow < z + 1 && oy < y + 1 && oy + oh > y;
+  for (const o of game.entities) if (o.mob && !o.dead && !o.removed && hits(o.x, o.y, o.z, o.w, o.h)) return true;
+  for (const p of allPlayers(game)) { const r = p !== game.player; if (hits(r ? p.tx : p.x, r ? p.ty : p.y, r ? p.tz : p.z, 0.3, 1.8)) return true; }
+  return false;
+}
+
+/* ---- ghasts ---- */
+function ghastTarget(game, e) {
+  let best = null, bd = 48;
+  const cx = e.x, cy = e.y + 1.5, cz = e.z;
+  for (const p of allPlayers(game)) {
+    const remote = p !== game.player;
+    if (!p.alive || (remote && !p.lastState) || (remote ? p.mode : game.mode) !== 'survival') continue;
+    const px = remote ? p.tx : p.x, py = (remote ? p.ty : p.y) + 1, pz = remote ? p.tz : p.z;
+    const d = Math.hypot(px - cx, py - cy, pz - cz);
+    if (d >= bd) continue;
+    if (raycast(game.world, cx, cy, cz, (px - cx) / d, (py - cy) / d, (pz - cz) / d, d, true)) continue;   // can't see them
+    bd = d; best = { p, remote, dist: d, dx: px - cx, dy: py - cy, dz: pz - cz };
+  }
+  return best;
+}
+function updateGhast(game, e, d, dt) {
+  const w = game.world;
+  e.aiT -= dt;
+  if (!e.goal || e.aiT <= 0 || e.collidedH || e.hitCeil || e.onGround) {
+    e.goal = [e.x + randRange(-14, 14), clamp(e.y + randRange(-6, 6), 24, 104), e.z + randRange(-14, 14)];
+    e.aiT = randRange(4, 9);
+    if (Math.random() < 0.25) sfx('ghastSay', e.x, e.y + 1.5, e.z);
+  }
+  const gx = e.goal[0] - e.x, gy = e.goal[1] - e.y, gz = e.goal[2] - e.z, gd = Math.hypot(gx, gy, gz) || 1;
+  const sp = gd > 1.5 ? d.speed : 0, k = Math.min(1, dt * 1.2);
+  e.vx += (gx / gd * sp - e.vx) * k; e.vy += (gy / gd * sp - e.vy) * k; e.vz += (gz / gd * sp - e.vz) * k;
+  const steps = Math.max(1, Math.ceil(Math.max(Math.abs(e.vx), Math.abs(e.vy), Math.abs(e.vz)) * dt / 0.4));
+  for (let i = 0; i < steps; i++) moveEntity(w, e, e.vx * dt / steps, e.vy * dt / steps, e.vz * dt / steps);
+  const tg = ghastTarget(game, e);
+  if (tg) {
+    e.yaw = Math.atan2(-tg.dx, -tg.dz);
+    e.attackT = (e.attackT || 0) + dt;
+    if (e.attackT > 2.2 && !(e.firing > 0)) { e.firing = 1.3; sfx('ghastWarn', e.x, e.y + 1.5, e.z); }
+    if (e.attackT >= 3) {
+      e.attackT = 0;
+      const l = tg.dist, fx = tg.dx / l, fy = tg.dy / l, fz = tg.dz / l, sx = e.x + fx * 1.8, sy = e.y + 1.5 + fy * 1.8, sz = e.z + fz * 1.8, v = 13;
+      shootProjectile(game, 'fireball', sx, sy, sz, (fx + randRange(-0.04, 0.04)) * v, (fy + randRange(-0.04, 0.04)) * v, (fz + randRange(-0.04, 0.04)) * v, { owner: 'mob', ownerNid: e.nid });
+      sfx('ghastShoot', sx, sy, sz); MP.sfx('ghastShoot', sx, sy, sz);
+    }
+  } else {
+    e.attackT = Math.max(0, (e.attackT || 0) - dt);
+    if (Math.hypot(e.vx, e.vz) > 0.3) e.yaw = Math.atan2(-e.vx, -e.vz);
+  }
+  if (e.firing > 0) e.firing -= dt;
+  const pd = nearestPlayerDist(game, e);
+  if (pd > 96 || (pd > 64 && Math.random() < dt * 0.02)) e.removed = true;
+  e.bodyYaw = approachAngle(e.bodyYaw, e.yaw, dt * 2); e.headYaw = e.bodyYaw;
+}
+/* a ghast needs a lot of open air */
+function ghastSpawnTick(game, players) {
+  const w = game.world;
+  let n = 0;
+  for (const e of game.entities) if (e.type === 'ghast' && !e.dead) n++;
+  if (n >= 2 * Math.min(2, players.length) || Math.random() > 0.12) return;
+  const pl = players[randInt(0, players.length - 1)], px = pl === game.player ? pl.x : pl.tx, pz = pl === game.player ? pl.z : pl.tz;
+  for (let a = 0; a < 4; a++) {
+    const ang = Math.random() * TAU, dist = randRange(24, 44);
+    const x = px + Math.cos(ang) * dist, z = pz + Math.sin(ang) * dist, y = randInt(36, 96);
+    if (w.getBlock(Math.floor(x), y, Math.floor(z)) !== B.AIR) continue;
+    if (!boxFree(w, x, y - 1, z, 2.5, 5.5)) continue;
+    let air = true;
+    for (let dy = -2; dy <= 5 && air; dy += 2) for (const [ox, oz] of [[-2, -2], [2, -2], [-2, 2], [2, 2], [0, 0]]) if (w.getBlock(Math.floor(x + ox), y + dy, Math.floor(z + oz)) !== B.AIR) { air = false; break; }
+    if (!air) continue;
+    spawnMob(game, 'ghast', x, y, z);
+    return;
+  }
+}
+
+/* ---- 09k-tnt.js ---- */
+/* ===================== TNT of every kind ===================== */
+// Normal, Mega (a much bigger blast), Ice (freezes instead of breaking), Digging (bores a tunnel the way
+// its drill faces), Party (confetti and a big bounce, nothing broken) and Cluster (a blast that throws
+// out little TNTs). Only a single player or the host sets them off; guests see the results.
+const TNT_KINDS = ['normal', 'mega', 'ice', 'dig', 'party', 'cluster'];
+const TNT_BLOCK = { normal: B.TNT, mega: B.MEGA_TNT, ice: B.ICE_TNT, dig: B.DIG_TNT, party: B.PARTY_TNT, cluster: B.CLUSTER_TNT };
+const TNT_FUSE = 4;
+const tntKindOf = id => (BLOCKS[id] && BLOCKS[id].tnt) || null;
+/* the direction a facing block points: data 0-3 around, 4 up, 5 down (dispensers and Digging TNT) */
+function facingFace(data) { const f = data & 7; return f === 4 ? 2 : f === 5 ? 3 : FRONT_FACE[f & 3]; }
+
+/* light the TNT block at x, y, z, whatever kind it is */
+function igniteTNT(game, x, y, z, fuse) {
+  const w = game.world, id = w.getBlock(x, y, z), kind = tntKindOf(id);
+  if (!kind) return null;
+  const data = w.getData(x, y, z);
+  w.setBlock(x, y, z, B.AIR, 0, true);
+  return primeTNT(game, x, y, z, fuse === undefined ? TNT_FUSE : fuse, kind, data);
+}
+function tntGoesOff(game, e) {
+  const x = e.x, y = e.y + (e.small ? 0.25 : 0.5), z = e.z;
+  switch (e.kind) {
+    case 'mega': explode(game, x, y, z, 7); break;
+    case 'ice': iceBlast(game, x, y, z); break;
+    case 'dig': startDigging(game, e); break;
+    case 'party': partyBlast(game, x, y, z); break;
+    case 'cluster': clusterBlast(game, x, y, z); break;
+    default: explode(game, x, y, z, e.small ? 2 : 4);
+  }
+}
+
+/* ---- Ice TNT: water turns to ice, lava to obsidian, grass to snow; creatures freeze; nothing breaks ---- */
+function iceBlast(game, x, y, z) {
+  const w = game.world, R = 6, cx = Math.floor(x), cy = Math.floor(y), cz = Math.floor(z);
+  iceEffect(x, y, z);
+  MP.fx('ice', x, y, z);
+  for (let dy = -R; dy <= R; dy++) for (let dz = -R; dz <= R; dz++) for (let dx = -R; dx <= R; dx++) {
+    if (Math.hypot(dx, dy, dz) > R + randRange(-0.7, 0.3)) continue;
+    const bx = cx + dx, by = cy + dy, bz = cz + dz, b = w.getBlock(bx, by, bz);
+    if (b === B.WATER) w.setBlock(bx, by, bz, B.ICE, 0, true);
+    else if (b === B.LAVA) w.setBlock(bx, by, bz, (w.getData(bx, by, bz) & 7) === 0 ? B.OBSIDIAN : B.COBBLE, 0, true);
+    else if (b === B.GRASS) w.setBlock(bx, by, bz, B.SNOWY_GRASS, 0, true);
+  }
+  const hit = (e, p) => {
+    const d = Math.hypot(e.x - x, e.y + 0.9 - y, e.z - z);
+    if (d > R) return false;
+    const l = d || 1;
+    e.vx += (e.x - x) / l * 3; e.vz += (e.z - z) / l * 3;
+    return true;
+  };
+  for (const e of game.entities) if (e.mob && !e.dead && !e.proxy && hit(e)) { if (e.type === 'magma' || e.type === 'ghast') hurtMob(game, e, 4, x, z, 'ice'); e.frozen = 6; }
+  const pl = game.player;
+  if (pl.alive && hit(pl)) pl.chill = 5;
+  if (MP.role === 'host') for (const r of MP.remotes.values()) if (r.alive && r.lastState && Math.hypot(r.tx - x, r.ty + 0.9 - y, r.tz - z) < R) MP.hurtRemote(r, 0, 'ice', 0, 0, 0);
+  game.shake = Math.max(game.shake || 0, 0.25);
+}
+function iceEffect(x, y, z) {
+  sfx('iceBlast', x, y, z);
+  for (let i = 0; i < 90 && PARTICLES.length < 1700; i++) {
+    const a = Math.random() * TAU, b = randRange(-1, 1), sp = randRange(2, 9), c = Math.sqrt(1 - b * b);
+    PARTICLES.push({ x, y, z, vx: Math.cos(a) * c * sp, vy: b * sp + 2, vz: Math.sin(a) * c * sp, life: randRange(0.8, 2), tile: TILE.snowflake, u: 0, v: 0, us: 16, size: randRange(0.06, 0.13), grav: 2, bright: 1 });
+  }
+  smokeParticles(x, y, z, 20, 2, true);
+}
+
+/* ---- Party TNT: confetti, fireworks and a big bounce for everyone near; sheep change colour ---- */
+function partyBlast(game, x, y, z) {
+  partyEffect(x, y, z);
+  MP.fx('party', x, y, z);
+  const R = 8;
+  for (const e of game.entities) {
+    if (!e.mob || e.dead || e.proxy || Math.hypot(e.x - x, e.y - y, e.z - z) > R) continue;
+    e.vy = randRange(10, 14); e.vx += randRange(-2, 2); e.vz += randRange(-2, 2); e.partyT = 5;
+    if (e.type === 'sheep') { e.wool = randInt(0, 15); e.color = hexRGB(WOOL_COLORS[e.wool]).map(v => v / 255); }
+    if (e.angryT > 0) e.angryT = 0;   // nobody stays cross at a party
+  }
+  const pl = game.player;
+  if (pl.alive && !pl.riding && Math.hypot(pl.x - x, pl.y - y, pl.z - z) < R) { pl.vy = 14; pl.vx += randRange(-1, 1); pl.vz += randRange(-1, 1); pl.partyT = 5; pl.onGround = false; }
+  if (MP.role === 'host') for (const r of MP.remotes.values()) if (r.alive && r.lastState && !r.riding && Math.hypot(r.tx - x, r.ty - y, r.tz - z) < R) MP.hurtRemote(r, 0, 'party', randRange(-1, 1), 14, randRange(-1, 1));
+}
+const CONFETTI = ['spark_red', 'spark_green', 'spark_blue', 'spark_yellow', 'spark_pink'];
+function partyEffect(x, y, z) {
+  sfx('partyPop', x, y, z);
+  for (let i = 0; i < 160 && PARTICLES.length < 1800; i++) {
+    const a = Math.random() * TAU, sp = randRange(1, 7);
+    PARTICLES.push({ x, y: y + 0.3, z, vx: Math.cos(a) * sp, vy: randRange(5, 13), vz: Math.sin(a) * sp, life: randRange(1.5, 3.2), tile: TILE[CONFETTI[i % 5]], u: 0, v: 0, us: 16, size: randRange(0.05, 0.09), grav: 6, bright: 1 });
+  }
+  for (let k = 0; k < 3; k++) {   // three fireworks overhead
+    const fx = x + randRange(-4, 4), fy = y + randRange(7, 11), fz = z + randRange(-4, 4), col = TILE[CONFETTI[randInt(0, 4)]];
+    for (let i = 0; i < 40 && PARTICLES.length < 1900; i++) {
+      const a = Math.random() * TAU, b = randRange(-1, 1), c = Math.sqrt(1 - b * b), sp = randRange(3, 5);
+      PARTICLES.push({ x: fx, y: fy, z: fz, vx: Math.cos(a) * c * sp, vy: b * sp, vz: Math.sin(a) * c * sp, life: randRange(0.8, 1.4), tile: col, u: 0, v: 0, us: 16, size: 0.08, grav: 1.5, bright: 1 });
+    }
+  }
+}
+
+/* ---- Cluster TNT: a blast that throws out six little TNTs ---- */
+function clusterBlast(game, x, y, z) {
+  explode(game, x, y, z, 2.5);
+  for (let i = 0; i < 6; i++) {
+    const a = (i / 6) * TAU + randRange(-0.3, 0.3), sp = randRange(4, 7);
+    const t = primeTNT(game, x - 0.5, y - 0.25, z - 0.5, randRange(1, 1.8), 'normal');
+    t.small = true; t.w = 0.25; t.h = 0.5;
+    t.vx = Math.cos(a) * sp; t.vz = Math.sin(a) * sp; t.vy = randRange(6, 9);
+  }
+}
+
+/* ---- Digging TNT: a row of small blasts, one slice at a time, boring a 3x3 tunnel 16 blocks long ---- */
+function startDigging(game, e) {
+  const f = facingFace(e.dir | 0), w = game.world;
+  sfx('explode', e.x, e.y + 0.5, e.z, 0.6);
+  smokeParticles(e.x, e.y + 0.5, e.z, 16, 0.8, true);
+  if (MP.role === 'host') MP.outFx.push(['boom', r2(e.x), r2(e.y + 0.5), r2(e.z), 1]);
+  w.diggers.push({ x: Math.floor(e.x), y: Math.floor(e.y + 0.5), z: Math.floor(e.z), f, step: 0, t: 0 });
+}
+function tickDiggers(game, dt) {
+  const w = game.world;
+  if (!w.diggers.length) return;
+  for (const d of w.diggers) {
+    d.t -= dt;
+    if (d.t > 0) continue;
+    d.t = 0.08;
+    const dx = DX[d.f], dy = DY[d.f], dz = DZ[d.f];
+    // two directions across the tunnel; a sideways tunnel has its floor level with where the TNT stood
+    const ux = dy !== 0 ? 1 : 0, uy = dy !== 0 ? 0 : 1, vx = dz !== 0 ? 1 : 0, vz = dz !== 0 ? 0 : 1;
+    const cx = d.x + dx * d.step, cy = d.y + dy * d.step + (dy === 0 ? 1 : 0), cz = d.z + dz * d.step;
+    let hard = 0;
+    w.beginBlast();
+    for (let a = -1; a <= 1; a++) for (let b = -1; b <= 1; b++) {
+      const bx = cx + ux * a + vx * b, by = cy + uy * a, bz = cz + vz * b;
+      const id = w.getBlock(bx, by, bz);
+      if (!id || id === B.UNLOADED || LIQUID[id]) continue;
+      if (BLOCKS[id].blast >= 1e9 || BLOCKS[id].hardness < 0) { hard++; continue; }
+      if (tntKindOf(id)) { igniteTNT(game, bx, by, bz, randRange(0.5, 1.2)); continue; }
+      w.setBlock(bx, by, bz, B.AIR, 0, true);
+      if (Math.random() < 0.35) blockParticles(bx, by, bz, id, 4, true);
+      if (game.mode === 'survival' && (/ ore$/i.test(BLOCKS[id].name) || Math.random() < 0.2)) for (const [did, n] of blockDrops(id, toolId(3, 0))) dropForNearest(game, bx + 0.5, by + 0.5, bz + 0.5, did, n);   // ores always
+    }
+    w.endBlast();
+    if (d.step % 2 === 0) { sfx('digBoom', cx + 0.5, cy + 0.5, cz + 0.5); smokeParticles(cx + 0.5, cy + 0.5, cz + 0.5, 4, 0.8, true); if (MP.role === 'host') MP.fx('smoke', cx + 0.5, cy + 0.5, cz + 0.5); }
+    for (const e of game.entities) if (e.mob && !e.dead && Math.abs(e.x - (cx + 0.5)) < 1.8 && Math.abs(e.z - (cz + 0.5)) < 1.8 && Math.abs(e.y + e.h / 2 - (cy + 0.5)) < 2) hurtMob(game, e, 3, cx + 0.5 - dx, cz + 0.5 - dz, 'explosion');
+    d.step++;
+    if (d.step > 16 || hard >= 6) d.done = true;
+  }
+  w.diggers = w.diggers.filter(d => !d.done);
+}
+
+/* ---- drawing a lit TNT block (it swells and flashes just before it goes) ---- */
+function drawTNT(e, dx, dy, dz, eb) {
+  const P = PROG.entity, size = e.small ? 0.5 : 1, grow = e.fuse < 0.4 ? 1 + (0.4 - e.fuse) * 0.4 : 1, s = size * grow / 16;
+  M4.translate(eb, eb, dx, dy, dz);
+  M4.scale(eb, eb, s, s, s);
+  gl.uniform4f(P.u.uTint, 1, 1, 1, Math.floor(e.fuse * 5) % 2 === 0 ? 0.5 : 0);
+  gl.enable(gl.CULL_FACE);
+  drawMesh(itemMesh(TNT_BLOCK[e.kind] || B.TNT), eb);
+  gl.disable(gl.CULL_FACE);
+}
+
+/* ---- 09p-projectiles.js ---- */
+/* ===================== Arrows, fireballs, fire charges and ender pearls ===================== */
+// Shot by players (bows, crossbows, pearls, fire charges), dispensers and ghasts. A single player or the
+// host moves them and decides what they hit; guests see them fly along (and their own shots at once, as a
+// "ghost" that the host's real one replaces).
+const PROJ = {
+  arrow: { grav: 20, drag: 0.99, r: 0.06 },
+  fireball: { grav: 0, drag: 1, r: 0.4 },    // a ghast's: blows up what it hits (and can be hit back)
+  charge: { grav: 0, drag: 1, r: 0.2 },      // a fire charge: burns what it hits
+  pearl: { grav: 20, drag: 0.99, r: 0.12 },  // an ender pearl: takes its thrower where it lands
+};
+const PROJ_KINDS = Object.keys(PROJ);
+const isPlayerOwner = o => o === 'me' || (typeof o === 'string' && o !== 'disp' && o !== 'mob');
+
+function shootProjectile(game, kind, x, y, z, vx, vy, vz, o) {
+  const e = new Entity('proj', x, y, z);
+  e.kind = kind; e.vx = vx; e.vy = vy; e.vz = vz; e.w = PROJ[kind].r; e.h = 0;
+  e.owner = (o && o.owner) || null; e.ownerNid = (o && o.ownerNid) || 0;
+  e.dmg = (o && o.dmg) || 0; e.crit = !!(o && o.crit); e.pickup = !!(o && o.pickup); e.tok = (o && o.tok) || '';
+  e.ghost = !!(o && o.ghost);
+  game.entities.push(e);
+  return e;
+}
+/* a player's shot: here at once; on a guest, the host is asked to make the real one */
+function playerShoot(game, kind, vel, o) {
+  const pl = game.player, [dx, dy, dz] = pl.lookDir(), [ex, ey, ez] = pl.eyePos();
+  const x = ex + dx * 0.5, y = ey - 0.12 + dy * 0.5, z = ez + dz * 0.5;
+  let vx = dx * vel, vy = dy * vel, vz = dz * vel;
+  if (kind === 'pearl') vy += 2;
+  if (MP.role === 'guest') {
+    const tok = randomId(6);
+    MP.send({ t: 'shoot', k: kind, p: [r2(x), r2(y), r2(z)], v: [r2(vx), r2(vy), r2(vz)], d: o.dmg || 0, c: o.crit ? 1 : 0, tok, s: o.snd });
+    shootProjectile(game, kind, x, y, z, vx, vy, vz, { owner: 'me', ghost: true, tok, crit: o.crit });
+    return;
+  }
+  shootProjectile(game, kind, x, y, z, vx, vy, vz, Object.assign({ owner: 'me' }, o));
+}
+/* the nearest creature or player a projectile meets on its way (t: distance along the unit direction) */
+function projTarget(game, e, x, y, z, nx, ny, nz, maxT) {
+  let best = null, bt = maxT;
+  const pad = PROJ[e.kind].r, young = e.age < 0.3;
+  for (const o of game.entities) {
+    if (!o.mob || o.dead || o.removed) continue;
+    if ((e.ownerNid && o.nid === e.ownerNid && young) || o.nid === e.passed) continue;
+    const t = rayBox(x, y, z, nx, ny, nz, o.x - o.w - pad, o.y - pad, o.z - o.w - pad, o.x + o.w + pad, o.y + o.h + pad, o.z + o.w + pad);
+    if (t >= 0 && t < bt) { bt = t; best = { o, player: null }; }
+  }
+  // what players shoot never hurts players; pearls never hurt anyone
+  if (e.kind !== 'pearl' && !isPlayerOwner(e.owner)) {
+    for (const p of allPlayers(game)) {
+      const remote = p !== game.player;
+      if (!p.alive || (remote && !p.lastState)) continue;
+      const px = remote ? p.tx : p.x, py = remote ? p.ty : p.y, pz = remote ? p.tz : p.z;
+      const t = rayBox(x, y, z, nx, ny, nz, px - 0.3 - pad, py - pad, pz - 0.3 - pad, px + 0.3 + pad, py + 1.8 + pad, pz + 0.3 + pad);
+      if (t >= 0 && t < bt) { bt = t; best = { o: p, player: remote ? 'remote' : 'me' }; }
+    }
+  }
+  return best ? Object.assign(best, { t: bt }) : null;
+}
+function hurtPlayerBy(game, p, who, dmg, cause, kx, ky, kz) {
+  if (who === 'remote') { if (p.mode === 'survival') MP.hurtRemote(p, dmg, cause, kx, ky, kz); return; }
+  p.damage(dmg, cause);
+  p.vx += kx; p.vz += kz; p.vy = Math.max(p.vy, ky);
+}
+function updateProjectile(game, e, dt) {
+  const P = PROJ[e.kind], world = game.world;
+  if (e.stuck) {
+    if (!SOLID[world.getBlock(e.sx, e.sy, e.sz)]) { e.stuck = false; e.vx = e.vy = e.vz = 0; return; }   // the block went: it falls
+    if (e.age > 60 || (e.ghost && e.age > 4)) e.removed = true;
+    else if (e.pickup && !e.ghost) pickUpArrow(game, e);
+    return;
+  }
+  if (e.ghost && e.age > 4) { e.removed = true; return; }
+  e.vy -= P.grav * dt;
+  if (P.drag < 1) { const k = Math.pow(P.drag, dt * 20); e.vx *= k; e.vy *= k; e.vz *= k; }
+  const b = world.getBlock(Math.floor(e.x), Math.floor(e.y), Math.floor(e.z));
+  if (b === B.WATER) {
+    if (e.kind === 'fireball' || e.kind === 'charge') { e.removed = true; sfx('fizz', e.x, e.y, e.z); smokeParticles(e.x, e.y, e.z, 6, 0.2, false); return; }
+    const k = Math.pow(0.2, dt); e.vx *= k; e.vy *= k; e.vz *= k;
+  }
+  const len = Math.hypot(e.vx, e.vy, e.vz) * dt;
+  if (len < 1e-6) return;
+  const nx = e.vx * dt / len, ny = e.vy * dt / len, nz = e.vz * dt / len;
+  const hit = raycast(world, e.x, e.y, e.z, nx, ny, nz, len, true);
+  const ent = projTarget(game, e, e.x, e.y, e.z, nx, ny, nz, hit ? hit.t : len);
+  if (ent) { projHit(game, e, e.x + nx * ent.t, e.y + ny * ent.t, e.z + nz * ent.t, nx, ny, nz, ent, null); return; }
+  if (hit) { projHit(game, e, e.x + nx * hit.t, e.y + ny * hit.t, e.z + nz * hit.t, nx, ny, nz, null, hit); return; }
+  e.x += nx * len; e.y += ny * len; e.z += nz * len;
+  if (e.y < -40 || e.age > 30) e.removed = true;
+  projTrail(e, dt);
+}
+function projTrail(e, dt) {
+  if (PARTICLES.length > 1400) return;
+  if (e.kind === 'fireball' || e.kind === 'charge') {
+    if (Math.random() < dt * 30) PARTICLES.push({ x: e.x + randRange(-0.2, 0.2), y: e.y + randRange(-0.2, 0.2), z: e.z + randRange(-0.2, 0.2), vx: 0, vy: 0.4, vz: 0, life: randRange(0.2, 0.45), tile: TILE.flame, u: 0, v: 0, us: 16, size: e.kind === 'fireball' ? 0.18 : 0.1, grav: -0.5, bright: 1 });
+    if (Math.random() < dt * 12) smokeParticles(e.x, e.y, e.z, 1, 0.15, false);
+  } else if (e.kind === 'pearl') {
+    if (Math.random() < dt * 25) PARTICLES.push({ x: e.x, y: e.y, z: e.z, vx: randRange(-0.3, 0.3), vy: randRange(-0.3, 0.3), vz: randRange(-0.3, 0.3), life: 0.5, tile: TILE.ender_dot, u: 0, v: 0, us: 16, size: 0.05, grav: 0, bright: 1 });
+  } else if (e.crit && Math.random() < dt * 40) {
+    PARTICLES.push({ x: e.x, y: e.y, z: e.z, vx: randRange(-0.4, 0.4), vy: randRange(-0.4, 0.4), vz: randRange(-0.4, 0.4), life: 0.35, tile: TILE.spark, u: 0, v: 0, us: 16, size: 0.05, grav: 0, bright: 1 });
+  }
+}
+function projHit(game, e, x, y, z, nx, ny, nz, ent, blk) {
+  const k = e.kind, by = isPlayerOwner(e.owner) && e.owner !== 'me' ? e.owner : undefined, cause = isPlayerOwner(e.owner) ? 'player' : k === 'arrow' ? 'arrow' : 'fireball';
+  if (e.ghost) {   // only for show: the host's real one does the rest
+    if (k === 'arrow' && blk) { e.stuck = true; e.x = x - nx * 0.1; e.y = y - ny * 0.1; e.z = z - nz * 0.1; e.sx = blk.x; e.sy = blk.y; e.sz = blk.z; }
+    else e.removed = true;
+    return;
+  }
+  if (k === 'pearl') { e.removed = true; pearlLand(game, e, x - nx * 0.4, y - ny * 0.4, z - nz * 0.4, blk); return; }
+  if (k === 'fireball') {
+    e.removed = true;
+    if (ent && !ent.player) hurtMob(game, ent.o, ent.o.type === 'ghast' && e.deflected ? 1000 : 4, x - nx, z - nz, cause, by);
+    else if (ent) hurtPlayerBy(game, ent.o, ent.player, 4, 'fireball', nx * 5, 3, nz * 5);
+    explode(game, x - nx * 0.6, y - ny * 0.6, z - nz * 0.6, 1.6);
+    return;
+  }
+  if (k === 'charge') {
+    e.removed = true;
+    if (ent && !ent.player) hurtMob(game, ent.o, 5, x - nx, z - nz, cause, by);
+    else if (ent) hurtPlayerBy(game, ent.o, ent.player, 5, 'fireball', nx * 3, 2, nz * 3);
+    sfx('fizz', x, y, z);
+    for (let i = 0; i < 10 && PARTICLES.length < 1500; i++) PARTICLES.push({ x, y, z, vx: randRange(-2, 2), vy: randRange(0, 2.5), vz: randRange(-2, 2), life: randRange(0.3, 0.6), tile: TILE.flame, u: 0, v: 0, us: 16, size: 0.1, grav: -1, bright: 1 });
+    MP.fx('smoke', x, y, z);
+    return;
+  }
+  // an arrow
+  if (ent) {
+    if (!ent.player && ent.o.type === 'enderman') { e.passed = ent.o.nid; enderTeleport(game, ent.o, 'dodge'); return; }   // endermen dodge arrows; it flies on
+    e.removed = true;
+    const sp = Math.hypot(e.vx, e.vy, e.vz), dmg = Math.max(1, Math.round(e.dmg * Math.min(1, sp / 30 + 0.2)));
+    if (!ent.player) hurtMob(game, ent.o, dmg, ent.o.x - nx, ent.o.z - nz, cause, by);
+    else hurtPlayerBy(game, ent.o, ent.player, dmg, 'arrow', nx * 4, 2.5, nz * 4);
+    sfx('arrowHit', x, y, z);
+    return;
+  }
+  e.stuck = true; e.age = 0;
+  e.x = x - nx * 0.1; e.y = y - ny * 0.1; e.z = z - nz * 0.1;
+  e.sx = blk.x; e.sy = blk.y; e.sz = blk.z;
+  sfx('arrowHit', x, y, z, 0.7);
+  if (BLOCKS[blk.id] && BLOCKS[blk.id].tnt && e.crit && isPlayerOwner(e.owner)) { }   // (fire arrows would light TNT; these don't)
+}
+/* walk over an arrow you shot (in Survival) to pick it back up */
+function pickUpArrow(game, e) {
+  for (const p of allPlayers(game)) {
+    const remote = p !== game.player;
+    if (!p.alive || (remote && !p.lastState)) continue;
+    const px = remote ? p.tx : p.x, py = remote ? p.ty : p.y, pz = remote ? p.tz : p.z;
+    if (Math.abs(px - e.x) > 1.2 || Math.abs(pz - e.z) > 1.2 || e.y < py - 0.6 || e.y > py + 2.2) continue;
+    if (remote) { MP.sendDrops(p, [[I.ARROW, 1, 0]], px, py + 0.5, pz); e.removed = true; return; }
+    if (game.giveItem(I.ARROW, 1) === 0) { e.removed = true; sfx('pop', e.x, e.y, e.z); return; }
+  }
+}
+/* an ender pearl takes whoever threw it to where it landed */
+function pearlLand(game, e, x, y, z, blk) {
+  enderParticles(x, y, z, 24);
+  sfx('endermanPortal', x, y, z);
+  MP.fx('tele', x, y, z);
+  const world = game.world, under = blk && blk.face === 3, base = blk && blk.face === 2 ? blk.y + 1 : under ? blk.y - 1.85 : y - 0.9;
+  let fy = null;
+  for (const d of under ? [0, -1, -2, 1] : [0, 1, 2, -1, -2]) if (boxFree(world, x, base + d, z, 0.3, 1.8)) { fy = base + d; break; }
+  if (fy === null) return;   // nowhere to stand there: the pearl is used up, and you stay put
+  if (e.owner === 'me') {
+    const pl = game.player;
+    if (!pl.alive || game.state !== 'playing') return;
+    pl.x = x; pl.y = fy; pl.z = z; pl.vx = pl.vy = pl.vz = 0; pl.fallDist = 0;
+    pl.damage(3, 'fall');
+    return;
+  }
+  const r = MP.remotes.get(e.owner);
+  if (r && r.link && r.alive) { r.tx = r.x = x; r.ty = r.y = fy; r.tz = r.z = z; r.link.send({ t: 'tele', at: [r2(x), r2(fy), r2(z)] }); }
+}
+function enderParticles(x, y, z, n) {
+  for (let i = 0; i < n && PARTICLES.length < 1600; i++) PARTICLES.push({ x: x + randRange(-0.5, 0.5), y: y + randRange(0, 2), z: z + randRange(-0.5, 0.5), vx: randRange(-1, 1), vy: randRange(-0.5, 1), vz: randRange(-1, 1), life: randRange(0.4, 0.9), tile: TILE.ender_dot, u: 0, v: 0, us: 16, size: randRange(0.04, 0.08), grav: 0, bright: 1 });
+}
+/* hitting a ghast's fireball sends it back where you are looking */
+function deflectFireball(game, e, dir, owner) {
+  if (e.kind !== 'fireball' || e.removed) return;
+  const sp = Math.max(12, Math.hypot(e.vx, e.vy, e.vz));
+  e.vx = dir[0] * sp; e.vy = dir[1] * sp; e.vz = dir[2] * sp;
+  e.owner = owner; e.ownerNid = 0; e.deflected = true; e.age = 0;
+  sfx('arrowHit', e.x, e.y, e.z);
+}
+
+/* ---- drawing ---- */
+const _pj = M4.create(), _pj2 = M4.create();
+let FIREBALL_MESH = null;
+function fireballMesh() {
+  if (FIREBALL_MESH) return FIREBALL_MESH;
+  const mb = new MeshBuilder(), t = TILE.fireball, a = -8, b = 8;
+  const F = [[[b, a, b], [b, a, a], [b, b, a], [b, b, b]], [[a, a, a], [a, a, b], [a, b, b], [a, b, a]], [[a, b, b], [b, b, b], [b, b, a], [a, b, a]],
+    [[a, a, a], [b, a, a], [b, a, b], [a, a, b]], [[a, a, b], [b, a, b], [b, b, b], [a, b, b]], [[b, a, a], [a, a, a], [a, b, a], [b, b, a]]];
+  for (const f of F) mb.quad(f, [[0, 16], [16, 16], [16, 0], [0, 0]], t, 1, 16, 0);
+  return (FIREBALL_MESH = mb.build());
+}
+function tileMesh(name) { const k = 't:' + name; return ITEM_MESH[k] || (ITEM_MESH[k] = spriteMesh(TILE[name])); }
+function drawProjectile(e, dx, dy, dz) {
+  const P = PROG.entity;
+  M4.identity(_pj);
+  M4.translate(_pj, _pj, dx, dy, dz);
+  if (e.kind === 'fireball' || e.kind === 'charge') {
+    const s = (e.kind === 'fireball' ? 0.9 : 0.4) / 16;
+    gl.uniform1f(P.u.uBright, 1);
+    M4.rotY(_pj, _pj, e.age * 5); M4.rotX(_pj, _pj, e.age * 3);
+    M4.scale(_pj, _pj, s, s, s);
+    drawMesh(fireballMesh(), _pj);
+    return;
+  }
+  if (e.kind === 'pearl') {
+    M4.rotY(_pj, _pj, R.cam.yaw);
+    M4.scale(_pj, _pj, 0.3 / 16, 0.3 / 16, 0.3 / 16);
+    M4.translate(_pj, _pj, 0, -8, 0);
+    drawMesh(tileMesh('ender_pearl'), _pj);
+    return;
+  }
+  // arrows point along their flight (the picture has the tip up and to the right)
+  const vx = e.vx, vy = e.vy, vz = e.vz;   // (a stuck arrow keeps the speed it hit with, for this)
+  M4.rotY(_pj, _pj, Math.atan2(-(vz || 0), vx || 1e-6));
+  M4.rotZ(_pj, _pj, Math.atan2(vy || 0, Math.hypot(vx || 0, vz || 0)));
+  M4.scale(_pj, _pj, 0.7 / 16, 0.7 / 16, 0.7 / 16);
+  _pj2.set(_pj);
+  M4.rotX(_pj2, _pj2, Math.PI / 2);   // two crossed pictures, so it never looks flat
+  const m = tileMesh('arrow');
+  for (const mm of [_pj, _pj2]) { M4.rotZ(mm, mm, -Math.PI / 4); M4.translate(mm, mm, -3.5, -11.5, 0); drawMesh(m, mm); }   // the tip at the arrow's position
+}
+
+/* ---- 09r-redstone.js ---- */
+/* ===================== Levers, buttons and dispensers ===================== */
+// A switched-on lever (or a pressed button) powers what is right next to it, and what is next to the block
+// it is stuck on: TNT lights, doors open (and shut again when the power goes) and dispensers fire once.
+// A single player or the host works this out; guests just flip the levers and press the buttons.
+const POWER_SRC = new Uint8Array(256), POWER_DEV = new Uint8Array(256);
+POWER_SRC[B.LEVER] = POWER_SRC[B.BUTTON] = 1;
+for (const id of [B.TNT, B.MEGA_TNT, B.ICE_TNT, B.DIG_TNT, B.PARTY_TNT, B.CLUSTER_TNT, B.DISPENSER, B.DOOR]) POWER_DEV[id] = 1;
+const BUTTON_TIME = 1;
+/* a lever or button keeps the side it is stuck to in data & 7 (an index into DX/DY/DZ); data & 8 is on */
+function isPowered(w, x, y, z) {
+  for (let d = 0; d < 6; d++) {
+    const nx = x + DX[d], ny = y + DY[d], nz = z + DZ[d], nb = w.getBlock(nx, ny, nz);
+    if (POWER_SRC[nb]) { if (w.getData(nx, ny, nz) & 8) return true; continue; }
+    if (!SOLID[nb] || !OPAQUE[nb]) continue;
+    for (let e = 0; e < 6; e++) {   // a solid block beside us with a switched-on lever stuck to it
+      const mx = nx + DX[e], my = ny + DY[e], mz = nz + DZ[e];
+      if ((mx === x && my === y && mz === z) || !POWER_SRC[w.getBlock(mx, my, mz)]) continue;
+      const md = w.getData(mx, my, mz);
+      if ((md & 8) && mx + DX[md & 7] === nx && my + DY[md & 7] === ny && mz + DZ[md & 7] === nz) return true;
+    }
+  }
+  return false;
+}
+function tickPower(game, dt) {
+  const w = game.world;
+  if (w.buttons.length) {   // buttons pop back up after a second
+    const keep = [];
+    for (const b of w.buttons) {
+      if (b[3] > w.clock) { keep.push(b); continue; }
+      const d = w.getData(b[0], b[1], b[2]);
+      if (w.getBlock(b[0], b[1], b[2]) === B.BUTTON && (d & 8)) { w.setBlock(b[0], b[1], b[2], B.BUTTON, d & 7, true); sfx('buttonClick', b[0] + 0.5, b[1] + 0.5, b[2] + 0.5, 0.6); MP.sfx('buttonClick', b[0] + 0.5, b[1] + 0.5, b[2] + 0.5); }
+    }
+    w.buttons = keep;
+  }
+  const q = w.powerQ;
+  if (!q.length) return;
+  w.powerQ = [];
+  const seen = new Set();
+  for (let i = 0; i < q.length; i += 7) {
+    const x = q[i], y = q[i + 1], z = q[i + 2], old = q[i + 3], od = q[i + 4], id = q[i + 5], data = q[i + 6];
+    if (POWER_SRC[old] || POWER_SRC[id]) {
+      if (id === B.BUTTON && (data & 8) && !(old === B.BUTTON && (od & 8))) w.buttons.push([x, y, z, w.clock + BUTTON_TIME]);
+      const src = POWER_SRC[id] ? data : od, sx = x + DX[src & 7], sy = y + DY[src & 7], sz = z + DZ[src & 7];
+      for (const [cx, cy, cz] of [[x, y, z], [sx, sy, sz]]) for (let d = 0; d < 6; d++) {
+        const px = cx + DX[d], py = cy + DY[d], pz = cz + DZ[d], k = px + ',' + py + ',' + pz;
+        if (seen.has(k)) continue;
+        seen.add(k);
+        if (POWER_DEV[w.getBlock(px, py, pz)]) powerDevice(game, px, py, pz, false);
+      }
+    } else if (POWER_DEV[id] && !seen.has(x + ',' + y + ',' + z)) powerDevice(game, x, y, z, true);   // put down next to a switched-on lever
+  }
+}
+function powerDevice(game, x, y, z, placed) {
+  const w = game.world, id = w.getBlock(x, y, z);
+  if (tntKindOf(id)) { if (isPowered(w, x, y, z)) igniteTNT(game, x, y, z); return; }
+  if (id === B.DOOR) {
+    const d = w.getData(x, y, z), ly = (d & 8) ? y - 1 : y, ld = w.getData(x, ly, z);
+    if (w.getBlock(x, ly, z) !== B.DOOR) return;
+    const on = isPowered(w, x, ly, z) || isPowered(w, x, ly + 1, z);
+    if (placed && !on) return;
+    const want = on ? ld | 4 : ld & ~4;
+    if (want === ld) return;
+    w.setBlock(x, ly, z, B.DOOR, want, true);
+    if (w.getBlock(x, ly + 1, z) === B.DOOR) w.setBlock(x, ly + 1, z, B.DOOR, want | 8, true);
+    sfx('door', x + 0.5, ly + 0.5, z + 0.5);
+    MP.localFx('door', x, ly, z, 0);
+    return;
+  }
+  if (id === B.DISPENSER) {
+    const t = w.getTile(x, y, z, 'dispenser'), on = isPowered(w, x, y, z);
+    if (on && !t.powered && !placed) dispense(game, x, y, z, t);
+    t.powered = on;
+  }
+}
+/* a dispenser fires one thing from a random slot: arrows, fire charges and TNT fly out, spawn eggs hatch,
+   a minecart goes onto a rail in front, and anything else pops out as an item */
+function dispense(game, x, y, z, t) {
+  const w = game.world, data = w.getData(x, y, z), f = facingFace(data), dx = DX[f], dy = DY[f], dz = DZ[f];
+  const fx = x + 0.5 + dx * 0.7, fy = y + 0.5 + dy * 0.7, fz = z + 0.5 + dz * 0.7;
+  const full = [];
+  for (let i = 0; i < t.slots.length; i++) if (t.slots[i]) full.push(i);
+  if (!full.length || (t.viewers && t.viewers.size)) { sfx('dispenseFail', fx, fy, fz); MP.sfx('dispenseFail', fx, fy, fz); return; }
+  const i = full[randInt(0, full.length - 1)], st = t.slots[i], id = st.id;
+  const take = () => { st.count--; if (st.count <= 0) t.slots[i] = null; MP.tileChanged(t); };
+  smokeParticles(fx, fy, fz, 5, 0.1, false); MP.fx('smoke', fx, fy, fz);
+  const spread = () => randRange(-0.6, 0.6);
+  if (id === I.ARROW) {
+    shootProjectile(game, 'arrow', fx, fy, fz, dx * 26 + spread(), dy * 26 + (dy ? 0 : 1.5), dz * 26 + spread(), { owner: 'disp', dmg: 4, pickup: true });
+    take(); sfx('bowShoot', fx, fy, fz); MP.sfx('bowShoot', fx, fy, fz);
+    return;
+  }
+  if (id === I.FIRE_CHARGE) {
+    shootProjectile(game, 'charge', fx, fy, fz, dx * 16 + spread(), dy * 16 + spread() * 0.5, dz * 16 + spread(), { owner: 'disp' });
+    take(); sfx('ghastShoot', fx, fy, fz, 0.6); MP.sfx('ghastShoot', fx, fy, fz);
+    return;
+  }
+  const kind = tntKindOf(id);
+  if (kind) {
+    const dir = f === 2 ? 4 : f === 3 ? 5 : FRONT_FACE.indexOf(f), e = primeTNT(game, x + dx, y + dy, z + dz, TNT_FUSE, kind, dir);
+    e.vx = dx * 1.5; e.vz = dz * 1.5; e.vy = dy > 0 ? 5 : dy < 0 ? -1 : 2;
+    take();
+    return;
+  }
+  const egg = id >= 256 && ITEMS[id] && ITEMS[id].egg;
+  if (egg && boxFree(w, x + 0.5 + dx, y + Math.min(0, dy), z + 0.5 + dz, MOB_DEFS[egg].w, Math.min(1.9, MOB_DEFS[egg].h))) {
+    spawnMob(game, egg, x + 0.5 + dx, y + Math.min(0, dy), z + 0.5 + dz, { home: [x + 0.5 + dx, z + 0.5 + dz] });
+    take(); sfx('dispense', fx, fy, fz); MP.sfx('dispense', fx, fy, fz);
+    return;
+  }
+  if (id === I.MINECART && w.getBlock(x + dx, y + dy, z + dz) === B.RAIL) {
+    spawnVehicle(game, 'minecart', x + dx + 0.5, y + dy + 0.0625, z + dz + 0.5, 0);
+    take(); sfx('dispense', fx, fy, fz); MP.sfx('dispense', fx, fy, fz);
+    return;
+  }
+  if (id === I.FLINT_AND_STEEL && lightPortalAt(game, x + dx, y + dy, z + dz)) {
+    sfx('portalLight', fx, fy, fz);
+    st.dmg = (st.dmg || 0) + 1;
+    if (st.dmg >= ITEMS[id].tool.dur) t.slots[i] = null;
+    MP.tileChanged(t);
+    return;
+  }
+  const e = dropForNearest(game, fx, fy - 0.15, fz, id, 1, st.dmg);
+  if (e) { e.vx = dx * 5 + spread(); e.vy = dy * 5 + 1.5; e.vz = dz * 5 + spread(); }
+  take(); sfx('dispense', fx, fy, fz); MP.sfx('dispense', fx, fy, fz);
+}
+/* playing together, things only exist on one iPad: something that comes out of a machine goes to whoever is
+   nearest (a guest gets it on their screen, right there) */
+function dropForNearest(game, x, y, z, id, n, dmg) {
+  const pl = game.player;
+  let best = null, bd = pl.alive ? Math.hypot(pl.x - x, pl.y - y, pl.z - z) : 1e9;
+  if (MP.role === 'host') for (const r of MP.remotes.values()) { if (!r.alive || !r.lastState) continue; const d = Math.hypot(r.tx - x, r.ty - y, r.tz - z); if (d < bd) { bd = d; best = r; } }
+  if (best) { MP.sendDrops(best, [[id, n, dmg || 0]], x, y, z); return null; }
+  const e = dropItem(game, x, y, z, id, n, true);
+  if (e && dmg) e.dmg = dmg;
+  return e;
+}
+/* a player flips a lever or presses a button (on a guest the host takes it from there) */
+function useSwitch(game, x, y, z, id) {
+  const w = game.world, d = w.getData(x, y, z);
+  if (id === B.LEVER) { w.setBlock(x, y, z, B.LEVER, d ^ 8, true); sfx('leverClick', x + 0.5, y + 0.5, z + 0.5); }
+  else if (!(d & 8)) { w.setBlock(x, y, z, B.BUTTON, d | 8, true); sfx('buttonClick', x + 0.5, y + 0.5, z + 0.5); }
+  else { if (!w.remote && !w.buttons.some(b => b[0] === x && b[1] === y && b[2] === z)) w.buttons.push([x, y, z, w.clock]); return; }   // stuck down (from a saved world): pop it up
+  if (game.net) MP.localFx('sfx', x + 0.5, y + 0.5, z + 0.5, SFX_NET.indexOf(id === B.LEVER ? 'leverClick' : 'buttonClick'));
 }
 
 /* ---- 09v-villagers.js ---- */
@@ -5179,7 +6582,8 @@ function tradesFor(prof, vseed) {
     case 'butcher': return [t([[I.PORKCHOP, 8]], [E, 1]), t([[I.BEEF, 8]], [E, 1]), t([[I.CHICKEN, 10]], [E, 1]), t([[I.COAL, 16]], [E, 1]),
       t([[E, 1]], [I.COOKED_PORKCHOP, 5]), t([[E, 1]], [I.STEAK, 5])];
     case 'toolsmith': return [t([[I.COAL, 16]], [E, 1]), t([[I.IRON_INGOT, 4]], [E, 1]), t([[E, 1]], [toolId(1, 0), 1]), t([[E, 3]], [toolId(2, 0), 1]),
-      t([[E, 3]], [toolId(2, 1), 1]), t([[E, 4]], [toolId(2, 3), 1]), t([[E, 10]], [toolId(3, 0), 1]), t([[E, 12]], [toolId(3, 3), 1])];
+      t([[E, 3]], [toolId(2, 1), 1]), t([[E, 4]], [toolId(2, 3), 1]), t([[E, 10]], [toolId(3, 0), 1]), t([[E, 12]], [toolId(3, 3), 1]),
+      t([[E, 2]], [I.BOW, 1]), t([[E, 1]], [I.ARROW, 8]), t([[E, 4]], [I.CROSSBOW, 1])];
     case 'shepherd': {
       const c1 = 1 + (vseed % 15), c2 = 1 + ((vseed * 7 + 5) % 15), c3 = c2 === c1 ? 1 + (c1 % 15) : c2;
       return [t([[B.WOOL, 12]], [E, 1]), t([[E, 1]], [B.WOOL + c1, 4]), t([[E, 1]], [B.WOOL + c3, 4]), t([[E, 3]], [B.BED, 1])];
@@ -5187,7 +6591,7 @@ function tradesFor(prof, vseed) {
     case 'mason': return [t([[B.COBBLE, 16]], [E, 1]), t([[B.CLAY, 10]], [E, 1]), t([[E, 1]], [B.BRICKS, 10]), t([[E, 1]], [B.STONE_BRICKS, 12]),
       t([[E, 1]], [B.GLASS, 6]), t([[E, 2]], [B.GLOWSTONE, 3])];
     case 'cleric': return [t([[I.ROTTEN_FLESH, 16]], [E, 1]), t([[I.GOLD_INGOT, 2]], [E, 1]), t([[E, 1]], [I.GUNPOWDER, 4]),
-      t([[E, 2]], [B.OBSIDIAN, 3]), t([[E, 6]], [I.DIAMOND, 1])];
+      t([[E, 2]], [B.OBSIDIAN, 3]), t([[E, 5]], [I.ENDER_PEARL, 1]), t([[E, 6]], [I.DIAMOND, 1])];
   }
   return [];
 }
@@ -5327,7 +6731,8 @@ function rayBox(ox, oy, oz, dx, dy, dz, x0, y0, z0, x1, y1, z1) {
   }
   return tmax < 0 ? -1 : Math.max(tmin, 0);
 }
-function raycast(world, ox, oy, oz, dx, dy, dz, maxD) {
+/* the first block along a ray (solidOnly: only blocks you bump into, the way arrows see them) */
+function raycast(world, ox, oy, oz, dx, dy, dz, maxD, solidOnly) {
   let x = Math.floor(ox), y = Math.floor(oy), z = Math.floor(oz);
   const sx = dx > 0 ? 1 : -1, sy = dy > 0 ? 1 : -1, sz = dz > 0 ? 1 : -1;
   const tdx = dx ? Math.abs(1 / dx) : Infinity, tdy = dy ? Math.abs(1 / dy) : Infinity, tdz = dz ? Math.abs(1 / dz) : Infinity;
@@ -5335,9 +6740,10 @@ function raycast(world, ox, oy, oz, dx, dy, dz, maxD) {
   let tmy = dy ? (dy > 0 ? y + 1 - oy : oy - y) * tdy : Infinity;
   let tmz = dz ? (dz > 0 ? z + 1 - oz : oz - z) * tdz : Infinity;
   let face = -1, t = 0;
-  for (let i = 0; i < 64 && t <= maxD; i++) {
+  const cells = Math.max(64, Math.ceil(maxD * 3) + 3);   // a long diagonal ray passes through up to 3 blocks per block of length
+  for (let i = 0; i < cells && t <= maxD; i++) {
     const b = world.getBlock(x, y, z);
-    if (TARGETABLE[b]) {
+    if (solidOnly ? SOLID[b] : TARGETABLE[b]) {
       const bd = BLOCKS[b], bx = bd.boxFn ? bd.boxFn(world.getData(x, y, z)) : bd.box;
       if (!bx) return { x, y, z, id: b, face, t };
       const tb = rayBox(ox, oy, oz, dx, dy, dz, x + bx[0], y + bx[1], z + bx[2], x + bx[3], y + bx[4], z + bx[5]);
@@ -5382,6 +6788,9 @@ class Player {
     this.bob = 0; this.bobAmt = 0; this.stepT = 0; this.target = null; this.targetEnt = null; this.digSndT = 0;
     this.lastJump = -1; this.lastFwd = -1;
     this.portalT = 0; this.portalLock = true;   // seconds spent in a portal; locked until you step out (after travelling, loading or respawning)
+    this.drawT = 0; this.loadT = 0; this.shotCd = 0;   // pulling a bow back; loading a crossbow
+    this.riding = null; this.sneakHeld = false;      // the minecart or car you are in
+    this.chill = 0; this.partyT = 0;                 // slowed by Ice TNT; bounced by Party TNT (no fall damage)
   }
   held() { return this.inv[this.sel]; }
   heldId() { const s = this.inv[this.sel]; return s ? s.id : 0; }
@@ -5407,12 +6816,18 @@ class Player {
     let fz = (inp.fwd ? 1 : 0) - (inp.back ? 1 : 0) + inp.joyY;
     const len = Math.hypot(fx, fz);
     if (len > 1) { fx /= len; fz /= len; }
-    this.sneaking = !!inp.sneak && !this.flying;
+    this.sneaking = !!inp.sneak && !this.flying && !this.riding;
+    if (this.chill > 0) this.chill -= dt;
+    if (this.partyT > 0) this.partyT -= dt;
+    if (this.riding) rideControls(game, this, fx, fz, inp, dt);
+    if (this.riding) { this.vy = 0; this.fallDist = 0; this.onGround = true; this.sprinting = false; liquidAt(world, this); }
+    else {
     if ((inp.sprint || inp.joySprint) && fz > 0.5 && !this.sneaking && (this.food > 6 || creative)) this.sprinting = true;
     if (fz <= 0.2 || this.sneaking || (this.collidedH && !this.flying)) this.sprinting = false;
     let speed = this.flying ? (this.sprinting ? 21.6 : 10.9) : this.sneaking ? 1.3 : this.sprinting ? 5.6 : 4.317;
     if ((this.inWater || this.inLava) && !this.flying) speed *= this.inLava ? 0.35 : 0.55;
-    if (this.eatT > 0) speed *= 0.4;
+    if (this.eatT > 0 || this.drawT > 0 || this.loadT > 0) speed *= 0.4;
+    if (this.chill > 0) speed *= 0.45;
     if (this.onGround && !this.flying) { const under = BLOCKS[game.world.getBlock(Math.floor(this.x), Math.floor(this.y - 0.1), Math.floor(this.z))]; if (under && under.slow) speed *= under.slow; }   // soul sand
     const sy = Math.sin(this.yaw), cy = Math.cos(this.yaw);
     const wx = (-sy * fz + cy * fx) * speed, wz = (-cy * fz - sy * fx) * speed;
@@ -5447,7 +6862,7 @@ class Player {
       }
       physicsStep(world, this, dt, 30);
       if (this.landed) {
-        if (this.fallDist > 3.5 && !creative) this.damage(Math.floor(this.fallDist - 3), 'fall');
+        if (this.fallDist > 3.5 && !creative && !(this.partyT > 0)) this.damage(Math.floor(this.fallDist - 3), 'fall');
         if (this.fallDist > 1.2) sfx('step_' + SOUND_OF(world.getBlock(Math.floor(this.x), Math.floor(this.y - 0.2), Math.floor(this.z))), this.x, this.y, this.z, 0.6);
         this.fallDist = 0;
       }
@@ -5457,14 +6872,15 @@ class Player {
         if (boxFree(world, this.x + dirx * 0.45, this.y + 1.05, this.z + dirz * 0.45, this.w, this.h)) this.vy = 8.7;
       }
     }
+    }
     this.h = this.sneaking ? 1.5 : 1.8;
     const eyeT = this.sneaking ? 1.27 : 1.62;
     this.eye += (eyeT - this.eye) * Math.min(1, dt * 12);
     this.collidedH = this.collidedH || false;
     const eb = world.getBlock(Math.floor(this.x), Math.floor(this.y + this.eye), Math.floor(this.z));
     this.headInWater = eb === B.WATER; this.headInLava = eb === B.LAVA;
-    // walking animation and footsteps
-    const hs = Math.hypot(this.vx, this.vz);
+    // walking animation and footsteps (none while riding)
+    const hs = this.riding ? 0 : Math.hypot(this.vx, this.vz);
     this.walk += hs * dt * 2.6;
     this.walkAmt = lerp(this.walkAmt, this.onGround || this.flying ? Math.min(1, hs / 4.3) : 0, Math.min(1, dt * 8));
     if (this.onGround && hs > 1 && !this.sneaking) {
@@ -5477,8 +6893,8 @@ class Player {
     const d = ((this.yaw - this.bodyYaw + Math.PI) % TAU + TAU) % TAU - Math.PI;
     if (Math.abs(d) > 0.9) this.bodyYaw = this.yaw - Math.sign(d) * 0.9;
     if (this.swingP < 1) this.swingP = Math.min(1, this.swingP + dt * 3.3);
-    const hid = this.heldId();
-    if (hid !== this.lastHeld) { this.equip = 0; this.lastHeld = hid; }
+    const hid = this.heldId(), fam = hid === I.CROSSBOW_LOADED ? I.CROSSBOW : hid;
+    if (fam !== this.lastHeld) { this.equip = 0; this.lastHeld = fam; this.drawT = 0; this.loadT = 0; heldTip(fam); }
     this.equip = Math.min(1, this.equip + dt * 5);
     this.vitals(dt, creative);
     this.interact(dt, creative);
@@ -5530,8 +6946,10 @@ class Player {
     const hit = raycast(game.world, ox, oy, oz, dx, dy, dz, reach);
     let best = null, bt = hit ? hit.t : reach;
     for (const e of game.entities) {
-      if (!e.mob || e.dead) continue;
-      const t = rayBox(ox, oy, oz, dx, dy, dz, e.x - e.w, e.y, e.z - e.w, e.x + e.w, e.y + e.h, e.z + e.w);
+      if (e.mob ? e.dead : !(e.vehicle || (e.type === 'proj' && e.kind === 'fireball'))) continue;
+      if (e === this.riding || e.removed) continue;
+      const pad = e.type === 'proj' ? 0.6 : 0, y0 = e.type === 'proj' ? e.y - pad : e.y;
+      const t = rayBox(ox, oy, oz, dx, dy, dz, e.x - e.w - pad, y0, e.z - e.w - pad, e.x + e.w + pad, e.y + e.h + pad, e.z + e.w + pad);
       if (t >= 0 && t < bt) { bt = t; best = e; }
     }
     this.targetEnt = best;
@@ -5540,6 +6958,7 @@ class Player {
   interact(dt, creative) {
     const inp = game.input, world = game.world;
     if (this.useCd > 0) this.useCd -= dt;
+    if (this.shotCd > 0) this.shotCd -= dt;
     if (this.breakCd > 0) this.breakCd -= dt;
     if (this.attackCd > 0) this.attackCd -= dt;
     if (!this.alive || game.uiOpen) { this.mining = null; this.eatT = 0; return; }
@@ -5551,12 +6970,14 @@ class Player {
         this.mining = null;
         if (inp.minePressed || this.attackCd <= 0) {
           if (this.attackCd <= 0) {
-            const tool = toolOf(hid);
+            const tool = toolOf(hid), te = this.targetEnt;
             const dmg = tool ? tool.dmg : 1;
-            hurtMob(game, this.targetEnt, this.sprinting ? dmg + 1 : dmg, this.x, this.z, 'player');
+            if (te.vehicle) { if (te.proxy) MP.sendHit(te, 1, this.x, this.z); else hitVehicle(game, te, game.mode, 'me'); }
+            else if (te.type === 'proj') { if (te.proxy) MP.sendHit(te, 0, this.x, this.z); else deflectFireball(game, te, this.lookDir(), 'me'); }
+            else hurtMob(game, te, this.sprinting ? dmg + 1 : dmg, this.x, this.z, 'player');
             this.attackCd = 0.4;
             this.swing();
-            if (tool && tool.kind !== 'lighter' && !creative) this.damageTool(tool.kind === 'sword' ? 1 : 2);
+            if (tool && tool.kind !== 'lighter' && !tool.ranged && te.mob && !creative) this.damageTool(tool.kind === 'sword' ? 1 : 2);
             this.addFoodExhaust(0.5);
           }
         }
@@ -5585,6 +7006,28 @@ class Player {
       inp.use = false; inp.usePressed = false;
       return;
     }
+    // get into a minecart or car; in the car, a tap honks the horn
+    if (inp.use && inp.usePressed && tEnt && tEnt.vehicle && !this.riding) { this.swing(); mountVehicle(game, tEnt); inp.use = false; inp.usePressed = false; return; }
+    if (this.riding && this.riding.type === 'car' && inp.use) {
+      if (inp.usePressed && this.useCd <= 0) { this.useCd = 0.5; sfx('honk', this.x, this.y + 1, this.z); if (game.net) MP.localFx('sfx', this.x, this.y + 1, this.z, SFX_NET.indexOf('honk')); }
+      inp.usePressed = false;
+      return;
+    }
+    const interactive = this.target && !this.sneaking && this.isInteractive(this.target.id);
+    // bows and crossbows
+    const rtool = toolOf(hid);
+    if (rtool && rtool.ranged && !(interactive && inp.usePressed && !this.drawT && !this.loadT)) { this.useRanged(inp, hid, rtool, dt, creative); inp.usePressed = false; return; }
+    // throw an ender pearl; a fire charge lights a portal frame, or flies off as a little fireball
+    if ((hid === I.ENDER_PEARL || hid === I.FIRE_CHARGE) && inp.use && inp.usePressed && this.useCd <= 0 && !interactive) {
+      this.useCd = 0.6; inp.usePressed = false;
+      const t = this.target;
+      if (hid === I.FIRE_CHARGE && t && t.face >= 0 && lightPortalAt(game, t.x + DX[t.face], t.y + DY[t.face], t.z + DZ[t.face])) sfx('portalLight', t.x + 0.5, t.y + 1, t.z + 0.5);
+      else if (hid === I.ENDER_PEARL) { playerShoot(game, 'pearl', 24, {}); sfx('pearlThrow', this.x, this.y + 1.5, this.z); if (MP.role === 'host') MP.sfx('pearlThrow', this.x, this.y + 1.5, this.z); }
+      else { playerShoot(game, 'charge', 18, {}); sfx('ghastShoot', this.x, this.y + 1.5, this.z, 0.6); if (MP.role === 'host') MP.sfx('ghastShoot', this.x, this.y + 1.5, this.z); }
+      this.swing();
+      if (!creative) this.consumeHeld(1);
+      return;
+    }
     // use / place / eat
     const food = hid >= 256 && ITEMS[hid].food;
     if (inp.use && food && (this.food < 20 || creative) && !(this.target && !this.sneaking && this.isInteractive(this.target.id))) {
@@ -5604,7 +7047,60 @@ class Player {
     }
     inp.usePressed = false;
   }
-  isInteractive(id) { return id === B.DOOR || id === B.CRAFTING_TABLE || id === B.FURNACE || id === B.FURNACE_LIT || id === B.CHEST || id === B.BED || id === B.TNT; }
+  isInteractive(id) {
+    return id === B.DOOR || id === B.CRAFTING_TABLE || id === B.FURNACE || id === B.FURNACE_LIT || id === B.CHEST || id === B.BED || !!(BLOCKS[id] && BLOCKS[id].tnt) ||
+      id === B.LEVER || id === B.BUTTON || id === B.DISPENSER;
+  }
+  /* bows: hold to pull back and let go to shoot (a quick tap is a quick shot); crossbows: tap to load, tap to fire */
+  useRanged(inp, hid, tool, dt, creative) {
+    const s = this.inv[this.sel];
+    if (tool.kind === 'bow') {
+      if (inp.useOnce && !this.drawT) { if (this.shotCd <= 0) { if (this.hasArrow(creative)) this.shootArrow(0.7, false, 'bow'); else this.noArrows(); } return; }
+      if (inp.use) {
+        if (!this.drawT) { if (!this.hasArrow(creative)) { if (inp.usePressed) this.noArrows(); return; } sfx('bowDraw', this.x, this.y + 1.5, this.z); }
+        this.drawT += dt;
+        return;
+      }
+      if (this.drawT > 0) {
+        const t = Math.min(1, this.drawT), power = (t * t + 2 * t) / 3;
+        this.drawT = 0;
+        if (power >= 0.12 && this.hasArrow(creative)) this.shootArrow(power, power >= 1, 'bow');
+      }
+      return;
+    }
+    if (hid === I.CROSSBOW_LOADED) {
+      if (inp.usePressed && this.shotCd <= 0) { this.shootArrow(1, true, 'crossbow'); s.id = I.CROSSBOW; game.ui.dirty = true; }
+      return;
+    }
+    if (inp.use || this.loadT > 0) {   // a tap starts loading, and it finishes by itself
+      if (!this.loadT) { if (!this.hasArrow(creative)) { if (inp.usePressed) this.noArrows(); return; } sfx('crossbowLoad', this.x, this.y + 1.5, this.z); }
+      this.loadT += dt;
+      if (this.loadT >= 1.25) {
+        this.loadT = 0;
+        if (!this.hasArrow(creative)) { this.noArrows(); return; }   // (the arrows were put away while it was loading)
+        if (!creative) this.takeArrow();
+        s.id = I.CROSSBOW_LOADED; game.ui.dirty = true; sfx('crossbowLoaded', this.x, this.y + 1.5, this.z);
+      }
+    }
+  }
+  hasArrow(creative) { return creative || this.inv.some(s => s && s.id === I.ARROW); }
+  takeArrow() {
+    const i = this.inv.findIndex(s => s && s.id === I.ARROW);
+    if (i < 0) return;
+    if (--this.inv[i].count <= 0) this.inv[i] = null;
+    game.ui.dirty = true;
+  }
+  noArrows() { if (!this.arrowTipT || game.t - this.arrowTipT > 6) { this.arrowTipT = game.t; toast('You need arrows. Craft them from flint, a stick and a feather.', 3); } }
+  shootArrow(power, crit, kind) {
+    const creative = game.mode === 'creative', xbow = kind === 'crossbow';
+    const vel = xbow ? 50 : 12 + 36 * power, dmg = xbow ? 9 : Math.round(2 + 4 * power) + (crit ? 2 : 0);
+    playerShoot(game, 'arrow', vel, { dmg, crit, pickup: !creative, snd: xbow ? 'crossbowShoot' : 'bowShoot' });
+    if (!creative) { if (!xbow) this.takeArrow(); this.damageTool(1); }
+    const snd = xbow ? 'crossbowShoot' : 'bowShoot';
+    sfx(snd, this.x, this.y + 1.5, this.z);
+    if (MP.role === 'host') MP.sfx(snd, this.x, this.y + 1.5, this.z);
+    this.shotCd = xbow ? 0.3 : 0.45;
+  }
   useBlock(hid, creative) {
     const t = this.target, world = game.world;
     if (!t) return false;
@@ -5613,11 +7109,13 @@ class Player {
       if (t.id === B.FURNACE || t.id === B.FURNACE_LIT) { this.swing(); const tile = MP.useTile(t.x, t.y, t.z, 'furnace'); if (tile) game.openScreen('furnace', tile); return true; }
       if (t.id === B.CHEST) { this.swing(); const tile = MP.useTile(t.x, t.y, t.z, 'chest'); if (tile) { sfx('chest'); game.openScreen('chest', tile); } return true; }
       if (t.id === B.BED) { game.trySleep(t.x, t.y, t.z); return true; }
-      if (t.id === B.TNT) {
+      if (BLOCKS[t.id].tnt) {
         if (MP.role === 'guest') MP.send({ t: 'tnt', x: t.x, y: t.y, z: t.z });
-        else { world.setBlock(t.x, t.y, t.z, B.AIR, 0, true); primeTNT(game, t.x, t.y, t.z, 4); }
+        else igniteTNT(game, t.x, t.y, t.z);
         this.swing(); return true;
       }
+      if (t.id === B.LEVER || t.id === B.BUTTON) { useSwitch(game, t.x, t.y, t.z, t.id); this.swing(); return true; }
+      if (t.id === B.DISPENSER) { this.swing(); const tile = MP.useTile(t.x, t.y, t.z, 'dispenser'); if (tile) { sfx('chest', t.x + 0.5, t.y + 0.5, t.z + 0.5); game.openScreen('dispenser', tile); } return true; }
       if (t.id === B.DOOR) {
         const d = world.getData(t.x, t.y, t.z), ly = (d & 8) ? t.y - 1 : t.y, ld = world.getData(t.x, ly, t.z) ^ 4;
         world.setBlock(t.x, ly, t.z, B.DOOR, ld, true);
@@ -5663,6 +7161,23 @@ class Player {
       if (!creative) this.consumeHeld(1);
       return true;
     }
+    if ((hid === I.MINECART || hid === I.CAR) && t.face >= 0) {
+      let vx = t.x + 0.5, vy = t.y + 1, vz = t.z + 0.5;
+      if (hid === I.MINECART) {
+        if (t.id !== B.RAIL) { if (!this.toldRails) { this.toldRails = true; toast('Minecarts go on rails. Put some rails down first.', 3); } return false; }
+        vy = t.y + 0.0625;
+      } else {
+        if (t.face !== 2 && !BLOCKS[t.id].replaceable) return false;   // on top of a block
+        if (BLOCKS[t.id].replaceable) vy = t.y;
+        if (!boxFree(world, vx, vy, vz, VEHICLES.car.w, VEHICLES.car.h)) return false;
+      }
+      const type = hid === I.CAR ? 'car' : 'minecart';
+      if (MP.role === 'guest') MP.send({ t: 'veh+', k: type, at: [r2(vx), r2(vy), r2(vz)], yaw: r2(this.yaw) });
+      else spawnVehicle(game, type, vx, vy, vz, this.yaw);
+      sfx('place_metal', vx, vy, vz); this.swing();
+      if (!creative) this.consumeHeld(1);
+      return true;
+    }
     if (!hid || hid >= 256) return false;
     let px = t.x + DX[t.face], py = t.y + DY[t.face], pz = t.z + DZ[t.face];
     if (t.face < 0) return false;
@@ -5679,13 +7194,20 @@ class Player {
     }
     let data = 0;
     if (BLOCKS[hid].facing) data = facingFromYaw(this.yaw);
-    if (hid === B.TORCH) {
+    if (hid === B.DISPENSER && Math.abs(this.pitch) > 0.9) data = this.pitch < 0 ? 4 : 5;   // looking down at it: it faces up at you
+    if (hid === B.DIG_TNT) data = this.pitch < -0.9 ? 5 : this.pitch > 0.9 ? 4 : (facingFromYaw(this.yaw) + 2) & 3;   // it digs the way you are looking
+    if (hid === B.LEVER || hid === B.BUTTON) {   // stuck to the side you clicked
+      if (t.face < 0) return false;
+      data = t.face ^ 1;
+      if (!world.canStay(px, py, pz, hid, data)) return false;
+    } else if (hid === B.TORCH) {
       if (t.face === 3) return false;
       data = t.face === 2 ? 0 : ({ 0: 1, 1: 2, 4: 3, 5: 4 })[t.face];
       if (!world.canStay(px, py, pz, hid, data)) { data = 0; if (!world.canStay(px, py, pz, hid, 0)) return false; }
     } else if (!world.canStay(px, py, pz, hid, data)) return false;
     if (cur !== B.AIR && !LIQUID[cur]) world.setBlock(px, py, pz, B.AIR, 0, true);
-    world.setBlock(px, py, pz, hid, data, true);
+    if (hid === B.RAIL) shapeRail(world, px, py, pz, this.yaw);
+    else world.setBlock(px, py, pz, hid, data, true);
     if (hid === B.CHEST) world.getTile(px, py, pz, 'chest');
     if (hid === B.FURNACE) world.getTile(px, py, pz, 'furnace');
     sfx('place_' + SOUND_OF(hid), px + 0.5, py + 0.5, pz + 0.5);
@@ -5698,9 +7220,9 @@ class Player {
   breakBlock(x, y, z, drops) {
     const world = game.world, id = world.getBlock(x, y, z);
     if (!id || id === B.UNLOADED) return;
-    if (MP.role === 'host' && (id === B.CHEST || id === B.FURNACE || id === B.FURNACE_LIT)) {
+    if (MP.role === 'host' && (id === B.CHEST || id === B.FURNACE || id === B.FURNACE_LIT || id === B.DISPENSER)) {
       const t = world.tiles.get(tileKey(x, y, z)), by = t && MP.tileUser(t, 'host');
-      if (by) { toast(by + ' is using this ' + (id === B.CHEST ? 'chest' : 'furnace') + '.', 2.5); return; }
+      if (by) { toast(by + ' is using this ' + (id === B.CHEST ? 'chest' : id === B.DISPENSER ? 'dispenser' : 'furnace') + '.', 2.5); return; }
     }
     const hid = this.heldId();
     let repl = B.AIR;
@@ -5712,7 +7234,7 @@ class Player {
     if (drops) {
       for (const [did, n] of blockDrops(id, hid)) dropItem(game, x + 0.5, y + 0.4, z + 0.5, did, n);
       const tool = toolOf(hid);
-      if (tool && tool.kind !== 'lighter' && BLOCKS[id].hardness > 0) this.damageTool(tool.kind === 'sword' ? 2 : 1);
+      if (tool && tool.kind !== 'lighter' && !tool.ranged && BLOCKS[id].hardness > 0) this.damageTool(tool.kind === 'sword' ? 2 : 1);
       this.addFoodExhaust(0.1);
     }
     if (game.stats) game.stats.mined = (game.stats.mined || 0) + 1;
@@ -5795,14 +7317,37 @@ function drawFirstPerson(pl, s, world) {
       M4.scale(_hm, _hm, 0.36 / 16, 0.36 / 16, 0.36 / 16);
       M4.translate(_hm, _hm, 0, -8, 0);
     } else {
-      M4.translate(_hm, _hm, 0.56 + bx - f2 * 0.32 - (pl.eatT > 0 ? 0.3 : 0), -0.5 + by + f3 * 0.12 - eq * 0.55 + eat + (pl.eatT > 0 ? 0.14 : 0), -0.95 - f1 * 0.2);
-      M4.rotY(_hm, _hm, -0.78 + f2 * 0.25);
-      M4.rotZ(_hm, _hm, 0.32 + f1 * 0.8);
+      // pulling a bow back brings it to the middle (and it shakes a little when fully drawn); a loading crossbow tips up
+      const aim = held.id === I.BOW ? Math.min(1, pl.drawT * 3) : 0, load = held.id === I.CROSSBOW && pl.loadT > 0 ? Math.sin(Math.min(1, pl.loadT / 1.25) * Math.PI) : 0;
+      const shake = pl.drawT >= 1 && !REDUCED_MOTION ? Math.sin(game.t * 50) * 0.006 : 0;
+      M4.translate(_hm, _hm, 0.56 + bx - f2 * 0.32 - (pl.eatT > 0 ? 0.3 : 0) - aim * 0.4, -0.5 + by + f3 * 0.12 - eq * 0.55 + eat + (pl.eatT > 0 ? 0.14 : 0) + aim * 0.1 + shake, -0.95 - f1 * 0.2 + aim * 0.15);
+      M4.rotY(_hm, _hm, -0.78 + f2 * 0.25 + aim * 0.5);
+      M4.rotZ(_hm, _hm, 0.32 + f1 * 0.8 + load * 0.5);
       M4.scale(_hm, _hm, 0.5 / 16, 0.5 / 16, 0.5 / 16);
       M4.translate(_hm, _hm, 0, -3, 0);
     }
-    drawMesh(itemMesh(held.id), _hm);
+    drawMesh(heldMesh(pl, held.id), _hm);
   }
+}
+/* the first time something new is in your hand, a word on how to use it */
+const HELD_TIPS = {
+  [I.BOW]: ['Hold Place to pull the bow back, then let go to shoot. A quick tap is a quick shot.', 'Hold the right mouse button to pull the bow back, then let go to shoot.'],
+  [I.CROSSBOW]: ['Tap once to load the crossbow, then tap again to shoot.', 'Right-click once to load the crossbow, then again to shoot.'],
+  [I.ENDER_PEARL]: ['Tap to throw the ender pearl. You land where it lands!', 'Right-click to throw the ender pearl. You land where it lands!'],
+  [I.FIRE_CHARGE]: ['Tap to throw a fireball, or tap an obsidian frame to light a portal.', 'Right-click to throw a fireball, or right-click an obsidian frame to light a portal.'],
+};
+function heldTip(id) {
+  const t = HELD_TIPS[id];
+  if (!t || game.state !== 'playing') return;
+  if (!game.tipped) game.tipped = {};
+  if (game.tipped['held' + id]) return;
+  game.tipped['held' + id] = 1;
+  toast(game.touchOn ? t[0] : t[1], 4);
+}
+/* what an item looks like in the hand: a bow shows how far it is pulled back */
+function heldMesh(pl, id) {
+  if (id === I.BOW && pl.drawT > 0) return tileMesh('bow_pull_' + (pl.drawT < 0.65 ? 0 : pl.drawT < 0.9 ? 1 : 2));
+  return itemMesh(id);
 }
 const _pmB = M4.create(), _pmH = M4.create();
 function playerPose(pl, t) {
@@ -5812,13 +7357,20 @@ function playerPose(pl, t) {
   const idle = Math.sin(t * 1.6) * 0.04;
   const sneak = pl.sneaking ? 0.35 : 0;
   const holding = pl.heldId ? pl.heldId() : pl.held;
-  return {
-    head: [-pl.pitch, hy, 0],
+  const ride = pl.riding ? (typeof pl.riding === 'string' ? pl.riding : pl.riding.type === 'car' ? 'car' : 'cart') : null;
+  const pose = {
+    head: [-pl.pitch, ride ? clamp(hy, -1.3, 1.3) : hy, 0],
     body: [sneak, 0, 0],
     rarm: [-a - f2 * 1.3 - (holding ? 0.25 : 0) + idle, f2 * 0.3, 0.05 + idle],
     larm: [a - idle, 0, -0.05 - idle],
     rleg: [a, 0, 0], lleg: [-a, 0, 0],
   };
+  if (ride) {   // sitting, legs out in front; hands on the wheel in the car
+    pose.rleg = [-1.4, 0.15, 0]; pose.lleg = [-1.4, -0.15, 0];
+    if (ride === 'car') { pose.rarm = [-0.95, 0.25, 0]; pose.larm = [-0.95, -0.25, 0]; }
+  }
+  if (pl.drawT > 0 || pl.loadT > 0 || pl.aiming) { const up = -1.45 - pl.pitch; pose.rarm = [up, -0.1, 0]; pose.larm = [up, 0.5, 0]; }   // aiming a bow or crossbow
+  return pose;
 }
 function drawPlayerModel(game, s, t, cam) { drawHumanoid(game.player, playerModelFor(PROFILE.skin), game.player.heldId(), s, t, cam); }
 function drawHumanoid(pl, model, heldId, s, t, cam) {
@@ -5842,7 +7394,7 @@ function drawHumanoid(pl, model, heldId, s, t, cam) {
     M4.translate(_pmH, _pmH, 0, -11, 1.5);
     if (isCubeItem(held.id)) { M4.rotY(_pmH, _pmH, 0.6); M4.scale(_pmH, _pmH, 0.38, 0.38, 0.38); M4.translate(_pmH, _pmH, 0, -8, 0); }
     else { M4.rotX(_pmH, _pmH, -1.2); M4.rotY(_pmH, _pmH, -Math.PI / 2); M4.scale(_pmH, _pmH, 0.6, 0.6, 0.6); M4.translate(_pmH, _pmH, 0, -3, 0); }
-    drawMesh(itemMesh(held.id), _pmH);
+    drawMesh(pl.drawT !== undefined ? heldMesh(pl, held.id) : itemMesh(held.id), _pmH);
     entityBegin(texSkins);
   }
 }
@@ -5973,6 +7525,46 @@ const SFX = {
   magmaSay: (v, p) => { nz({ f: 500, fEnd: 200, type: 'lowpass', dur: 0.3, vol: 0.25 * v, pan: p }); tone({ f: 90, fEnd: 60, dur: 0.25, type: 'triangle', vol: 0.12 * v, pan: p }); },
   magmaHurt: (v, p) => { nz({ f: 900, fEnd: 300, type: 'lowpass', dur: 0.25, vol: 0.28 * v, pan: p }); },
   magmaDeath: (v, p) => { nz({ f: 700, fEnd: 120, type: 'lowpass', dur: 0.6, vol: 0.3 * v, pan: p }); tone({ f: 120, fEnd: 40, dur: 0.5, type: 'triangle', vol: 0.12 * v, pan: p }); },
+  // bows, crossbows, dispensers, switches
+  bowDraw: (v, p) => { tone({ f: 200, fEnd: 320, dur: 0.6, type: 'sawtooth', vol: 0.045 * v, lp: 800, vib: [18, 6], pan: p }); nz({ f: 1400, q: 3, dur: 0.45, vol: 0.05 * v, attack: 0.1, pan: p }); },
+  bowShoot: (v, p) => { tone({ f: 190, fEnd: 85, dur: 0.2, type: 'triangle', vol: 0.2 * v, pan: p }); nz({ f: 2600, fEnd: 800, q: 1.5, dur: 0.16, vol: 0.22 * v, pan: p }); },
+  arrowHit: (v, p) => { nz({ f: 800, q: 2, dur: 0.06, vol: 0.3 * v, pan: p }); tone({ f: 260, fEnd: 140, dur: 0.08, type: 'square', vol: 0.06 * v, lp: 1200, pan: p }); },
+  crossbowLoad: (v, p) => { for (let i = 0; i < 5; i++) nz({ f: 3000, q: 4, dur: 0.03, vol: 0.12 * v, when: i * 0.24, pan: p }); },
+  crossbowLoaded: (v, p) => { tone({ f: 300, fEnd: 190, dur: 0.1, type: 'square', vol: 0.08 * v, lp: 1500, pan: p }); nz({ f: 1200, q: 3, dur: 0.05, vol: 0.2 * v, pan: p }); },
+  crossbowShoot: (v, p) => { nz({ f: 3200, fEnd: 800, q: 1, dur: 0.2, vol: 0.3 * v, pan: p }); tone({ f: 150, fEnd: 70, dur: 0.15, type: 'triangle', vol: 0.22 * v, pan: p }); },
+  dispense: (v, p) => { tone({ f: 1200, fEnd: 600, dur: 0.05, type: 'square', vol: 0.08 * v, lp: 3000, pan: p }); nz({ f: 1800, fEnd: 600, dur: 0.15, vol: 0.15 * v, when: 0.03, pan: p }); },
+  dispenseFail: (v, p) => { for (let i = 0; i < 2; i++) tone({ f: 900, dur: 0.04, type: 'square', vol: 0.07 * v, lp: 2500, when: i * 0.09, pan: p }); },
+  leverClick: (v, p) => { tone({ f: 700, fEnd: 400, dur: 0.05, type: 'square', vol: 0.1 * v, lp: 2000, pan: p }); nz({ f: 1200, q: 3, dur: 0.04, vol: 0.15 * v, pan: p }); },
+  buttonClick: (v, p) => tone({ f: 1000, fEnd: 600, dur: 0.04, type: 'square', vol: 0.08 * v, lp: 2500, pan: p }),
+  pearlThrow: (v, p) => nz({ f: 1500, fEnd: 500, q: 1, dur: 0.25, vol: 0.18 * v, pan: p }),
+  // endermen and ghasts
+  endermanSay: (v, p) => tone({ f: 300, fEnd: 120, dur: 0.6, type: 'sawtooth', vol: 0.08 * v, lp: 900, vib: [12, 40], pan: p }),
+  endermanStare: (v, p) => { tone({ f: 600, fEnd: 900, dur: 1.0, type: 'sawtooth', vol: 0.13 * v, lp: 2400, vib: [25, 80], attack: 0.05, pan: p }); nz({ f: 2000, q: 2, dur: 1.0, vol: 0.1 * v, pan: p }); },
+  endermanAngry: (v, p) => tone({ f: 650, fEnd: 950, dur: 0.6, type: 'sawtooth', vol: 0.12 * v, lp: 2400, vib: [25, 80], pan: p }),
+  endermanHurt: (v, p) => tone({ f: 500, fEnd: 250, dur: 0.3, type: 'sawtooth', vol: 0.12 * v, lp: 1600, vib: [30, 60], pan: p }),
+  endermanDeath: (v, p) => tone({ f: 600, fEnd: 80, dur: 1.2, type: 'sawtooth', vol: 0.14 * v, lp: 1400, vib: [20, 60], pan: p }),
+  endermanPortal: (v, p) => { nz({ f: 600, fEnd: 3000, q: 2, dur: 0.35, vol: 0.2 * v, pan: p }); tone({ f: 200, fEnd: 800, dur: 0.3, vol: 0.07 * v, pan: p }); },
+  ghastSay: (v, p) => { tone({ f: 700, fEnd: 480, dur: 1.2, vol: 0.06 * v, vib: [6, 30], attack: 0.3, pan: p }); tone({ f: 1050, fEnd: 720, dur: 1.2, type: 'triangle', vol: 0.03 * v, vib: [5, 40], attack: 0.3, pan: p }); },
+  ghastWarn: (v, p) => tone({ f: 400, fEnd: 900, dur: 0.6, type: 'sawtooth', vol: 0.08 * v, lp: 1800, vib: [10, 20], pan: p }),
+  ghastShoot: (v, p) => { nz({ f: 400, fEnd: 2000, q: 0.8, dur: 0.4, vol: 0.3 * v, pan: p }); tone({ f: 120, fEnd: 60, dur: 0.3, type: 'triangle', vol: 0.15 * v, pan: p }); },
+  ghastHurt: (v, p) => tone({ f: 900, fEnd: 600, dur: 0.4, vol: 0.1 * v, vib: [8, 50], pan: p }),
+  ghastDeath: (v, p) => tone({ f: 800, fEnd: 200, dur: 1.4, vol: 0.12 * v, vib: [6, 60], pan: p }),
+  // minecarts and the car
+  minecartRoll: (v, p) => { nz({ f: 300, type: 'lowpass', dur: 0.3, vol: 0.12 * v, pan: p }); tone({ f: 60, dur: 0.3, type: 'triangle', vol: 0.05 * v, pan: p }); },
+  carEngine: (v, p) => tone({ f: 48 + 40 * v, fEnd: 44 + 40 * v, dur: 0.2, type: 'sawtooth', vol: 0.07 * v, lp: 420, pan: p }),
+  carStart: (v, p) => { tone({ f: 40, fEnd: 120, dur: 0.6, type: 'sawtooth', vol: 0.12 * v, lp: 600, pan: p }); nz({ f: 300, type: 'lowpass', dur: 0.5, vol: 0.1 * v, pan: p }); },
+  honk: (v, p) => { for (let i = 0; i < 2; i++) { tone({ f: 440, dur: 0.2, type: 'square', vol: 0.09 * v, lp: 2000, when: i * 0.28, pan: p }); tone({ f: 554, dur: 0.2, type: 'square', vol: 0.07 * v, lp: 2000, when: i * 0.28, pan: p }); } },
+  // TNT
+  partyPop: (v, p) => {
+    nz({ f: 2500, q: 0.8, dur: 0.15, vol: 0.4 * v, pan: p });
+    tone({ f: 600, fEnd: 1300, dur: 0.6, type: 'square', vol: 0.05 * v, lp: 3000, vib: [15, 30], when: 0.1, pan: p });
+    [523, 659, 784, 1046, 784, 1046].forEach((f, i) => tone({ f, dur: 0.25, type: 'triangle', vol: 0.08 * v, when: 0.25 + i * 0.11, pan: p }));
+  },
+  iceBlast: (v, p) => {
+    nz({ f: 4000, q: 1, dur: 0.6, vol: 0.3 * v, pan: p }); nz({ f: 800, fEnd: 200, type: 'lowpass', dur: 0.8, vol: 0.3 * v, pan: p });
+    for (let i = 0; i < 6; i++) tone({ f: randRange(2000, 4200), dur: 0.12, vol: 0.04 * v, when: i * 0.05, pan: p });
+  },
+  digBoom: (v, p) => { nz({ f: 600, fEnd: 100, type: 'lowpass', q: 0.7, dur: 0.5, vol: 0.4 * v, pan: p }); tone({ f: 60, fEnd: 35, dur: 0.4, vol: 0.3 * v, pan: p }); },
   creeperSay: () => {},
   creeperHurt: (v, p) => nz({ f: 2000, q: 1, dur: 0.2, vol: 0.2 * v, pan: p }),
   creeperDeath: (v, p) => nz({ f: 1500, fEnd: 400, q: 1, dur: 0.5, vol: 0.25 * v, pan: p }),
@@ -6238,6 +7830,7 @@ function quickMove(ref) {
   if (!st) return;
   if (ref.arr === pl.inv) {
     if (inv.kind === 'chest') moveInto(st, inv.tile.slots, 0, 27);
+    else if (inv.kind === 'dispenser') moveInto(st, inv.tile.slots, 0, 9);
     else if (inv.kind === 'furnace') {
       if (SMELT[st.id] !== undefined) moveInto(st, inv.tile.slots, 0, 1);
       else if (fuelValue(st.id) > 0) moveInto(st, inv.tile.slots, 1, 2);
@@ -6394,6 +7987,12 @@ function buildInv() {
     } else if (inv.kind === 'chest') {
       panel.appendChild(h('h3', { text: 'Chest' }));
       invGrid(panel, inv.tile.slots, 0, 27, 9);
+    } else if (inv.kind === 'dispenser') {
+      panel.appendChild(h('h3', { text: 'Dispenser' }));
+      const g = h('div', { class: 'disp' });
+      invGrid(g, inv.tile.slots, 0, 9, 3);
+      panel.appendChild(g);
+      panel.appendChild(h('p', { class: 'hint', text: 'Put a lever or button next to it. Each time it is switched on, it shoots one thing: arrows fly, TNT is lit, eggs hatch.' }));
     } else if (inv.kind === 'trade') { const tp = h('div', { class: 'panel trade-panel' }); buildTrade(tp); root.appendChild(tp); }
     panel.appendChild(h('h3', { text: 'Inventory' }));
     playerSection(panel);
@@ -6452,7 +8051,7 @@ function closeInv() {
   el('inv-root').textContent = '';
   game.uiOpen = false;
   ui.dirty = true;
-  if (inv.kind === 'chest') sfx('chest');
+  if (inv.kind === 'chest' || inv.kind === 'dispenser') sfx('chest');
   if (inv.kind === 'trade') { inv.villager.tradeT = 0; if (inv.villager.proxy) MP.send({ t: 'trade', e: inv.villager.nid, end: 1 }); }
   if (inv.tile && inv.tile.remote) MP.closeTile(inv.tile);
 }
@@ -6662,7 +8261,7 @@ function buildHelp() {
     '<li>Cook meat and smelt ore in a furnace.</li>' +
     '<li>Zombies burn in sunlight. Creepers hiss before they explode.</li>' +
     '<li>Right-click TNT to light it, then run!</li>' +
-    '<li>Commands: /time set day, /gamemode creative, /give diamond 5, /summon pig, /summon piglin, /locate village, /spawnpoint, /help.</li>' +
+    '<li>Commands: /time set day, /gamemode creative, /give diamond 5, /summon pig, /summon enderman, /summon car, /locate village, /spawnpoint, /help.</li>' +
     '<li>Your world saves by itself in this browser.</li></ul></section>' +
     '<section><h3>The Nether</h3><ul>' +
     '<li>Build a frame of obsidian 4 wide and 5 tall (the corners can be left out), then use flint and steel on the inside to light it.</li>' +
@@ -6672,6 +8271,32 @@ function buildHelp() {
     '<li>Zombified piglins are peaceful unless you hit one. Then they all come after you. Magma cubes hop after you and do not mind lava.</li>' +
     '<li>If you die in the Nether, you wake up by the portal you came through. Beds do not work there.</li>' +
     '<li>Playing together: when one player goes through a portal, everyone travels together.</li></ul></section>' +
+    '<section><h3>Bows, crossbows and more</h3><ul>' +
+    '<li>Bow: 3 sticks and 3 string (string comes from wool). Arrows: flint, a stick and a feather.</li>' +
+    '<li>Hold Place (or right-click) to pull the bow back, then let go to shoot. A quick tap is a quick shot. Walk over your arrows to pick them up.</li>' +
+    '<li>Crossbow: tap once to load it (it takes a moment), tap again to fire. It hits harder.</li>' +
+    '<li>Ender pearls (from Endermen, or a Cleric): tap to throw one, and you land where it lands.</li>' +
+    '<li>Fire charges: tap to throw a little fireball, or use one on an obsidian frame to light a portal.</li></ul></section>' +
+    '<section><h3>TNT of every kind</h3><ul>' +
+    '<li>Mega TNT (4 TNT): a much bigger blast.</li>' +
+    '<li>Ice TNT (TNT and ice or snow): freezes water and lava, covers grass in snow and freezes creatures. Nothing breaks.</li>' +
+    '<li>Digging TNT (TNT, iron and flint): bores a tunnel 3 wide and 16 long, the way you were looking when you placed it. Ores come out.</li>' +
+    '<li>Party TNT (TNT, a feather and wool): confetti and fireworks, and everyone bounces. No damage, and sheep change colour.</li>' +
+    '<li>Cluster TNT (TNT and 3 gunpowder): a blast that throws out six little TNTs.</li></ul></section>' +
+    '<section><h3>Levers, buttons and dispensers</h3><ul>' +
+    '<li>Put a lever or button on the side of a block. Tap it to switch it on.</li>' +
+    '<li>A lever or button powers what is next to it, and what is next to the block it is on: TNT lights, doors open and dispensers fire.</li>' +
+    '<li>A button stays on for a second; a lever stays on until you flip it back.</li>' +
+    '<li>Dispenser (cobblestone and a bow): tap it to fill it. Each time it is switched on it shoots an arrow or fire charge, lights TNT, hatches a spawn egg, puts a minecart on a rail, or throws out an item.</li></ul></section>' +
+    '<section><h3>Endermen and ghasts</h3><ul>' +
+    '<li>Endermen come out at night. They leave you alone, unless you look one right in the eyes or hit it. They teleport, dodge arrows, and hate water.</li>' +
+    '<li>Endermen sometimes carry a block about. They drop ender pearls.</li>' +
+    '<li>Ghasts float in big caves in the Nether and shoot fireballs. Hit a fireball to send it back. They drop ghast tears and gunpowder.</li></ul></section>' +
+    '<section><h3>Minecarts and the car</h3><ul>' +
+    '<li>Rails (6 iron and a stick make 16) join up by themselves, round corners and up hills.</li>' +
+    '<li>Minecart (5 iron): put it on a rail and tap it to get in. Push forward to roll along. Press Sneak to get out.</li>' +
+    '<li>Car (glass, 3 iron and 2 coal): put it on the ground and tap it to get in. The joystick (or W A S D) drives and steers. Tap the screen to honk. Press Sneak to get out.</li>' +
+    '<li>Hit a minecart or car a few times to pick it back up.</li></ul></section>' +
     '<section><h3>Villagers and trading</h3><ul>' +
     '<li>Villages have a well, houses and gardens. A new Sunny Valley world starts next to one. Type /locate village to find one.</li>' +
     '<li>Tap a villager (or right-click) to trade. Each job trades different things.</li>' +
@@ -7168,7 +8793,7 @@ class Link {
    The host's iPad runs the world: creatures, falling sand, water, furnaces, time of day.
    Guests build the same terrain from the seed, send their own moves and block changes,
    and show the host's creatures. A guest's things are saved inside the host's world. */
-const MP_PROTO = 1;
+const MP_PROTO = 2;   // 2: bows, new TNT, endermen, ghasts, dispensers, minecarts and cars
 const MP_MAX_GUESTS = 3;
 const r2 = v => Math.round(v * 100) / 100;
 const okXYZ = a => Array.isArray(a) && a.length === 3 && a.every(v => typeof v === 'number' && isFinite(v));
@@ -7195,7 +8820,9 @@ class RemotePlayer {
   lookDir() { const cp = Math.cos(this.pitch); return [-Math.sin(this.yaw) * cp, Math.sin(this.pitch), -Math.cos(this.yaw) * cp]; }
 }
 function encodeState(p) {
-  const f = (p.sneaking ? 1 : 0) | (p.flying ? 2 : 0) | (p.alive ? 4 : 0) | (game.mode === 'creative' ? 8 : 0) | (game.sleeping > 0 ? 16 : 0);
+  const rd = p.riding, aim = p.drawT > 0 || p.loadT > 0 || p.heldId() === I.CROSSBOW_LOADED;
+  const f = (p.sneaking ? 1 : 0) | (p.flying ? 2 : 0) | (p.alive ? 4 : 0) | (game.mode === 'creative' ? 8 : 0) | (game.sleeping > 0 ? 16 : 0) |
+    (rd ? 32 : 0) | (rd && rd.type === 'car' ? 64 : 0) | (aim ? 128 : 0);
   return [r2(p.x), r2(p.y), r2(p.z), r2(p.yaw), r2(p.pitch), r2(p.bodyYaw), f, p.heldId(), p.swings || 0];
 }
 function applyState(r, a) {
@@ -7204,6 +8831,7 @@ function applyState(r, a) {
   r.tx = a[0]; r.ty = a[1]; r.tz = a[2]; r.tyaw = a[3]; r.tpitch = clamp(a[4], -1.6, 1.6); r.tbody = a[5];
   const f = a[6] | 0;
   r.sneaking = !!(f & 1); r.flying = !!(f & 2); r.alive = !!(f & 4); r.mode = (f & 8) ? 'creative' : 'survival';
+  r.riding = (f & 32) ? ((f & 64) ? 'car' : 'cart') : null; r.aiming = !!(f & 128);
   const held = a[7] | 0;
   r.held = held > 0 && itemDef(held) ? held : 0;
   if ((a[8] | 0) !== r.swings) { r.swings = a[8] | 0; r.swingP = 0; }
@@ -7222,19 +8850,28 @@ function updateRemote(r, dt) {
 }
 function encodeEnt(e) {
   if (e.mob) {
-    const flags = (e.hurt > 0 ? 1 : 0) | (e.dead ? 2 : 0) | (e.armSwing > 0 ? 4 : 0) | (e.onGround ? 8 : 0);
+    const flags = (e.hurt > 0 ? 1 : 0) | (e.dead ? 2 : 0) | (e.armSwing > 0 ? 4 : 0) | (e.onGround ? 8 : 0) | (e.frozen > 0 ? 16 : 0);
     const extra = e.type === 'sheep' ? (e.wool | 0) : e.type === 'villager' ? VILLAGER_PROFS.indexOf(e.prof) * 100000 + ((e.vseed | 0) % 100000)
-      : e.type === 'magma' ? (e.size || 1) : e.type === 'piglin' ? (e.angryT > 0 ? 1 : 0) : 0;
+      : e.type === 'magma' ? (e.size || 1) : e.type === 'piglin' ? (e.angryT > 0 ? 1 : 0)
+      : e.type === 'enderman' ? (e.carry | 0) + (e.angryT > 0 ? 1024 : 0) : e.type === 'ghast' ? (e.firing > 0 ? 1 : 0) : 0;
     return [e.nid, MOB_TYPES.indexOf(e.type), r2(e.x), r2(e.y), r2(e.z), r2(e.bodyYaw), r2(e.headYaw), r2(e.pitch), r2(e.walkAmt), flags, r2(e.fuse || 0), extra];
   }
-  if (e.type === 'tnt') return [e.nid, -1, r2(e.x), r2(e.y), r2(e.z), r2(e.fuse)];
+  if (e.type === 'tnt') return [e.nid, -1, r2(e.x), r2(e.y), r2(e.z), r2(e.fuse), TNT_KINDS.indexOf(e.kind), e.small ? 1 : 0];
   if (e.type === 'falling') return [e.nid, -2, r2(e.x), r2(e.y), r2(e.z), e.id];
+  if (e.type === 'proj') return [e.nid, -3, r2(e.x), r2(e.y), r2(e.z), r2(e.vx), r2(e.vy), r2(e.vz), PROJ_KINDS.indexOf(e.kind), (e.stuck ? 1 : 0) | (e.crit ? 2 : 0), e.tok || ''];
+  if (e.vehicle) return [e.nid, e.type === 'car' ? -6 : -5, r2(e.x), r2(e.y), r2(e.z), r2(e.yaw), r2(e.slope || 0), e.rider ? 1 : 0, vehicleState(e)[5], e.hurt > 0 ? 1 : 0];
   return null;
 }
+const ENT_CODE = { '-1': 'tnt', '-2': 'falling', '-3': 'proj', '-5': 'minecart', '-6': 'car' };
 /* guest: creatures from the host glide to their latest positions */
 function updateProxy(e, dt) {
   e.age += dt;
+  if (e.type === 'proj') {   // arrows and fireballs keep flying between updates
+    if (!e.stuck) { e.vy -= PROJ[e.kind].grav * dt; e.x += e.vx * dt; e.y += e.vy * dt; e.z += e.vz * dt; projTrail(e, dt); }
+    return;
+  }
   const k = Math.min(1, dt * 10);
+  if (e.vehicle) { e.yaw = lerpAngle(e.yaw, e.yawT || 0, k); e.slope = lerp(e.slope || 0, e.slopeT || 0, k); e.wheel += (e.speed || 0) * dt / (e.type === 'car' ? 0.19 : 0.1); if (e.hurt > 0) e.hurt -= dt; }
   if (e.tx !== undefined) {
     const ox = e.x, oy = e.y, oz = e.z;
     if (Math.abs(e.tx - e.x) + Math.abs(e.ty - e.y) + Math.abs(e.tz - e.z) > 10) { e.x = e.tx; e.y = e.ty; e.z = e.tz; }
@@ -7272,9 +8909,10 @@ function cleanGuestSave(d) {
     mode: d.mode === 'creative' ? 'creative' : 'survival', flying: !!d.flying, dim: d.dim === 'nether' ? 'nether' : 'over',
   };
 }
-const FX_KINDS = ['break', 'place', 'door', 'boom'];
+const FX_KINDS = ['break', 'place', 'door', 'boom', 'sfx', 'party', 'ice', 'tele', 'smoke'];
+const SFX_NET = ['leverClick', 'buttonClick', 'honk', 'bowShoot', 'crossbowShoot', 'pearlThrow', 'dispense', 'dispenseFail', 'ghastShoot', 'endermanPortal'];   // the first three can come from guests
 const LINK_FAIL = "Found the game, but the two iPads couldn't connect to each other. Put both on the same Wi-Fi, then try again.";
-const STALE_T = new Set(['st', 'set', 'open', 'tile', 'close', 'tnt', 'egg', 'portal']);
+const STALE_T = new Set(['st', 'set', 'open', 'tile', 'close', 'tnt', 'egg', 'portal', 'shoot', 'mount', 'veh', 'dismount', 'veh+']);
 
 const MP = {
   role: null, code: '', token: '', sig: null, roomOpen: false, hostLink: null, hostName: '', we: 0,
@@ -7368,7 +9006,7 @@ const MP = {
           const x = b[i] | 0, y = b[i + 1] | 0, z = b[i + 2] | 0, id = b[i + 3] | 0, d = b[i + 4] | 0;
           if (y < 0 || y >= WH || id < 0 || id > 254 || !BLOCKS[id] || Math.abs(x - r.tx) > 64 || Math.abs(z - r.tz) > 64) continue;
           const old = w.getBlock(x, y, z), k = tileKey(x, y, z), t = w.tiles.get(k);
-          const keep = t && ((t.type === 'chest' && id === B.CHEST) || (t.type === 'furnace' && (id === B.FURNACE || id === B.FURNACE_LIT)));
+          const keep = t && ((t.type === 'chest' && id === B.CHEST) || (t.type === 'furnace' && (id === B.FURNACE || id === B.FURNACE_LIT)) || (t.type === 'dispenser' && id === B.DISPENSER));
           if (t && !keep && this.tileUser(t, r.id)) { this.outBlocks.push(x, y, z, old, w.getData(x, y, z)); continue; }   // in use by someone else: put it back
           if (t && !keep) {   // they broke a chest or furnace: its things drop for them
             w.tiles.delete(k);
@@ -7382,16 +9020,48 @@ const MP = {
         break;
       }
       case 'hit': {
-        const e = game.entities.find(q => q.nid === m.e && q.mob && !q.dead && !q.removed);
-        if (e && Math.hypot(e.x - r.tx, e.z - r.tz) < 8) hurtMob(game, e, clamp(+m.d || 1, 0, 20), isFinite(+m.x) ? +m.x : r.tx, isFinite(+m.z) ? +m.z : r.tz, 'player', r.id);
+        const e = game.entities.find(q => q.nid === m.e && !q.removed);
+        if (!e || Math.hypot(e.x - r.tx, e.z - r.tz) > 8) break;
+        if (e.mob && !e.dead) hurtMob(game, e, clamp(+m.d || 1, 0, 20), isFinite(+m.x) ? +m.x : r.tx, isFinite(+m.z) ? +m.z : r.tz, 'player', r.id);
+        else if (e.vehicle) hitVehicle(game, e, r.mode, r.id);
+        else if (e.type === 'proj' && e.kind === 'fireball') deflectFireball(game, e, r.lookDir(), r.id);
         break;
       }
-      case 'tnt': if (w.getBlock(m.x | 0, m.y | 0, m.z | 0) === B.TNT) { w.setBlock(m.x | 0, m.y | 0, m.z | 0, B.AIR, 0, true); primeTNT(game, m.x | 0, m.y | 0, m.z | 0, 4); } break;
-      case 'egg': if (isMobType(m.m) && isFinite(+m.x) && isFinite(+m.y) && isFinite(+m.z) && Math.hypot(+m.x - r.tx, +m.z - r.tz) < 12) spawnMob(game, m.m, +m.x, +m.y, +m.z, { home: [+m.x, +m.z] }); break;
+      case 'tnt': if (tntKindOf(w.getBlock(m.x | 0, m.y | 0, m.z | 0))) igniteTNT(game, m.x | 0, m.y | 0, m.z | 0); break;
+      case 'shoot': {   // a guest's arrow, pearl or fire charge: the real one is made here
+        const k = m.k === 'arrow' || m.k === 'pearl' || m.k === 'charge' ? m.k : null;
+        // (their position here can be a moment old: a guest falling fast is a few blocks further down by now)
+        if (!k || !okXYZ(m.p) || !okXYZ(m.v) || Math.hypot(m.p[0] - r.tx, m.p[2] - r.tz) > 6 || Math.abs(m.p[1] - r.ty - 1.5) > 12 || Math.hypot(m.v[0], m.v[1], m.v[2]) > 70) break;
+        shootProjectile(game, k, m.p[0], m.p[1], m.p[2], m.v[0], m.v[1], m.v[2], { owner: r.id, dmg: k === 'arrow' ? clamp(+m.d || 0, 0, 12) : 0, crit: !!m.c, pickup: k === 'arrow' && r.mode === 'survival', tok: String(m.tok || '').slice(0, 12) });
+        const snd = SFX_NET.includes(m.s) ? m.s : k === 'pearl' ? 'pearlThrow' : k === 'charge' ? 'ghastShoot' : 'bowShoot';
+        sfx(snd, m.p[0], m.p[1], m.p[2]); this.sfx(snd, m.p[0], m.p[1], m.p[2], r.id);
+        break;
+      }
+      case 'veh+': {   // a guest put down a minecart or a car
+        const type = m.k === 'car' || m.k === 'minecart' ? m.k : null;
+        if (!type || !okXYZ(m.at) || Math.hypot(m.at[0] - r.tx, m.at[2] - r.tz) > 8 || Math.abs(m.at[1] - r.ty) > 8) break;
+        if (type === 'minecart' && w.getBlock(Math.floor(m.at[0]), Math.floor(m.at[1]), Math.floor(m.at[2])) !== B.RAIL) break;
+        spawnVehicle(game, type, m.at[0], m.at[1], m.at[2], isFinite(+m.yaw) ? +m.yaw : 0);
+        break;
+      }
+      case 'mount': {
+        const v = game.entities.find(q => q.nid === m.e && q.vehicle && !q.removed), ok = !!v && !v.rider && Math.hypot(v.x - r.tx, v.z - r.tz) < 6;
+        if (ok) { v.rider = r.id; v.vx = v.vz = 0; }
+        l.send({ t: 'mount', e: m.e, ok: ok ? 1 : 0, s: v ? vehicleState(v) : null });
+        break;
+      }
+      case 'veh': case 'dismount': {   // where the vehicle a guest is driving has got to (and when they get out)
+        const v = game.entities.find(q => q.nid === m.e && q.vehicle && q.rider === r.id);
+        if (!v) break;
+        if (Array.isArray(m.s) && m.s.length >= 6 && m.s.every(n => typeof n === 'number' && isFinite(n)) && Math.hypot(m.s[0] - r.tx, m.s[2] - r.tz) < 10 && Math.abs(m.s[1] - r.ty) < 10) applyVehState(v, m.s);
+        if (m.t === 'dismount') v.rider = null;
+        break;
+      }
+      case 'egg': if (isMobType(m.m) && isFinite(+m.x) && isFinite(+m.y) && isFinite(+m.z) && Math.hypot(+m.x - r.tx, +m.z - r.tz) < 12 && Math.abs(+m.y - r.ty) < 12) spawnMob(game, m.m, +m.x, +m.y, +m.z, { home: [+m.x, +m.z] }); break;
       case 'trade': { const e = game.entities.find(q => q.nid === m.e && q.type === 'villager'); if (e) e.tradeT = m.end ? 0 : 20; break; }
       case 'open': {
         const x = m.x | 0, y = m.y | 0, z = m.z | 0, id = w.getBlock(x, y, z);
-        const kind = id === B.CHEST ? 'chest' : (id === B.FURNACE || id === B.FURNACE_LIT) ? 'furnace' : null;
+        const kind = id === B.CHEST ? 'chest' : (id === B.FURNACE || id === B.FURNACE_LIT) ? 'furnace' : id === B.DISPENSER ? 'dispenser' : null;
         if (!kind) { l.send({ t: 'busy', x, y, z }); break; }   // not there (or not loaded yet)
         const t = w.getTile(x, y, z, kind), by = this.tileUser(t, r.id);
         if (by) { l.send({ t: 'busy', x, y, z, by }); break; }   // one player at a time, so nothing is lost or copied
@@ -7476,6 +9146,7 @@ const MP = {
     this.remotes.delete(id);
     if (r.tag) r.tag.remove();
     if (game.world) for (const t of game.world.tiles.values()) if (t.viewers) t.viewers.delete(id);
+    for (const e of game.entities) if (e.vehicle && e.rider === id) e.rider = null;   // their car or minecart is free again
     if (!quiet) { chat(r.name + (msg || ' left the game'), '#ffff55'); sfx('leave'); }
     if (this.role === 'host') this.broadcast({ t: 'pl', id });
     this.updateUI();
@@ -7538,7 +9209,7 @@ const MP = {
   sendDrops(r, loot, x, y, z) { if (r && r.link && loot.length) r.link.send({ t: 'drops', l: loot, x: r2(x), y: r2(y), z: r2(z) }); },
   hurtRemote(r, dmg, cause, kx, ky, kz) {
     if (!r.link) return;
-    r.invuln = 0.5;
+    if (dmg > 0) r.invuln = 0.5;
     r.link.send({ t: 'hurt', a: dmg, c: cause, v: [r2(kx), r2(ky), r2(kz)] });
   },
   explosion(x, y, z, power, reach) {
@@ -7660,7 +9331,7 @@ const MP = {
   },
   sendSave() {
     if (this.role !== 'guest' || !this.welcomed) return;
-    const pl = game.player, at = pl.alive ? [pl.x, pl.y, pl.z] : game.spawnPos();
+    const pl = game.player, at = pl.alive ? restPos(pl) : game.spawnPos();
     this.send({ t: 'save', d: { x: r2(at[0]), y: r2(at[1]), z: r2(at[2]), yaw: r2(pl.yaw), pitch: r2(pl.pitch), health: pl.alive ? pl.health : 20, food: pl.alive ? pl.food : 20, air: pl.air, inv: pl.inv, sel: pl.sel, spawn: pl.spawn, mode: game.mode, flying: pl.flying, dim: game.dim } });
   },
   guestMsg(m) {
@@ -7698,9 +9369,27 @@ const MP = {
       case 'pj': if (m.id && !this.remotes.has(m.id)) { this.remotes.set(m.id, new RemotePlayer(m.id, cleanName(m.name) || 'Player', m.skin)); chat(cleanName(m.name) + ' joined the game', '#ffff55'); sfx('join'); } break;
       case 'pl': { const r = this.remotes.get(m.id); if (r) { this.removeRemote(m.id, true); chat(r.name + ' left the game', '#ffff55'); sfx('leave'); } break; }
       case 'time': if (game.world && isFinite(+m.w)) { game.world.time = +m.w; game.day = m.day | 0 || game.day; } break;
+      case 'mount': {   // the host says whether we got in
+        const v = this.proxies.get(m.e), pl = game.player;
+        if (!m.ok) { if (v) toast('Someone is already in it.', 2); break; }
+        if (!v || v.removed || pl.riding || !pl.alive || game.state !== 'playing') { this.send({ t: 'dismount', e: m.e }); break; }
+        if (Array.isArray(m.s) && m.s.length >= 6) { v.x = +m.s[0]; v.y = +m.s[1]; v.z = +m.s[2]; v.yaw = +m.s[3] || 0; v.slope = +m.s[4] || 0; }
+        v.vx = v.vy = v.vz = 0; v.local = true;
+        boardVehicle(game, v);
+        break;
+      }
+      case 'tele': {   // our ender pearl landed: off we go
+        const pl = game.player;
+        if (game.state !== 'playing' || !pl.alive || !okXYZ(m.at) || pl.riding) break;
+        [pl.x, pl.y, pl.z] = m.at; pl.vx = pl.vy = pl.vz = 0; pl.fallDist = 0;
+        pl.damage(3, 'fall');
+        break;
+      }
       case 'hurt': {
         const pl = game.player;
         if (game.state !== 'playing' || !pl.alive) break;
+        if (m.c === 'party') pl.partyT = 5;
+        if (m.c === 'ice') pl.chill = 5;
         pl.damage(clamp(+m.a || 0, 0, 40), typeof m.c === 'string' && Object.prototype.hasOwnProperty.call(DEATH_MSG, m.c) ? m.c : 'zombie');
         if (Array.isArray(m.v)) { pl.vx += +m.v[0] || 0; pl.vy = Math.max(pl.vy, +m.v[1] || 0); pl.vz += +m.v[2] || 0; }
         break;
@@ -7764,7 +9453,10 @@ const MP = {
     }
     this.applying = false;
     const t = ui.inv && ui.inv.tile;
-    if (t && t.remote) { const id = w.getBlock(t.x, t.y, t.z); if (id !== B.CHEST && id !== B.FURNACE && id !== B.FURNACE_LIT && id !== B.UNLOADED) game.closeUI(); }
+    if (t && t.remote) {   // it was broken: shut its screen
+      const id = w.getBlock(t.x, t.y, t.z), same = t.type === 'chest' ? id === B.CHEST : t.type === 'dispenser' ? id === B.DISPENSER : id === B.FURNACE || id === B.FURNACE_LIT;
+      if (!same && id !== B.UNLOADED) game.closeUI();
+    }
   },
   applyEnts(list) {
     const seen = new Set();
@@ -7773,18 +9465,31 @@ const MP = {
       const nid = a[0], ti = a[1] | 0;
       seen.add(nid);
       let e = this.proxies.get(nid);
+      if (e && e.local) continue;   // the car or minecart this iPad is driving: our own copy leads
       if (e && e.removed) { this.proxies.delete(nid); e = null; if (ti >= 0 && (a[9] & 2)) continue; }
       if (!e) {
-        const type = ti >= 0 ? MOB_TYPES[ti] : ti === -1 ? 'tnt' : ti === -2 ? 'falling' : null;
-        if (!type) continue;
+        const type = ti >= 0 ? MOB_TYPES[ti] : ENT_CODE[ti] || null;
+        if (!type || ![2, 3, 4].every(i => isFinite(+a[i]))) continue;
         e = new Entity(type, +a[2], +a[3], +a[4]);
         e.proxy = true; e.nid = nid;
         if (ti >= 0) { const d = MOB_DEFS[type]; e.mob = true; e.w = d.w; e.h = d.h; e.hp = d.hp; e.bodyYaw = e.headYaw = +a[5] || 0; }
+        else if (type === 'proj') {
+          e.kind = PROJ_KINDS[a[8] | 0] || 'arrow'; e.w = PROJ[e.kind].r; e.h = 0;
+          if (a[10]) for (const g of game.entities) if (g.ghost && g.tok === a[10]) g.removed = true;   // our own shot: the real one takes over
+        } else if (VEHICLES[type]) { e.vehicle = true; e.w = VEHICLES[type].w; e.h = VEHICLES[type].h; e.yaw = e.yawT = +a[5] || 0; e.wheel = 0; e.hits = 0; e.rider = null; }
         else { e.w = 0.49; e.h = 0.98; }
         this.proxies.set(nid, e);
         game.entities.push(e);
       }
       e.tx = +a[2]; e.ty = +a[3]; e.tz = +a[4];
+      if (ti === -3) {   // projectiles: keep our own flight unless it is far off; snap to where it stuck
+        const stuck = !!(a[9] & 1);
+        if ((stuck && !e.stuck) || Math.hypot(e.x - e.tx, e.y - e.ty, e.z - e.tz) > 3) { e.x = e.tx; e.y = e.ty; e.z = e.tz; }
+        e.stuck = stuck; e.crit = !!(a[9] & 2);
+        e.vx = +a[5] || 0; e.vy = +a[6] || 0; e.vz = +a[7] || 0;
+        continue;
+      }
+      if (ti <= -5) { e.yawT = +a[5] || 0; e.slopeT = +a[6] || 0; e.rider = a[7] === 1 ? 'someone' : null; e.speed = +a[8] || 0; if (a[9]) e.hurt = 0.2; continue; }
       if (ti >= 0) {
         e.bodyT = +a[5] || 0; e.headT = +a[6] || 0; e.pitchT = +a[7] || 0; e.walkT = +a[8] || 0;
         const f = a[9] | 0;
@@ -7798,7 +9503,10 @@ const MP = {
         if (e.type === 'villager') { e.prof = VILLAGER_PROFS[Math.floor(x / 100000)] || 'farmer'; e.vseed = x % 100000; }
         if (e.type === 'magma') { e.size = clamp(x, 1, 2); e.w = 0.3 * e.size; e.h = 0.6 * e.size; }
         if (e.type === 'piglin') e.angry = x === 1;
-      } else if (ti === -1) e.fuse = +a[5] || 0;
+        if (e.type === 'enderman') { e.carry = itemDef(x & 1023) ? x & 1023 : 0; e.angry = !!(x & 1024); }
+        if (e.type === 'ghast') e.firing = x ? 0.5 : 0;
+        e.frozen = (f & 16) ? 1 : 0;
+      } else if (ti === -1) { e.fuse = +a[5] || 0; e.kind = TNT_KINDS[a[6] | 0] || 'normal'; e.small = a[7] === 1; if (e.small) { e.w = 0.25; e.h = 0.5; } }
       else e.id = BLOCKS[a[5] | 0] ? a[5] | 0 : B.SAND;
     }
     for (const [nid, e] of this.proxies) {
@@ -7809,7 +9517,8 @@ const MP = {
     }
   },
   openTile(x, y, z, kind) {
-    const t = kind === 'chest' ? { type: 'chest', slots: new Array(27).fill(null) } : { type: 'furnace', slots: [null, null, null], burn: 0, burnMax: 0, cook: 0 };
+    const t = kind === 'chest' ? { type: 'chest', slots: new Array(27).fill(null) } : kind === 'dispenser' ? { type: 'dispenser', slots: new Array(9).fill(null) }
+      : { type: 'furnace', slots: [null, null, null], burn: 0, burnMax: 0, cook: 0 };
     Object.assign(t, { remote: true, loading: true, x, y, z });
     this.send({ t: 'open', x, y, z });
     return t;
@@ -7823,10 +9532,14 @@ const MP = {
     w.onChange = (x, y, z, id, d) => { if (this.role === 'host' || (this.role === 'guest' && !this.applying)) this.outBlocks.push(x, y, z, id, d); };
   },
   localFx(kind, x, y, z, id) { if (this.role) this.outFx.push([kind, x, y, z, id, this.role === 'host' ? 'host' : PROFILE.pid]); },
+  /* host: effects and sounds that happen here, for everyone else to see and hear (from: a guest who already did) */
+  fx(kind, x, y, z) { if (this.role === 'host') this.outFx.push([kind, r2(x), r2(y), r2(z), 0, 'host']); },
+  sfx(name, x, y, z, from) { const i = SFX_NET.indexOf(name); if (this.role === 'host' && i >= 0) this.outFx.push(['sfx', r2(x), r2(y), r2(z), i, from || 'host']); },
   /* host: sounds from a guest's action, played here and passed on to everyone else */
   takeFx(list, from) {
     if (!Array.isArray(list)) return;
-    const ok = list.filter(f => Array.isArray(f) && FX_KINDS.includes(f[0]) && f[0] !== 'boom' && [1, 2, 3, 4].every(i => typeof f[i] === 'number' && isFinite(f[i]))).slice(0, 64);
+    const guestKind = f => f[0] === 'break' || f[0] === 'place' || f[0] === 'door' || (f[0] === 'sfx' && f[4] >= 0 && f[4] < 3);   // a lever, a button or a horn
+    const ok = list.filter(f => Array.isArray(f) && [1, 2, 3, 4].every(i => typeof f[i] === 'number' && isFinite(f[i])) && guestKind(f)).slice(0, 64);
     this.playFx(ok);
     for (const f of ok) this.outFx.push([f[0], f[1], f[2], f[3], f[4], from]);
   },
@@ -7839,6 +9552,11 @@ const MP = {
       if (k === 'break' && BLOCKS[id]) { sfx('break_' + SOUND_OF(id), x + 0.5, y + 0.5, z + 0.5); blockParticles(x, y, z, id, 10, true); }
       else if (k === 'place' && BLOCKS[id]) sfx('place_' + SOUND_OF(id), x + 0.5, y + 0.5, z + 0.5);
       else if (k === 'door') sfx('door', x + 0.5, y + 0.5, z + 0.5);
+      else if (k === 'sfx') { if (SFX_NET[id]) sfx(SFX_NET[id], x, y, z); }
+      else if (k === 'party') partyEffect(x, y, z);
+      else if (k === 'ice') iceEffect(x, y, z);
+      else if (k === 'tele') { enderParticles(x, y, z, 20); sfx('endermanPortal', x, y + 1.4, z); }
+      else if (k === 'smoke') smokeParticles(x, y, z, 5, 0.12, false);
       else if (k === 'boom') {
         const p = clamp(+f[4] || 3, 1, 6);
         sfx('explode', x, y, z); smokeParticles(x, y, z, 40, p * 0.6, true);
@@ -7877,7 +9595,7 @@ const MP = {
           if (!r) continue;
           const ents = [];
           for (const e of game.entities) {
-            if (e.removed || !(e.mob || e.type === 'tnt' || e.type === 'falling') || Math.abs(e.x - r.tx) > 72 || Math.abs(e.z - r.tz) > 72) continue;
+            if (e.removed || !(e.mob || e.vehicle || e.type === 'tnt' || e.type === 'falling' || e.type === 'proj') || Math.abs(e.x - r.tx) > 72 || Math.abs(e.z - r.tz) > 72) continue;
             const a = encodeEnt(e);
             if (a) ents.push(a);
           }
@@ -7894,7 +9612,12 @@ const MP = {
         this.outBlocks = []; this.outFx = [];
       }
       this.snapT += dt;
-      if (this.snapT >= 0.1) { this.snapT = 0; this.send({ t: 'st', s: encodeState(game.player) }); }
+      if (this.snapT >= 0.1) {
+        this.snapT = 0;
+        this.send({ t: 'st', s: encodeState(game.player) });
+        const v = game.player.riding;
+        if (v && v.local && !v.removed) this.send({ t: 'veh', e: v.nid, s: vehicleState(v) });   // the vehicle we are driving
+      }
       this.saveT += dt;
       if (this.saveT >= 3) { this.saveT = 0; this.sendSave(); }
       // a furnace open on this device cooks here, and the host gets its state twice a second
@@ -8210,11 +9933,16 @@ const LOAD_TIPS = ['Punch a tree to collect wood.', 'Press E to open your invent
   'Villagers trade emeralds for tools, food and more.', 'A Mason gives an emerald for 16 cobblestone.', 'Type /locate village to find the nearest village.',
   'Play Together lets two iPads share one world.', 'An obsidian frame lit with flint and steel opens a portal to the Nether.',
   'Flint comes from breaking gravel. Add an iron ingot to make flint and steel.', 'Zombified piglins are peaceful unless you hit one.',
-  'In the Nether, 1 block is 8 blocks back home.'];
+  'In the Nether, 1 block is 8 blocks back home.', 'Hold the place button with a bow to pull it back, then let go to shoot.',
+  "Don't look an Enderman in the eyes!", "Hit a ghast's fireball to send it flying back.", 'A lever next to a dispenser makes it shoot.',
+  'Party TNT is all fun and no damage.', 'Digging TNT bores a tunnel the way you are looking.', 'Tap a minecart on rails to ride it. Sneak to get out.',
+  'Make a car from iron, glass and coal, then drive it with the joystick.'];
 const DEATH_MSG = {
   fall: 'fell from a high place', lava: 'tried to swim in lava', drown: 'ran out of air', zombie: 'was caught by a Zombie',
   explosion: 'was blown up', cactus: 'hugged a cactus', starve: 'got too hungry', void: 'fell out of the world',
   piglin: 'was chased by a Zombified Piglin', magma: 'was squashed by a Magma Cube',
+  arrow: 'was shot by an arrow', fireball: 'was hit by a fireball', enderman: 'annoyed an Enderman', ghast: 'was blown up by a Ghast',
+  party: 'partied too hard', ice: 'froze solid',
 };
 
 const game = {
@@ -8364,6 +10092,7 @@ const game = {
     w.remote = !!remote;
     if (this.dim === 'over') w.villageBlock = this.overVB;
     w.load(this.dims[this.dim]);
+    if (!remote && this.dims[this.dim]) loadVehicles(this, this.dims[this.dim].vehicles);
     this.dims[this.dim] = null;   // the live world holds them now
     this.wireWorld();
     return w;
@@ -8376,6 +10105,7 @@ const game = {
   /* leaving this world: close any open screen first (a chest sends its last changes here), and
      whatever doesn't fit back in the inventory comes along instead of being left on the ground */
   closeForTravel() {
+    if (this.player.riding) dismountVehicle(this);
     if (this.chatOpen) this.hideChat();
     if (!ui.inv) { this.uiOpen = false; return; }
     const n = this.entities.length;
@@ -8417,6 +10147,7 @@ const game = {
     if (MP.role === 'host') MP.flush();   // changes in the world being left go out first
     const time = this.world.time, clock = this.world.clock;
     this.dims[from] = this.world.serialize();
+    this.dims[from].vehicles = saveVehicles(this);
     this.dim = to;
     this.makeWorld();
     this.world.time = time; this.world.clock = clock;
@@ -8518,6 +10249,7 @@ const game = {
     w.onFall = (x, y, z, id) => { const e = new Entity('falling', x + 0.5, y, z + 0.5); e.id = id; e.w = 0.49; e.h = 0.98; this.entities.push(e); };
     w.onDrop = (x, y, z, st) => { const e = dropItem(this, x, y, z, st.id, st.count, true); if (e && st.dmg) e.dmg = st.dmg; };
     w.onSound = (n, x, y, z) => sfx(n, x, y, z);
+    w.onTileGone = t => { if (ui.inv && ui.inv.tile === t) this.closeUI(); };   // its things just fell out: shut its screen
   },
   finishLoading() {
     const pl = this.player, w = this.world;
@@ -8587,15 +10319,16 @@ const game = {
   save() {
     if (!this.world || this.world.remote) { if (MP.role === 'guest') MP.sendSave(); return; }
     if (this.state === 'title' || this.state === 'boot' || this.state === 'loading' || !this.mapId) return;
-    const pl = this.player;
+    const pl = this.player, at = restPos(pl);   // (someone in a car is saved standing beside it)
     const data = {
       v: 1, map: this.mapId, seed: this.seed, mode: this.mode, time: this.world.time, day: this.day, clock: this.world.clock,
       worldSpawn: this.worldSpawn, stats: this.stats,
-      player: { x: pl.x, y: pl.y, z: pl.z, yaw: pl.yaw, pitch: pl.pitch, health: pl.alive ? pl.health : 20, food: pl.alive ? pl.food : 20, air: pl.air, inv: pl.inv, sel: pl.sel, spawn: pl.spawn, flying: pl.flying },
+      player: { x: at[0], y: at[1], z: at[2], yaw: pl.yaw, pitch: pl.pitch, health: pl.alive ? pl.health : 20, food: pl.alive ? pl.food : 20, air: pl.air, inv: pl.inv, sel: pl.sel, spawn: pl.spawn, flying: pl.flying },
       villages: { v: 1, blocked: this.overVB }, players: MP.guestSaves,
       dim: this.dim, portals: this.portals, netherSpawn: this.netherSpawn,
     };
     const cur = this.world.serialize(), other = this.dim === 'over' ? 'nether' : 'over';
+    cur.vehicles = saveVehicles(this);
     data.world = this.dim === 'over' ? cur : this.dims.over || { edits: {}, tiles: {} };
     if (this.dim === 'nether' || this.dims.nether) data.nether = this.dim === 'nether' ? cur : this.dims[other];
     if (!pl.alive) { const sp = this.spawnPos(); data.player.x = sp[0]; data.player.y = sp[1]; data.player.z = sp[2]; }
@@ -8609,6 +10342,7 @@ const game = {
     return this.worldSpawn.slice();
   },
   onDeath(cause) {
+    if (this.player.riding) dismountVehicle(this);
     this.state = 'dead';
     this.paused = false;   // in a shared world the game keeps going behind the menu, so you can die with it open
     el('fx-portal').style.opacity = 0; this.player.portalT = 0;
@@ -8712,8 +10446,9 @@ const game = {
         const t = (a[1] || '').toLowerCase();
         const px = remote ? pl.tx : pl.x, py = remote ? pl.ty : pl.y, pz = remote ? pl.tz : pl.z;
         if (isMobType(t)) { const [dx, , dz] = pl.lookDir(); spawnMob(this, t, px + dx * 3, py + 0.5, pz + dz * 3, { home: [px + dx * 3, pz + dz * 3] }); say('Summoned a ' + t); }
-        else if (t === 'tnt') { primeTNT(this, Math.floor(px + 2), Math.floor(py + 1), Math.floor(pz), 4); }
-        else say('You can summon: ' + MOB_TYPES.join(', ') + ', tnt');
+        else if (t === 'tnt' || TNT_KINDS.includes(t)) { primeTNT(this, Math.floor(px + 2), Math.floor(py + 1), Math.floor(pz), 4, t === 'tnt' ? 'normal' : t, facingFromYaw(pl.yaw) ^ 2); }
+        else if (isVehicleType(t)) { const [dx, , dz] = pl.lookDir(); spawnVehicle(this, t, px + dx * 3, py + 0.5, pz + dz * 3, pl.yaw); say('Summoned a ' + t); }
+        else say('You can summon: ' + MOB_TYPES.join(', ') + ', tnt (or mega, ice, dig, party, cluster), minecart, car');
         break;
       }
       case 'locate': {
@@ -8968,6 +10703,7 @@ function updateCamera(dt) {
   cam.x = ex; cam.y = ey; cam.z = ez; cam.yaw = yaw; cam.pitch = pitch;
   let fov = S.fov;
   if (pl.sprinting) fov *= 1.12;
+  if (pl.drawT > 0) fov *= 1 - 0.15 * Math.min(1, pl.drawT);   // pulling a bow back zooms in a little
   if (pl.flying && pl.sprinting) fov *= 1.05;
   game.fov = lerp(game.fov || fov, fov, Math.min(1, dt * 10));
   cam.fov = game.fov * Math.PI / 180;
