@@ -2,7 +2,7 @@
    The host's iPad runs the world: creatures, falling sand, water, furnaces, time of day.
    Guests build the same terrain from the seed, send their own moves and block changes,
    and show the host's creatures. A guest's things are saved inside the host's world. */
-const MP_PROTO = 1;
+const MP_PROTO = 2;   // 2: bows, new TNT, endermen, ghasts, dispensers, minecarts and cars
 const MP_MAX_GUESTS = 3;
 const r2 = v => Math.round(v * 100) / 100;
 const okXYZ = a => Array.isArray(a) && a.length === 3 && a.every(v => typeof v === 'number' && isFinite(v));
@@ -29,7 +29,9 @@ class RemotePlayer {
   lookDir() { const cp = Math.cos(this.pitch); return [-Math.sin(this.yaw) * cp, Math.sin(this.pitch), -Math.cos(this.yaw) * cp]; }
 }
 function encodeState(p) {
-  const f = (p.sneaking ? 1 : 0) | (p.flying ? 2 : 0) | (p.alive ? 4 : 0) | (game.mode === 'creative' ? 8 : 0) | (game.sleeping > 0 ? 16 : 0);
+  const rd = p.riding, aim = p.drawT > 0 || p.loadT > 0 || p.heldId() === I.CROSSBOW_LOADED;
+  const f = (p.sneaking ? 1 : 0) | (p.flying ? 2 : 0) | (p.alive ? 4 : 0) | (game.mode === 'creative' ? 8 : 0) | (game.sleeping > 0 ? 16 : 0) |
+    (rd ? 32 : 0) | (rd && rd.type === 'car' ? 64 : 0) | (aim ? 128 : 0);
   return [r2(p.x), r2(p.y), r2(p.z), r2(p.yaw), r2(p.pitch), r2(p.bodyYaw), f, p.heldId(), p.swings || 0];
 }
 function applyState(r, a) {
@@ -38,6 +40,7 @@ function applyState(r, a) {
   r.tx = a[0]; r.ty = a[1]; r.tz = a[2]; r.tyaw = a[3]; r.tpitch = clamp(a[4], -1.6, 1.6); r.tbody = a[5];
   const f = a[6] | 0;
   r.sneaking = !!(f & 1); r.flying = !!(f & 2); r.alive = !!(f & 4); r.mode = (f & 8) ? 'creative' : 'survival';
+  r.riding = (f & 32) ? ((f & 64) ? 'car' : 'cart') : null; r.aiming = !!(f & 128);
   const held = a[7] | 0;
   r.held = held > 0 && itemDef(held) ? held : 0;
   if ((a[8] | 0) !== r.swings) { r.swings = a[8] | 0; r.swingP = 0; }
@@ -56,19 +59,28 @@ function updateRemote(r, dt) {
 }
 function encodeEnt(e) {
   if (e.mob) {
-    const flags = (e.hurt > 0 ? 1 : 0) | (e.dead ? 2 : 0) | (e.armSwing > 0 ? 4 : 0) | (e.onGround ? 8 : 0);
+    const flags = (e.hurt > 0 ? 1 : 0) | (e.dead ? 2 : 0) | (e.armSwing > 0 ? 4 : 0) | (e.onGround ? 8 : 0) | (e.frozen > 0 ? 16 : 0);
     const extra = e.type === 'sheep' ? (e.wool | 0) : e.type === 'villager' ? VILLAGER_PROFS.indexOf(e.prof) * 100000 + ((e.vseed | 0) % 100000)
-      : e.type === 'magma' ? (e.size || 1) : e.type === 'piglin' ? (e.angryT > 0 ? 1 : 0) : 0;
+      : e.type === 'magma' ? (e.size || 1) : e.type === 'piglin' ? (e.angryT > 0 ? 1 : 0)
+      : e.type === 'enderman' ? (e.carry | 0) + (e.angryT > 0 ? 1024 : 0) : e.type === 'ghast' ? (e.firing > 0 ? 1 : 0) : 0;
     return [e.nid, MOB_TYPES.indexOf(e.type), r2(e.x), r2(e.y), r2(e.z), r2(e.bodyYaw), r2(e.headYaw), r2(e.pitch), r2(e.walkAmt), flags, r2(e.fuse || 0), extra];
   }
-  if (e.type === 'tnt') return [e.nid, -1, r2(e.x), r2(e.y), r2(e.z), r2(e.fuse)];
+  if (e.type === 'tnt') return [e.nid, -1, r2(e.x), r2(e.y), r2(e.z), r2(e.fuse), TNT_KINDS.indexOf(e.kind), e.small ? 1 : 0];
   if (e.type === 'falling') return [e.nid, -2, r2(e.x), r2(e.y), r2(e.z), e.id];
+  if (e.type === 'proj') return [e.nid, -3, r2(e.x), r2(e.y), r2(e.z), r2(e.vx), r2(e.vy), r2(e.vz), PROJ_KINDS.indexOf(e.kind), (e.stuck ? 1 : 0) | (e.crit ? 2 : 0), e.tok || ''];
+  if (e.vehicle) return [e.nid, e.type === 'car' ? -6 : -5, r2(e.x), r2(e.y), r2(e.z), r2(e.yaw), r2(e.slope || 0), e.rider ? 1 : 0, vehicleState(e)[5], e.hurt > 0 ? 1 : 0];
   return null;
 }
+const ENT_CODE = { '-1': 'tnt', '-2': 'falling', '-3': 'proj', '-5': 'minecart', '-6': 'car' };
 /* guest: creatures from the host glide to their latest positions */
 function updateProxy(e, dt) {
   e.age += dt;
+  if (e.type === 'proj') {   // arrows and fireballs keep flying between updates
+    if (!e.stuck) { e.vy -= PROJ[e.kind].grav * dt; e.x += e.vx * dt; e.y += e.vy * dt; e.z += e.vz * dt; projTrail(e, dt); }
+    return;
+  }
   const k = Math.min(1, dt * 10);
+  if (e.vehicle) { e.yaw = lerpAngle(e.yaw, e.yawT || 0, k); e.slope = lerp(e.slope || 0, e.slopeT || 0, k); e.wheel += (e.speed || 0) * dt / (e.type === 'car' ? 0.19 : 0.1); if (e.hurt > 0) e.hurt -= dt; }
   if (e.tx !== undefined) {
     const ox = e.x, oy = e.y, oz = e.z;
     if (Math.abs(e.tx - e.x) + Math.abs(e.ty - e.y) + Math.abs(e.tz - e.z) > 10) { e.x = e.tx; e.y = e.ty; e.z = e.tz; }
@@ -106,9 +118,10 @@ function cleanGuestSave(d) {
     mode: d.mode === 'creative' ? 'creative' : 'survival', flying: !!d.flying, dim: d.dim === 'nether' ? 'nether' : 'over',
   };
 }
-const FX_KINDS = ['break', 'place', 'door', 'boom'];
+const FX_KINDS = ['break', 'place', 'door', 'boom', 'sfx', 'party', 'ice', 'tele', 'smoke'];
+const SFX_NET = ['leverClick', 'buttonClick', 'honk', 'bowShoot', 'crossbowShoot', 'pearlThrow', 'dispense', 'dispenseFail', 'ghastShoot', 'endermanPortal'];   // the first three can come from guests
 const LINK_FAIL = "Found the game, but the two iPads couldn't connect to each other. Put both on the same Wi-Fi, then try again.";
-const STALE_T = new Set(['st', 'set', 'open', 'tile', 'close', 'tnt', 'egg', 'portal']);
+const STALE_T = new Set(['st', 'set', 'open', 'tile', 'close', 'tnt', 'egg', 'portal', 'shoot', 'mount', 'veh', 'dismount', 'veh+']);
 
 const MP = {
   role: null, code: '', token: '', sig: null, roomOpen: false, hostLink: null, hostName: '', we: 0,
@@ -202,7 +215,7 @@ const MP = {
           const x = b[i] | 0, y = b[i + 1] | 0, z = b[i + 2] | 0, id = b[i + 3] | 0, d = b[i + 4] | 0;
           if (y < 0 || y >= WH || id < 0 || id > 254 || !BLOCKS[id] || Math.abs(x - r.tx) > 64 || Math.abs(z - r.tz) > 64) continue;
           const old = w.getBlock(x, y, z), k = tileKey(x, y, z), t = w.tiles.get(k);
-          const keep = t && ((t.type === 'chest' && id === B.CHEST) || (t.type === 'furnace' && (id === B.FURNACE || id === B.FURNACE_LIT)));
+          const keep = t && ((t.type === 'chest' && id === B.CHEST) || (t.type === 'furnace' && (id === B.FURNACE || id === B.FURNACE_LIT)) || (t.type === 'dispenser' && id === B.DISPENSER));
           if (t && !keep && this.tileUser(t, r.id)) { this.outBlocks.push(x, y, z, old, w.getData(x, y, z)); continue; }   // in use by someone else: put it back
           if (t && !keep) {   // they broke a chest or furnace: its things drop for them
             w.tiles.delete(k);
@@ -216,16 +229,48 @@ const MP = {
         break;
       }
       case 'hit': {
-        const e = game.entities.find(q => q.nid === m.e && q.mob && !q.dead && !q.removed);
-        if (e && Math.hypot(e.x - r.tx, e.z - r.tz) < 8) hurtMob(game, e, clamp(+m.d || 1, 0, 20), isFinite(+m.x) ? +m.x : r.tx, isFinite(+m.z) ? +m.z : r.tz, 'player', r.id);
+        const e = game.entities.find(q => q.nid === m.e && !q.removed);
+        if (!e || Math.hypot(e.x - r.tx, e.z - r.tz) > 8) break;
+        if (e.mob && !e.dead) hurtMob(game, e, clamp(+m.d || 1, 0, 20), isFinite(+m.x) ? +m.x : r.tx, isFinite(+m.z) ? +m.z : r.tz, 'player', r.id);
+        else if (e.vehicle) hitVehicle(game, e, r.mode, r.id);
+        else if (e.type === 'proj' && e.kind === 'fireball') deflectFireball(game, e, r.lookDir(), r.id);
         break;
       }
-      case 'tnt': if (w.getBlock(m.x | 0, m.y | 0, m.z | 0) === B.TNT) { w.setBlock(m.x | 0, m.y | 0, m.z | 0, B.AIR, 0, true); primeTNT(game, m.x | 0, m.y | 0, m.z | 0, 4); } break;
-      case 'egg': if (isMobType(m.m) && isFinite(+m.x) && isFinite(+m.y) && isFinite(+m.z) && Math.hypot(+m.x - r.tx, +m.z - r.tz) < 12) spawnMob(game, m.m, +m.x, +m.y, +m.z, { home: [+m.x, +m.z] }); break;
+      case 'tnt': if (tntKindOf(w.getBlock(m.x | 0, m.y | 0, m.z | 0))) igniteTNT(game, m.x | 0, m.y | 0, m.z | 0); break;
+      case 'shoot': {   // a guest's arrow, pearl or fire charge: the real one is made here
+        const k = m.k === 'arrow' || m.k === 'pearl' || m.k === 'charge' ? m.k : null;
+        // (their position here can be a moment old: a guest falling fast is a few blocks further down by now)
+        if (!k || !okXYZ(m.p) || !okXYZ(m.v) || Math.hypot(m.p[0] - r.tx, m.p[2] - r.tz) > 6 || Math.abs(m.p[1] - r.ty - 1.5) > 12 || Math.hypot(m.v[0], m.v[1], m.v[2]) > 70) break;
+        shootProjectile(game, k, m.p[0], m.p[1], m.p[2], m.v[0], m.v[1], m.v[2], { owner: r.id, dmg: k === 'arrow' ? clamp(+m.d || 0, 0, 12) : 0, crit: !!m.c, pickup: k === 'arrow' && r.mode === 'survival', tok: String(m.tok || '').slice(0, 12) });
+        const snd = SFX_NET.includes(m.s) ? m.s : k === 'pearl' ? 'pearlThrow' : k === 'charge' ? 'ghastShoot' : 'bowShoot';
+        sfx(snd, m.p[0], m.p[1], m.p[2]); this.sfx(snd, m.p[0], m.p[1], m.p[2], r.id);
+        break;
+      }
+      case 'veh+': {   // a guest put down a minecart or a car
+        const type = m.k === 'car' || m.k === 'minecart' ? m.k : null;
+        if (!type || !okXYZ(m.at) || Math.hypot(m.at[0] - r.tx, m.at[2] - r.tz) > 8 || Math.abs(m.at[1] - r.ty) > 8) break;
+        if (type === 'minecart' && w.getBlock(Math.floor(m.at[0]), Math.floor(m.at[1]), Math.floor(m.at[2])) !== B.RAIL) break;
+        spawnVehicle(game, type, m.at[0], m.at[1], m.at[2], isFinite(+m.yaw) ? +m.yaw : 0);
+        break;
+      }
+      case 'mount': {
+        const v = game.entities.find(q => q.nid === m.e && q.vehicle && !q.removed), ok = !!v && !v.rider && Math.hypot(v.x - r.tx, v.z - r.tz) < 6;
+        if (ok) { v.rider = r.id; v.vx = v.vz = 0; }
+        l.send({ t: 'mount', e: m.e, ok: ok ? 1 : 0, s: v ? vehicleState(v) : null });
+        break;
+      }
+      case 'veh': case 'dismount': {   // where the vehicle a guest is driving has got to (and when they get out)
+        const v = game.entities.find(q => q.nid === m.e && q.vehicle && q.rider === r.id);
+        if (!v) break;
+        if (Array.isArray(m.s) && m.s.length >= 6 && m.s.every(n => typeof n === 'number' && isFinite(n)) && Math.hypot(m.s[0] - r.tx, m.s[2] - r.tz) < 10 && Math.abs(m.s[1] - r.ty) < 10) applyVehState(v, m.s);
+        if (m.t === 'dismount') v.rider = null;
+        break;
+      }
+      case 'egg': if (isMobType(m.m) && isFinite(+m.x) && isFinite(+m.y) && isFinite(+m.z) && Math.hypot(+m.x - r.tx, +m.z - r.tz) < 12 && Math.abs(+m.y - r.ty) < 12) spawnMob(game, m.m, +m.x, +m.y, +m.z, { home: [+m.x, +m.z] }); break;
       case 'trade': { const e = game.entities.find(q => q.nid === m.e && q.type === 'villager'); if (e) e.tradeT = m.end ? 0 : 20; break; }
       case 'open': {
         const x = m.x | 0, y = m.y | 0, z = m.z | 0, id = w.getBlock(x, y, z);
-        const kind = id === B.CHEST ? 'chest' : (id === B.FURNACE || id === B.FURNACE_LIT) ? 'furnace' : null;
+        const kind = id === B.CHEST ? 'chest' : (id === B.FURNACE || id === B.FURNACE_LIT) ? 'furnace' : id === B.DISPENSER ? 'dispenser' : null;
         if (!kind) { l.send({ t: 'busy', x, y, z }); break; }   // not there (or not loaded yet)
         const t = w.getTile(x, y, z, kind), by = this.tileUser(t, r.id);
         if (by) { l.send({ t: 'busy', x, y, z, by }); break; }   // one player at a time, so nothing is lost or copied
@@ -310,6 +355,7 @@ const MP = {
     this.remotes.delete(id);
     if (r.tag) r.tag.remove();
     if (game.world) for (const t of game.world.tiles.values()) if (t.viewers) t.viewers.delete(id);
+    for (const e of game.entities) if (e.vehicle && e.rider === id) e.rider = null;   // their car or minecart is free again
     if (!quiet) { chat(r.name + (msg || ' left the game'), '#ffff55'); sfx('leave'); }
     if (this.role === 'host') this.broadcast({ t: 'pl', id });
     this.updateUI();
@@ -372,7 +418,7 @@ const MP = {
   sendDrops(r, loot, x, y, z) { if (r && r.link && loot.length) r.link.send({ t: 'drops', l: loot, x: r2(x), y: r2(y), z: r2(z) }); },
   hurtRemote(r, dmg, cause, kx, ky, kz) {
     if (!r.link) return;
-    r.invuln = 0.5;
+    if (dmg > 0) r.invuln = 0.5;
     r.link.send({ t: 'hurt', a: dmg, c: cause, v: [r2(kx), r2(ky), r2(kz)] });
   },
   explosion(x, y, z, power, reach) {
@@ -494,7 +540,7 @@ const MP = {
   },
   sendSave() {
     if (this.role !== 'guest' || !this.welcomed) return;
-    const pl = game.player, at = pl.alive ? [pl.x, pl.y, pl.z] : game.spawnPos();
+    const pl = game.player, at = pl.alive ? restPos(pl) : game.spawnPos();
     this.send({ t: 'save', d: { x: r2(at[0]), y: r2(at[1]), z: r2(at[2]), yaw: r2(pl.yaw), pitch: r2(pl.pitch), health: pl.alive ? pl.health : 20, food: pl.alive ? pl.food : 20, air: pl.air, inv: pl.inv, sel: pl.sel, spawn: pl.spawn, mode: game.mode, flying: pl.flying, dim: game.dim } });
   },
   guestMsg(m) {
@@ -532,9 +578,27 @@ const MP = {
       case 'pj': if (m.id && !this.remotes.has(m.id)) { this.remotes.set(m.id, new RemotePlayer(m.id, cleanName(m.name) || 'Player', m.skin)); chat(cleanName(m.name) + ' joined the game', '#ffff55'); sfx('join'); } break;
       case 'pl': { const r = this.remotes.get(m.id); if (r) { this.removeRemote(m.id, true); chat(r.name + ' left the game', '#ffff55'); sfx('leave'); } break; }
       case 'time': if (game.world && isFinite(+m.w)) { game.world.time = +m.w; game.day = m.day | 0 || game.day; } break;
+      case 'mount': {   // the host says whether we got in
+        const v = this.proxies.get(m.e), pl = game.player;
+        if (!m.ok) { if (v) toast('Someone is already in it.', 2); break; }
+        if (!v || v.removed || pl.riding || !pl.alive || game.state !== 'playing') { this.send({ t: 'dismount', e: m.e }); break; }
+        if (Array.isArray(m.s) && m.s.length >= 6) { v.x = +m.s[0]; v.y = +m.s[1]; v.z = +m.s[2]; v.yaw = +m.s[3] || 0; v.slope = +m.s[4] || 0; }
+        v.vx = v.vy = v.vz = 0; v.local = true;
+        boardVehicle(game, v);
+        break;
+      }
+      case 'tele': {   // our ender pearl landed: off we go
+        const pl = game.player;
+        if (game.state !== 'playing' || !pl.alive || !okXYZ(m.at) || pl.riding) break;
+        [pl.x, pl.y, pl.z] = m.at; pl.vx = pl.vy = pl.vz = 0; pl.fallDist = 0;
+        pl.damage(3, 'fall');
+        break;
+      }
       case 'hurt': {
         const pl = game.player;
         if (game.state !== 'playing' || !pl.alive) break;
+        if (m.c === 'party') pl.partyT = 5;
+        if (m.c === 'ice') pl.chill = 5;
         pl.damage(clamp(+m.a || 0, 0, 40), typeof m.c === 'string' && Object.prototype.hasOwnProperty.call(DEATH_MSG, m.c) ? m.c : 'zombie');
         if (Array.isArray(m.v)) { pl.vx += +m.v[0] || 0; pl.vy = Math.max(pl.vy, +m.v[1] || 0); pl.vz += +m.v[2] || 0; }
         break;
@@ -598,7 +662,10 @@ const MP = {
     }
     this.applying = false;
     const t = ui.inv && ui.inv.tile;
-    if (t && t.remote) { const id = w.getBlock(t.x, t.y, t.z); if (id !== B.CHEST && id !== B.FURNACE && id !== B.FURNACE_LIT && id !== B.UNLOADED) game.closeUI(); }
+    if (t && t.remote) {   // it was broken: shut its screen
+      const id = w.getBlock(t.x, t.y, t.z), same = t.type === 'chest' ? id === B.CHEST : t.type === 'dispenser' ? id === B.DISPENSER : id === B.FURNACE || id === B.FURNACE_LIT;
+      if (!same && id !== B.UNLOADED) game.closeUI();
+    }
   },
   applyEnts(list) {
     const seen = new Set();
@@ -607,18 +674,31 @@ const MP = {
       const nid = a[0], ti = a[1] | 0;
       seen.add(nid);
       let e = this.proxies.get(nid);
+      if (e && e.local) continue;   // the car or minecart this iPad is driving: our own copy leads
       if (e && e.removed) { this.proxies.delete(nid); e = null; if (ti >= 0 && (a[9] & 2)) continue; }
       if (!e) {
-        const type = ti >= 0 ? MOB_TYPES[ti] : ti === -1 ? 'tnt' : ti === -2 ? 'falling' : null;
-        if (!type) continue;
+        const type = ti >= 0 ? MOB_TYPES[ti] : ENT_CODE[ti] || null;
+        if (!type || ![2, 3, 4].every(i => isFinite(+a[i]))) continue;
         e = new Entity(type, +a[2], +a[3], +a[4]);
         e.proxy = true; e.nid = nid;
         if (ti >= 0) { const d = MOB_DEFS[type]; e.mob = true; e.w = d.w; e.h = d.h; e.hp = d.hp; e.bodyYaw = e.headYaw = +a[5] || 0; }
+        else if (type === 'proj') {
+          e.kind = PROJ_KINDS[a[8] | 0] || 'arrow'; e.w = PROJ[e.kind].r; e.h = 0;
+          if (a[10]) for (const g of game.entities) if (g.ghost && g.tok === a[10]) g.removed = true;   // our own shot: the real one takes over
+        } else if (VEHICLES[type]) { e.vehicle = true; e.w = VEHICLES[type].w; e.h = VEHICLES[type].h; e.yaw = e.yawT = +a[5] || 0; e.wheel = 0; e.hits = 0; e.rider = null; }
         else { e.w = 0.49; e.h = 0.98; }
         this.proxies.set(nid, e);
         game.entities.push(e);
       }
       e.tx = +a[2]; e.ty = +a[3]; e.tz = +a[4];
+      if (ti === -3) {   // projectiles: keep our own flight unless it is far off; snap to where it stuck
+        const stuck = !!(a[9] & 1);
+        if ((stuck && !e.stuck) || Math.hypot(e.x - e.tx, e.y - e.ty, e.z - e.tz) > 3) { e.x = e.tx; e.y = e.ty; e.z = e.tz; }
+        e.stuck = stuck; e.crit = !!(a[9] & 2);
+        e.vx = +a[5] || 0; e.vy = +a[6] || 0; e.vz = +a[7] || 0;
+        continue;
+      }
+      if (ti <= -5) { e.yawT = +a[5] || 0; e.slopeT = +a[6] || 0; e.rider = a[7] === 1 ? 'someone' : null; e.speed = +a[8] || 0; if (a[9]) e.hurt = 0.2; continue; }
       if (ti >= 0) {
         e.bodyT = +a[5] || 0; e.headT = +a[6] || 0; e.pitchT = +a[7] || 0; e.walkT = +a[8] || 0;
         const f = a[9] | 0;
@@ -632,7 +712,10 @@ const MP = {
         if (e.type === 'villager') { e.prof = VILLAGER_PROFS[Math.floor(x / 100000)] || 'farmer'; e.vseed = x % 100000; }
         if (e.type === 'magma') { e.size = clamp(x, 1, 2); e.w = 0.3 * e.size; e.h = 0.6 * e.size; }
         if (e.type === 'piglin') e.angry = x === 1;
-      } else if (ti === -1) e.fuse = +a[5] || 0;
+        if (e.type === 'enderman') { e.carry = itemDef(x & 1023) ? x & 1023 : 0; e.angry = !!(x & 1024); }
+        if (e.type === 'ghast') e.firing = x ? 0.5 : 0;
+        e.frozen = (f & 16) ? 1 : 0;
+      } else if (ti === -1) { e.fuse = +a[5] || 0; e.kind = TNT_KINDS[a[6] | 0] || 'normal'; e.small = a[7] === 1; if (e.small) { e.w = 0.25; e.h = 0.5; } }
       else e.id = BLOCKS[a[5] | 0] ? a[5] | 0 : B.SAND;
     }
     for (const [nid, e] of this.proxies) {
@@ -643,7 +726,8 @@ const MP = {
     }
   },
   openTile(x, y, z, kind) {
-    const t = kind === 'chest' ? { type: 'chest', slots: new Array(27).fill(null) } : { type: 'furnace', slots: [null, null, null], burn: 0, burnMax: 0, cook: 0 };
+    const t = kind === 'chest' ? { type: 'chest', slots: new Array(27).fill(null) } : kind === 'dispenser' ? { type: 'dispenser', slots: new Array(9).fill(null) }
+      : { type: 'furnace', slots: [null, null, null], burn: 0, burnMax: 0, cook: 0 };
     Object.assign(t, { remote: true, loading: true, x, y, z });
     this.send({ t: 'open', x, y, z });
     return t;
@@ -657,10 +741,14 @@ const MP = {
     w.onChange = (x, y, z, id, d) => { if (this.role === 'host' || (this.role === 'guest' && !this.applying)) this.outBlocks.push(x, y, z, id, d); };
   },
   localFx(kind, x, y, z, id) { if (this.role) this.outFx.push([kind, x, y, z, id, this.role === 'host' ? 'host' : PROFILE.pid]); },
+  /* host: effects and sounds that happen here, for everyone else to see and hear (from: a guest who already did) */
+  fx(kind, x, y, z) { if (this.role === 'host') this.outFx.push([kind, r2(x), r2(y), r2(z), 0, 'host']); },
+  sfx(name, x, y, z, from) { const i = SFX_NET.indexOf(name); if (this.role === 'host' && i >= 0) this.outFx.push(['sfx', r2(x), r2(y), r2(z), i, from || 'host']); },
   /* host: sounds from a guest's action, played here and passed on to everyone else */
   takeFx(list, from) {
     if (!Array.isArray(list)) return;
-    const ok = list.filter(f => Array.isArray(f) && FX_KINDS.includes(f[0]) && f[0] !== 'boom' && [1, 2, 3, 4].every(i => typeof f[i] === 'number' && isFinite(f[i]))).slice(0, 64);
+    const guestKind = f => f[0] === 'break' || f[0] === 'place' || f[0] === 'door' || (f[0] === 'sfx' && f[4] >= 0 && f[4] < 3);   // a lever, a button or a horn
+    const ok = list.filter(f => Array.isArray(f) && [1, 2, 3, 4].every(i => typeof f[i] === 'number' && isFinite(f[i])) && guestKind(f)).slice(0, 64);
     this.playFx(ok);
     for (const f of ok) this.outFx.push([f[0], f[1], f[2], f[3], f[4], from]);
   },
@@ -673,6 +761,11 @@ const MP = {
       if (k === 'break' && BLOCKS[id]) { sfx('break_' + SOUND_OF(id), x + 0.5, y + 0.5, z + 0.5); blockParticles(x, y, z, id, 10, true); }
       else if (k === 'place' && BLOCKS[id]) sfx('place_' + SOUND_OF(id), x + 0.5, y + 0.5, z + 0.5);
       else if (k === 'door') sfx('door', x + 0.5, y + 0.5, z + 0.5);
+      else if (k === 'sfx') { if (SFX_NET[id]) sfx(SFX_NET[id], x, y, z); }
+      else if (k === 'party') partyEffect(x, y, z);
+      else if (k === 'ice') iceEffect(x, y, z);
+      else if (k === 'tele') { enderParticles(x, y, z, 20); sfx('endermanPortal', x, y + 1.4, z); }
+      else if (k === 'smoke') smokeParticles(x, y, z, 5, 0.12, false);
       else if (k === 'boom') {
         const p = clamp(+f[4] || 3, 1, 6);
         sfx('explode', x, y, z); smokeParticles(x, y, z, 40, p * 0.6, true);
@@ -711,7 +804,7 @@ const MP = {
           if (!r) continue;
           const ents = [];
           for (const e of game.entities) {
-            if (e.removed || !(e.mob || e.type === 'tnt' || e.type === 'falling') || Math.abs(e.x - r.tx) > 72 || Math.abs(e.z - r.tz) > 72) continue;
+            if (e.removed || !(e.mob || e.vehicle || e.type === 'tnt' || e.type === 'falling' || e.type === 'proj') || Math.abs(e.x - r.tx) > 72 || Math.abs(e.z - r.tz) > 72) continue;
             const a = encodeEnt(e);
             if (a) ents.push(a);
           }
@@ -728,7 +821,12 @@ const MP = {
         this.outBlocks = []; this.outFx = [];
       }
       this.snapT += dt;
-      if (this.snapT >= 0.1) { this.snapT = 0; this.send({ t: 'st', s: encodeState(game.player) }); }
+      if (this.snapT >= 0.1) {
+        this.snapT = 0;
+        this.send({ t: 'st', s: encodeState(game.player) });
+        const v = game.player.riding;
+        if (v && v.local && !v.removed) this.send({ t: 'veh', e: v.nid, s: vehicleState(v) });   // the vehicle we are driving
+      }
       this.saveT += dt;
       if (this.saveT >= 3) { this.saveT = 0; this.sendSave(); }
       // a furnace open on this device cooks here, and the host gets its state twice a second

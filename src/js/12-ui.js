@@ -199,6 +199,7 @@ function quickMove(ref) {
   if (!st) return;
   if (ref.arr === pl.inv) {
     if (inv.kind === 'chest') moveInto(st, inv.tile.slots, 0, 27);
+    else if (inv.kind === 'dispenser') moveInto(st, inv.tile.slots, 0, 9);
     else if (inv.kind === 'furnace') {
       if (SMELT[st.id] !== undefined) moveInto(st, inv.tile.slots, 0, 1);
       else if (fuelValue(st.id) > 0) moveInto(st, inv.tile.slots, 1, 2);
@@ -355,6 +356,12 @@ function buildInv() {
     } else if (inv.kind === 'chest') {
       panel.appendChild(h('h3', { text: 'Chest' }));
       invGrid(panel, inv.tile.slots, 0, 27, 9);
+    } else if (inv.kind === 'dispenser') {
+      panel.appendChild(h('h3', { text: 'Dispenser' }));
+      const g = h('div', { class: 'disp' });
+      invGrid(g, inv.tile.slots, 0, 9, 3);
+      panel.appendChild(g);
+      panel.appendChild(h('p', { class: 'hint', text: 'Put a lever or button next to it. Each time it is switched on, it shoots one thing: arrows fly, TNT is lit, eggs hatch.' }));
     } else if (inv.kind === 'trade') { const tp = h('div', { class: 'panel trade-panel' }); buildTrade(tp); root.appendChild(tp); }
     panel.appendChild(h('h3', { text: 'Inventory' }));
     playerSection(panel);
@@ -413,7 +420,7 @@ function closeInv() {
   el('inv-root').textContent = '';
   game.uiOpen = false;
   ui.dirty = true;
-  if (inv.kind === 'chest') sfx('chest');
+  if (inv.kind === 'chest' || inv.kind === 'dispenser') sfx('chest');
   if (inv.kind === 'trade') { inv.villager.tradeT = 0; if (inv.villager.proxy) MP.send({ t: 'trade', e: inv.villager.nid, end: 1 }); }
   if (inv.tile && inv.tile.remote) MP.closeTile(inv.tile);
 }
@@ -623,7 +630,7 @@ function buildHelp() {
     '<li>Cook meat and smelt ore in a furnace.</li>' +
     '<li>Zombies burn in sunlight. Creepers hiss before they explode.</li>' +
     '<li>Right-click TNT to light it, then run!</li>' +
-    '<li>Commands: /time set day, /gamemode creative, /give diamond 5, /summon pig, /summon piglin, /locate village, /spawnpoint, /help.</li>' +
+    '<li>Commands: /time set day, /gamemode creative, /give diamond 5, /summon pig, /summon enderman, /summon car, /locate village, /spawnpoint, /help.</li>' +
     '<li>Your world saves by itself in this browser.</li></ul></section>' +
     '<section><h3>The Nether</h3><ul>' +
     '<li>Build a frame of obsidian 4 wide and 5 tall (the corners can be left out), then use flint and steel on the inside to light it.</li>' +
@@ -633,6 +640,32 @@ function buildHelp() {
     '<li>Zombified piglins are peaceful unless you hit one. Then they all come after you. Magma cubes hop after you and do not mind lava.</li>' +
     '<li>If you die in the Nether, you wake up by the portal you came through. Beds do not work there.</li>' +
     '<li>Playing together: when one player goes through a portal, everyone travels together.</li></ul></section>' +
+    '<section><h3>Bows, crossbows and more</h3><ul>' +
+    '<li>Bow: 3 sticks and 3 string (string comes from wool). Arrows: flint, a stick and a feather.</li>' +
+    '<li>Hold Place (or right-click) to pull the bow back, then let go to shoot. A quick tap is a quick shot. Walk over your arrows to pick them up.</li>' +
+    '<li>Crossbow: tap once to load it (it takes a moment), tap again to fire. It hits harder.</li>' +
+    '<li>Ender pearls (from Endermen, or a Cleric): tap to throw one, and you land where it lands.</li>' +
+    '<li>Fire charges: tap to throw a little fireball, or use one on an obsidian frame to light a portal.</li></ul></section>' +
+    '<section><h3>TNT of every kind</h3><ul>' +
+    '<li>Mega TNT (4 TNT): a much bigger blast.</li>' +
+    '<li>Ice TNT (TNT and ice or snow): freezes water and lava, covers grass in snow and freezes creatures. Nothing breaks.</li>' +
+    '<li>Digging TNT (TNT, iron and flint): bores a tunnel 3 wide and 16 long, the way you were looking when you placed it. Ores come out.</li>' +
+    '<li>Party TNT (TNT, a feather and wool): confetti and fireworks, and everyone bounces. No damage, and sheep change colour.</li>' +
+    '<li>Cluster TNT (TNT and 3 gunpowder): a blast that throws out six little TNTs.</li></ul></section>' +
+    '<section><h3>Levers, buttons and dispensers</h3><ul>' +
+    '<li>Put a lever or button on the side of a block. Tap it to switch it on.</li>' +
+    '<li>A lever or button powers what is next to it, and what is next to the block it is on: TNT lights, doors open and dispensers fire.</li>' +
+    '<li>A button stays on for a second; a lever stays on until you flip it back.</li>' +
+    '<li>Dispenser (cobblestone and a bow): tap it to fill it. Each time it is switched on it shoots an arrow or fire charge, lights TNT, hatches a spawn egg, puts a minecart on a rail, or throws out an item.</li></ul></section>' +
+    '<section><h3>Endermen and ghasts</h3><ul>' +
+    '<li>Endermen come out at night. They leave you alone, unless you look one right in the eyes or hit it. They teleport, dodge arrows, and hate water.</li>' +
+    '<li>Endermen sometimes carry a block about. They drop ender pearls.</li>' +
+    '<li>Ghasts float in big caves in the Nether and shoot fireballs. Hit a fireball to send it back. They drop ghast tears and gunpowder.</li></ul></section>' +
+    '<section><h3>Minecarts and the car</h3><ul>' +
+    '<li>Rails (6 iron and a stick make 16) join up by themselves, round corners and up hills.</li>' +
+    '<li>Minecart (5 iron): put it on a rail and tap it to get in. Push forward to roll along. Press Sneak to get out.</li>' +
+    '<li>Car (glass, 3 iron and 2 coal): put it on the ground and tap it to get in. The joystick (or W A S D) drives and steers. Tap the screen to honk. Press Sneak to get out.</li>' +
+    '<li>Hit a minecart or car a few times to pick it back up.</li></ul></section>' +
     '<section><h3>Villagers and trading</h3><ul>' +
     '<li>Villages have a well, houses and gardens. A new Sunny Valley world starts next to one. Type /locate village to find one.</li>' +
     '<li>Tap a villager (or right-click) to trade. Each job trades different things.</li>' +

@@ -30,8 +30,7 @@ function defModel(name, skin, scale, parts) {
   const m = { name, scale, parts: {}, list: [] };
   for (const p of parts) {
     const mb = new MeshBuilder();
-    const b = p.box;
-    addBox(mb, b[0], b[1], b[2], b[3], b[4], b[5], p.uv[0], p.uv[1], SKIN[p.skin || skin], p.inflate);
+    for (const b of p.boxes || [p.box.concat(p.uv)]) addBox(mb, b[0], b[1], b[2], b[3], b[4], b[5], b[6], b[7], SKIN[p.skin || skin], p.inflate);   // boxes: [x, y, z, w, h, d, u, v] each
     const part = { name: p.name, mesh: mb.build(), pivot: p.pivot || [0, 0, 0], follow: p.follow || null, tint: !!p.tint };
     m.parts[p.name] = part; m.list.push(part);
   }
@@ -82,6 +81,47 @@ function buildModels() {
     { name: 'lleg', box: [0, 0, -2, 4, 12, 4], uv: [16, 48], pivot: [2, 12, 0] },
   ]);
   defModel('magma', 'magma', 1 / 16, [{ name: 'body', box: [-4, 0, -4, 8, 8, 8], uv: [0, 0] }]);
+  defModel('enderman', 'enderman', 0.95 / 16, [
+    { name: 'head', box: [-4, 41, -4, 8, 6, 8], uv: [0, 0], pivot: [0, 39, 0] },
+    { name: 'jaw', box: [-4, 39, -4, 8, 2, 8], uv: [32, 0], pivot: [0, 39, 0] },
+    { name: 'body', box: [-4, 27, -2, 8, 12, 4], uv: [16, 16] },
+    { name: 'rarm', box: [-6, 9, -1, 2, 30, 2], uv: [48, 16], pivot: [-5, 38, 0] },
+    { name: 'larm', box: [4, 9, -1, 2, 30, 2], uv: [48, 16], pivot: [5, 38, 0] },
+    { name: 'rleg', box: [-3, 0, -1, 2, 30, 2], uv: [56, 16], pivot: [-2, 29, 0] },
+    { name: 'lleg', box: [1, 0, -1, 2, 30, 2], uv: [56, 16], pivot: [2, 29, 0] },
+  ]);
+  for (const nm of ['ghast', 'ghast_fire']) {
+    const parts = [{ name: 'body', box: [-8, 12, -8, 16, 16, 16], uv: [0, 0] }];
+    const LEN = [9, 11, 8, 12, 10, 9, 11, 8, 10];
+    for (let i = 0; i < 9; i++) {
+      const x = -6 + (i % 3) * 5 + (i % 2), z = -6 + Math.floor(i / 3) * 5 + ((i >> 1) % 2), len = LEN[i];
+      parts.push({ name: 't' + i, box: [x, 12 - len, z, 2, len, 2], uv: [0, 32], pivot: [x + 1, 12, z + 1] });
+    }
+    defModel(nm, nm, 3 / 16, parts);
+  }
+  defModel('minecart', 'minecart', 1 / 16, [
+    { name: 'body', boxes: [
+      [-7, 1, -9, 14, 2, 18, 0, 0],
+      [-7, 3, -7, 2, 7, 14, 0, 20], [5, 3, -7, 2, 7, 14, 0, 20],
+      [-7, 3, 7, 14, 7, 2, 32, 20], [-7, 3, -9, 14, 7, 2, 32, 20],
+      [-8, 0, -7, 1, 3, 3, 32, 30], [7, 0, -7, 1, 3, 3, 32, 30], [-8, 0, 4, 1, 3, 3, 32, 30], [7, 0, 4, 1, 3, 3, 32, 30],
+    ] },
+  ]);
+  defModel('car', 'car', 2 / 16, [
+    { name: 'body', boxes: [
+      [-5.5, 1, -9, 11, 2, 18, 0, 0],
+      [-5.5, 3, -9, 1, 3, 18, 0, 20], [4.5, 3, -9, 1, 3, 18, 0, 20],
+      [-4.5, 3, 3, 9, 3, 6, 0, 41], [-4.5, 3, -9, 9, 3, 5, 30, 41],
+      [-4, 3, -4, 8, 1, 4, 0, 50], [-4, 4, -4, 8, 4, 1, 24, 50],
+      [-4.5, 6, 2.5, 9, 3, 1, 42, 50],
+      [-1, 5, 1.5, 2, 2, 1, 8, 56],
+      [-4.5, 2, -10, 9, 1, 1, 14, 56],
+    ] },
+    { name: 'wfl', box: [-6.5, 0, 4, 1, 3, 3], uv: [0, 56], pivot: [-6, 1.5, 5.5] },
+    { name: 'wfr', box: [5.5, 0, 4, 1, 3, 3], uv: [0, 56], pivot: [6, 1.5, 5.5] },
+    { name: 'wbl', box: [-6.5, 0, -7, 1, 3, 3], uv: [0, 56], pivot: [-6, 1.5, -5.5] },
+    { name: 'wbr', box: [5.5, 0, -7, 1, 3, 3], uv: [0, 56], pivot: [6, 1.5, -5.5] },
+  ]);
   defModel('creeper', 'creeper', 1 / 16, [
     { name: 'head', box: [-4, 18, -4, 8, 8, 8], uv: [0, 0], pivot: [0, 18, 0] },
     { name: 'body', box: [-4, 6, -2, 8, 12, 4], uv: [16, 16] },

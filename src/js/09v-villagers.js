@@ -10,7 +10,8 @@ function tradesFor(prof, vseed) {
     case 'butcher': return [t([[I.PORKCHOP, 8]], [E, 1]), t([[I.BEEF, 8]], [E, 1]), t([[I.CHICKEN, 10]], [E, 1]), t([[I.COAL, 16]], [E, 1]),
       t([[E, 1]], [I.COOKED_PORKCHOP, 5]), t([[E, 1]], [I.STEAK, 5])];
     case 'toolsmith': return [t([[I.COAL, 16]], [E, 1]), t([[I.IRON_INGOT, 4]], [E, 1]), t([[E, 1]], [toolId(1, 0), 1]), t([[E, 3]], [toolId(2, 0), 1]),
-      t([[E, 3]], [toolId(2, 1), 1]), t([[E, 4]], [toolId(2, 3), 1]), t([[E, 10]], [toolId(3, 0), 1]), t([[E, 12]], [toolId(3, 3), 1])];
+      t([[E, 3]], [toolId(2, 1), 1]), t([[E, 4]], [toolId(2, 3), 1]), t([[E, 10]], [toolId(3, 0), 1]), t([[E, 12]], [toolId(3, 3), 1]),
+      t([[E, 2]], [I.BOW, 1]), t([[E, 1]], [I.ARROW, 8]), t([[E, 4]], [I.CROSSBOW, 1])];
     case 'shepherd': {
       const c1 = 1 + (vseed % 15), c2 = 1 + ((vseed * 7 + 5) % 15), c3 = c2 === c1 ? 1 + (c1 % 15) : c2;
       return [t([[B.WOOL, 12]], [E, 1]), t([[E, 1]], [B.WOOL + c1, 4]), t([[E, 1]], [B.WOOL + c3, 4]), t([[E, 3]], [B.BED, 1])];
@@ -18,7 +19,7 @@ function tradesFor(prof, vseed) {
     case 'mason': return [t([[B.COBBLE, 16]], [E, 1]), t([[B.CLAY, 10]], [E, 1]), t([[E, 1]], [B.BRICKS, 10]), t([[E, 1]], [B.STONE_BRICKS, 12]),
       t([[E, 1]], [B.GLASS, 6]), t([[E, 2]], [B.GLOWSTONE, 3])];
     case 'cleric': return [t([[I.ROTTEN_FLESH, 16]], [E, 1]), t([[I.GOLD_INGOT, 2]], [E, 1]), t([[E, 1]], [I.GUNPOWDER, 4]),
-      t([[E, 2]], [B.OBSIDIAN, 3]), t([[E, 6]], [I.DIAMOND, 1])];
+      t([[E, 2]], [B.OBSIDIAN, 3]), t([[E, 5]], [I.ENDER_PEARL, 1]), t([[E, 6]], [I.DIAMOND, 1])];
   }
   return [];
 }

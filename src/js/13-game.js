@@ -22,11 +22,16 @@ const LOAD_TIPS = ['Punch a tree to collect wood.', 'Press E to open your invent
   'Villagers trade emeralds for tools, food and more.', 'A Mason gives an emerald for 16 cobblestone.', 'Type /locate village to find the nearest village.',
   'Play Together lets two iPads share one world.', 'An obsidian frame lit with flint and steel opens a portal to the Nether.',
   'Flint comes from breaking gravel. Add an iron ingot to make flint and steel.', 'Zombified piglins are peaceful unless you hit one.',
-  'In the Nether, 1 block is 8 blocks back home.'];
+  'In the Nether, 1 block is 8 blocks back home.', 'Hold the place button with a bow to pull it back, then let go to shoot.',
+  "Don't look an Enderman in the eyes!", "Hit a ghast's fireball to send it flying back.", 'A lever next to a dispenser makes it shoot.',
+  'Party TNT is all fun and no damage.', 'Digging TNT bores a tunnel the way you are looking.', 'Tap a minecart on rails to ride it. Sneak to get out.',
+  'Make a car from iron, glass and coal, then drive it with the joystick.'];
 const DEATH_MSG = {
   fall: 'fell from a high place', lava: 'tried to swim in lava', drown: 'ran out of air', zombie: 'was caught by a Zombie',
   explosion: 'was blown up', cactus: 'hugged a cactus', starve: 'got too hungry', void: 'fell out of the world',
   piglin: 'was chased by a Zombified Piglin', magma: 'was squashed by a Magma Cube',
+  arrow: 'was shot by an arrow', fireball: 'was hit by a fireball', enderman: 'annoyed an Enderman', ghast: 'was blown up by a Ghast',
+  party: 'partied too hard', ice: 'froze solid',
 };
 
 const game = {
@@ -176,6 +181,7 @@ const game = {
     w.remote = !!remote;
     if (this.dim === 'over') w.villageBlock = this.overVB;
     w.load(this.dims[this.dim]);
+    if (!remote && this.dims[this.dim]) loadVehicles(this, this.dims[this.dim].vehicles);
     this.dims[this.dim] = null;   // the live world holds them now
     this.wireWorld();
     return w;
@@ -188,6 +194,7 @@ const game = {
   /* leaving this world: close any open screen first (a chest sends its last changes here), and
      whatever doesn't fit back in the inventory comes along instead of being left on the ground */
   closeForTravel() {
+    if (this.player.riding) dismountVehicle(this);
     if (this.chatOpen) this.hideChat();
     if (!ui.inv) { this.uiOpen = false; return; }
     const n = this.entities.length;
@@ -229,6 +236,7 @@ const game = {
     if (MP.role === 'host') MP.flush();   // changes in the world being left go out first
     const time = this.world.time, clock = this.world.clock;
     this.dims[from] = this.world.serialize();
+    this.dims[from].vehicles = saveVehicles(this);
     this.dim = to;
     this.makeWorld();
     this.world.time = time; this.world.clock = clock;
@@ -330,6 +338,7 @@ const game = {
     w.onFall = (x, y, z, id) => { const e = new Entity('falling', x + 0.5, y, z + 0.5); e.id = id; e.w = 0.49; e.h = 0.98; this.entities.push(e); };
     w.onDrop = (x, y, z, st) => { const e = dropItem(this, x, y, z, st.id, st.count, true); if (e && st.dmg) e.dmg = st.dmg; };
     w.onSound = (n, x, y, z) => sfx(n, x, y, z);
+    w.onTileGone = t => { if (ui.inv && ui.inv.tile === t) this.closeUI(); };   // its things just fell out: shut its screen
   },
   finishLoading() {
     const pl = this.player, w = this.world;
@@ -399,15 +408,16 @@ const game = {
   save() {
     if (!this.world || this.world.remote) { if (MP.role === 'guest') MP.sendSave(); return; }
     if (this.state === 'title' || this.state === 'boot' || this.state === 'loading' || !this.mapId) return;
-    const pl = this.player;
+    const pl = this.player, at = restPos(pl);   // (someone in a car is saved standing beside it)
     const data = {
       v: 1, map: this.mapId, seed: this.seed, mode: this.mode, time: this.world.time, day: this.day, clock: this.world.clock,
       worldSpawn: this.worldSpawn, stats: this.stats,
-      player: { x: pl.x, y: pl.y, z: pl.z, yaw: pl.yaw, pitch: pl.pitch, health: pl.alive ? pl.health : 20, food: pl.alive ? pl.food : 20, air: pl.air, inv: pl.inv, sel: pl.sel, spawn: pl.spawn, flying: pl.flying },
+      player: { x: at[0], y: at[1], z: at[2], yaw: pl.yaw, pitch: pl.pitch, health: pl.alive ? pl.health : 20, food: pl.alive ? pl.food : 20, air: pl.air, inv: pl.inv, sel: pl.sel, spawn: pl.spawn, flying: pl.flying },
       villages: { v: 1, blocked: this.overVB }, players: MP.guestSaves,
       dim: this.dim, portals: this.portals, netherSpawn: this.netherSpawn,
     };
     const cur = this.world.serialize(), other = this.dim === 'over' ? 'nether' : 'over';
+    cur.vehicles = saveVehicles(this);
     data.world = this.dim === 'over' ? cur : this.dims.over || { edits: {}, tiles: {} };
     if (this.dim === 'nether' || this.dims.nether) data.nether = this.dim === 'nether' ? cur : this.dims[other];
     if (!pl.alive) { const sp = this.spawnPos(); data.player.x = sp[0]; data.player.y = sp[1]; data.player.z = sp[2]; }
@@ -421,6 +431,7 @@ const game = {
     return this.worldSpawn.slice();
   },
   onDeath(cause) {
+    if (this.player.riding) dismountVehicle(this);
     this.state = 'dead';
     this.paused = false;   // in a shared world the game keeps going behind the menu, so you can die with it open
     el('fx-portal').style.opacity = 0; this.player.portalT = 0;
@@ -524,8 +535,9 @@ const game = {
         const t = (a[1] || '').toLowerCase();
         const px = remote ? pl.tx : pl.x, py = remote ? pl.ty : pl.y, pz = remote ? pl.tz : pl.z;
         if (isMobType(t)) { const [dx, , dz] = pl.lookDir(); spawnMob(this, t, px + dx * 3, py + 0.5, pz + dz * 3, { home: [px + dx * 3, pz + dz * 3] }); say('Summoned a ' + t); }
-        else if (t === 'tnt') { primeTNT(this, Math.floor(px + 2), Math.floor(py + 1), Math.floor(pz), 4); }
-        else say('You can summon: ' + MOB_TYPES.join(', ') + ', tnt');
+        else if (t === 'tnt' || TNT_KINDS.includes(t)) { primeTNT(this, Math.floor(px + 2), Math.floor(py + 1), Math.floor(pz), 4, t === 'tnt' ? 'normal' : t, facingFromYaw(pl.yaw) ^ 2); }
+        else if (isVehicleType(t)) { const [dx, , dz] = pl.lookDir(); spawnVehicle(this, t, px + dx * 3, py + 0.5, pz + dz * 3, pl.yaw); say('Summoned a ' + t); }
+        else say('You can summon: ' + MOB_TYPES.join(', ') + ', tnt (or mega, ice, dig, party, cluster), minecart, car');
         break;
       }
       case 'locate': {
@@ -780,6 +792,7 @@ function updateCamera(dt) {
   cam.x = ex; cam.y = ey; cam.z = ez; cam.yaw = yaw; cam.pitch = pitch;
   let fov = S.fov;
   if (pl.sprinting) fov *= 1.12;
+  if (pl.drawT > 0) fov *= 1 - 0.15 * Math.min(1, pl.drawT);   // pulling a bow back zooms in a little
   if (pl.flying && pl.sprinting) fov *= 1.05;
   game.fov = lerp(game.fov || fov, fov, Math.min(1, dt * 10));
   cam.fov = game.fov * Math.PI / 180;

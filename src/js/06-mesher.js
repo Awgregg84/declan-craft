@@ -14,8 +14,11 @@ function buildBlockTiles() {
     if (typeof t === 'object' && t.back) BACK_T[id] = TILE[t.back];
   }
 }
+const UPDOWN = new Uint8Array(256);   // facing blocks that can also point up (data 4) or down (data 5)
+UPDOWN[B.DISPENSER] = UPDOWN[B.DIG_TNT] = 1;
 function tileFor(id, d, data) {
   if (FRONT_T[id] >= 0) {
+    if (UPDOWN[id] && (data & 7) >= 4) return d === ((data & 7) === 4 ? 2 : 3) ? FRONT_T[id] : BT[id * 6 + d];
     const f = data & 3;
     if (d === FRONT_FACE[f]) return FRONT_T[id];
     if (BACK_T[id] >= 0 && d === BACK_FACE[f]) return BACK_T[id];
@@ -124,6 +127,43 @@ const BED_UV = [[0, 7, 16, 16], [0, 7, 16, 16], FULL_UV, FULL_UV, [0, 7, 16, 16]
 const SIX_FULL = [FULL_UV, FULL_UV, FULL_UV, FULL_UV, FULL_UV, FULL_UV];
 const _tiles6 = [0, 0, 0, 0, 0, 0];
 
+/* rails: a flat (or sloping) picture just above the ground, turned to the rail's shape */
+const RAIL_UV = [
+  [[0, 0], [16, 0], [16, 16], [0, 16]], [[0, 16], [0, 0], [16, 0], [16, 16]],   // straight: north-south, east-west
+  [[16, 16], [0, 16], [0, 0], [16, 0]], [[0, 0], [16, 0], [16, 16], [0, 16]], [[16, 16], [0, 16], [0, 0], [16, 0]], [[0, 0], [16, 0], [16, 16], [0, 16]],
+];
+const RAIL_CORNER_UV = [[[0, 0], [16, 0], [16, 16], [0, 16]], [[16, 0], [0, 0], [0, 16], [16, 16]], [[16, 16], [0, 16], [0, 0], [16, 0]], [[0, 16], [16, 16], [16, 0], [0, 0]]];
+const RAIL_RISE = [[0, 0, 0, 0], [0, 0, 0, 0], [0, 16, 16, 0], [16, 0, 0, 16], [16, 16, 0, 0], [0, 0, 16, 16]];   // corner heights: (x0,z0) (x1,z0) (x1,z1) (x0,z1)
+function emitRail(x, y, z, pi, data) {
+  const shape = data < 10 ? data : 0, curve = shape >= 6;
+  const t = curve ? TILE.rail_corner : BT[B.RAIL * 6], uv = curve ? RAIL_CORNER_UV[shape - 6] : shape === 1 || shape === 2 || shape === 3 ? RAIL_UV[1] : RAIL_UV[0];
+  const h = curve ? RAIL_RISE[0] : RAIL_RISE[shape];
+  const L = padL[pi], sky = (L >> 4) * 17, blk = (L & 15) * 17, w = 2 * 4 + 3, x0 = x * 16, y0 = y * 16 + 1, z0 = z * 16;
+  const C = [[x0, z0], [x0 + 16, z0], [x0 + 16, z0 + 16], [x0, z0 + 16]];
+  for (const side of [0, 1]) {   // both faces, so a slope looks right from underneath too
+    const q = WO.quad(), order = side ? [0, 1, 2, 3] : [3, 2, 1, 0];
+    for (let k = 0; k < 4; k++) { const c = order[k]; WO.vtx(q, k, C[c][0], y0 + h[c], C[c][1], w, uv[c][0], uv[c][1], t, sky, blk); }
+    if (!h[0] && !h[1] && !h[2] && !h[3]) break;
+  }
+}
+/* a lever: a cobblestone base and a wooden handle leaning one way when off and the other way when on */
+const _lb = [0, 0, 0, 0, 0, 0];
+function emitLever(x, y, z, pi, data) {
+  const f = data & 7, s = (data & 8) ? 1 : -1, alongZ = f === 4 || f === 5;
+  const box = (x0, y0, z0, x1, y1, z1, tile) => {
+    const b = attachBox(f, x0, y0, z0, x1, y1, z1);
+    for (let k = 0; k < 6; k++) _tiles6[k] = tile;
+    emitBox(WO, x, y, z, pi, b[0], b[1], b[2], b[3], b[4], b[5], _tiles6, SIX_FULL, 63, 0, 0);
+  };
+  box(4, 0, 5, 12, 3, 11, BT[B.COBBLE * 6]);
+  const stick = TILE.lever_stick;
+  [1, 3, 5].forEach((o, k) => {
+    const lo = 7 + s * o, y0 = 3 + k * 3;
+    if (alongZ) box(7, y0, Math.min(lo, lo + 2), 9, y0 + 3, Math.max(lo, lo + 2), stick);
+    else box(Math.min(lo, lo + 2), y0, 7, Math.max(lo, lo + 2), y0 + 3, 9, stick);
+  });
+}
+
 function meshSection(world, c, s) {
   c.dirty[s] = 0;
   if (!c.counts[s]) {
@@ -199,6 +239,14 @@ function meshSection(world, c, s) {
         for (let f = 0; f < 6; f++) _tiles6[f] = BT[id * 6];
         if (ax === 0) emitBox(WT, x, y, z, pi, 0, 0, 6, 16, 16, 10, _tiles6, SIX_FULL, faces, 2, 0);
         else emitBox(WT, x, y, z, pi, 6, 0, 0, 10, 16, 16, _tiles6, SIX_FULL, faces, 2, 0);
+      } else if (r === R_RAIL) {
+        emitRail(x, y, z, pi, padD[pi]);
+      } else if (r === R_BUTTON) {
+        const bb = attachedBox('button', padD[pi]);
+        for (let f = 0; f < 6; f++) _tiles6[f] = BT[B.STONE * 6];
+        emitBox(WO, x, y, z, pi, bb[0] * 16, bb[1] * 16, bb[2] * 16, bb[3] * 16, bb[4] * 16, bb[5] * 16, _tiles6, SIX_FULL, 63, 0, 0);
+      } else if (r === R_LEVER) {
+        emitLever(x, y, z, pi, padD[pi]);
       } else if (r === R_BED) {
         const data = padD[pi], f = data & 3;
         for (let d = 0; d < 6; d++) _tiles6[d] = tileFor(id, d, data);

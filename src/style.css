@@ -206,6 +206,7 @@ kbd { font: inherit; font-size: 0.9em; background: #3a3a3a; border: 1px solid #1
 .flame .fill { position: absolute; left: 0; right: 0; bottom: 0; background: linear-gradient(#ffd23a, #ff6a00); }
 .char-box { width: calc(var(--s) * 2.2); height: calc(var(--s) * 3); background: #0a0d14; padding: 2px; box-shadow: inset 2px 2px 0 var(--slot-lo), inset -2px -2px 0 var(--slot-hi); }
 .char-box canvas { width: 100%; height: 100%; display: block; }
+.disp { display: flex; justify-content: center; }
 .fur { display: grid; grid-template-columns: auto auto auto; grid-template-rows: auto auto auto; align-items: center; justify-items: center; gap: 4px 14px; }
 .side-btns { display: flex; gap: 6px; flex-wrap: wrap; }
 .side-btns .btn { font-size: 15px; padding: 0.3em 0.7em; min-height: 40px; }

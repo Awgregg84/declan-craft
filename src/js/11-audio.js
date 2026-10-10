@@ -123,6 +123,46 @@ const SFX = {
   magmaSay: (v, p) => { nz({ f: 500, fEnd: 200, type: 'lowpass', dur: 0.3, vol: 0.25 * v, pan: p }); tone({ f: 90, fEnd: 60, dur: 0.25, type: 'triangle', vol: 0.12 * v, pan: p }); },
   magmaHurt: (v, p) => { nz({ f: 900, fEnd: 300, type: 'lowpass', dur: 0.25, vol: 0.28 * v, pan: p }); },
   magmaDeath: (v, p) => { nz({ f: 700, fEnd: 120, type: 'lowpass', dur: 0.6, vol: 0.3 * v, pan: p }); tone({ f: 120, fEnd: 40, dur: 0.5, type: 'triangle', vol: 0.12 * v, pan: p }); },
+  // bows, crossbows, dispensers, switches
+  bowDraw: (v, p) => { tone({ f: 200, fEnd: 320, dur: 0.6, type: 'sawtooth', vol: 0.045 * v, lp: 800, vib: [18, 6], pan: p }); nz({ f: 1400, q: 3, dur: 0.45, vol: 0.05 * v, attack: 0.1, pan: p }); },
+  bowShoot: (v, p) => { tone({ f: 190, fEnd: 85, dur: 0.2, type: 'triangle', vol: 0.2 * v, pan: p }); nz({ f: 2600, fEnd: 800, q: 1.5, dur: 0.16, vol: 0.22 * v, pan: p }); },
+  arrowHit: (v, p) => { nz({ f: 800, q: 2, dur: 0.06, vol: 0.3 * v, pan: p }); tone({ f: 260, fEnd: 140, dur: 0.08, type: 'square', vol: 0.06 * v, lp: 1200, pan: p }); },
+  crossbowLoad: (v, p) => { for (let i = 0; i < 5; i++) nz({ f: 3000, q: 4, dur: 0.03, vol: 0.12 * v, when: i * 0.24, pan: p }); },
+  crossbowLoaded: (v, p) => { tone({ f: 300, fEnd: 190, dur: 0.1, type: 'square', vol: 0.08 * v, lp: 1500, pan: p }); nz({ f: 1200, q: 3, dur: 0.05, vol: 0.2 * v, pan: p }); },
+  crossbowShoot: (v, p) => { nz({ f: 3200, fEnd: 800, q: 1, dur: 0.2, vol: 0.3 * v, pan: p }); tone({ f: 150, fEnd: 70, dur: 0.15, type: 'triangle', vol: 0.22 * v, pan: p }); },
+  dispense: (v, p) => { tone({ f: 1200, fEnd: 600, dur: 0.05, type: 'square', vol: 0.08 * v, lp: 3000, pan: p }); nz({ f: 1800, fEnd: 600, dur: 0.15, vol: 0.15 * v, when: 0.03, pan: p }); },
+  dispenseFail: (v, p) => { for (let i = 0; i < 2; i++) tone({ f: 900, dur: 0.04, type: 'square', vol: 0.07 * v, lp: 2500, when: i * 0.09, pan: p }); },
+  leverClick: (v, p) => { tone({ f: 700, fEnd: 400, dur: 0.05, type: 'square', vol: 0.1 * v, lp: 2000, pan: p }); nz({ f: 1200, q: 3, dur: 0.04, vol: 0.15 * v, pan: p }); },
+  buttonClick: (v, p) => tone({ f: 1000, fEnd: 600, dur: 0.04, type: 'square', vol: 0.08 * v, lp: 2500, pan: p }),
+  pearlThrow: (v, p) => nz({ f: 1500, fEnd: 500, q: 1, dur: 0.25, vol: 0.18 * v, pan: p }),
+  // endermen and ghasts
+  endermanSay: (v, p) => tone({ f: 300, fEnd: 120, dur: 0.6, type: 'sawtooth', vol: 0.08 * v, lp: 900, vib: [12, 40], pan: p }),
+  endermanStare: (v, p) => { tone({ f: 600, fEnd: 900, dur: 1.0, type: 'sawtooth', vol: 0.13 * v, lp: 2400, vib: [25, 80], attack: 0.05, pan: p }); nz({ f: 2000, q: 2, dur: 1.0, vol: 0.1 * v, pan: p }); },
+  endermanAngry: (v, p) => tone({ f: 650, fEnd: 950, dur: 0.6, type: 'sawtooth', vol: 0.12 * v, lp: 2400, vib: [25, 80], pan: p }),
+  endermanHurt: (v, p) => tone({ f: 500, fEnd: 250, dur: 0.3, type: 'sawtooth', vol: 0.12 * v, lp: 1600, vib: [30, 60], pan: p }),
+  endermanDeath: (v, p) => tone({ f: 600, fEnd: 80, dur: 1.2, type: 'sawtooth', vol: 0.14 * v, lp: 1400, vib: [20, 60], pan: p }),
+  endermanPortal: (v, p) => { nz({ f: 600, fEnd: 3000, q: 2, dur: 0.35, vol: 0.2 * v, pan: p }); tone({ f: 200, fEnd: 800, dur: 0.3, vol: 0.07 * v, pan: p }); },
+  ghastSay: (v, p) => { tone({ f: 700, fEnd: 480, dur: 1.2, vol: 0.06 * v, vib: [6, 30], attack: 0.3, pan: p }); tone({ f: 1050, fEnd: 720, dur: 1.2, type: 'triangle', vol: 0.03 * v, vib: [5, 40], attack: 0.3, pan: p }); },
+  ghastWarn: (v, p) => tone({ f: 400, fEnd: 900, dur: 0.6, type: 'sawtooth', vol: 0.08 * v, lp: 1800, vib: [10, 20], pan: p }),
+  ghastShoot: (v, p) => { nz({ f: 400, fEnd: 2000, q: 0.8, dur: 0.4, vol: 0.3 * v, pan: p }); tone({ f: 120, fEnd: 60, dur: 0.3, type: 'triangle', vol: 0.15 * v, pan: p }); },
+  ghastHurt: (v, p) => tone({ f: 900, fEnd: 600, dur: 0.4, vol: 0.1 * v, vib: [8, 50], pan: p }),
+  ghastDeath: (v, p) => tone({ f: 800, fEnd: 200, dur: 1.4, vol: 0.12 * v, vib: [6, 60], pan: p }),
+  // minecarts and the car
+  minecartRoll: (v, p) => { nz({ f: 300, type: 'lowpass', dur: 0.3, vol: 0.12 * v, pan: p }); tone({ f: 60, dur: 0.3, type: 'triangle', vol: 0.05 * v, pan: p }); },
+  carEngine: (v, p) => tone({ f: 48 + 40 * v, fEnd: 44 + 40 * v, dur: 0.2, type: 'sawtooth', vol: 0.07 * v, lp: 420, pan: p }),
+  carStart: (v, p) => { tone({ f: 40, fEnd: 120, dur: 0.6, type: 'sawtooth', vol: 0.12 * v, lp: 600, pan: p }); nz({ f: 300, type: 'lowpass', dur: 0.5, vol: 0.1 * v, pan: p }); },
+  honk: (v, p) => { for (let i = 0; i < 2; i++) { tone({ f: 440, dur: 0.2, type: 'square', vol: 0.09 * v, lp: 2000, when: i * 0.28, pan: p }); tone({ f: 554, dur: 0.2, type: 'square', vol: 0.07 * v, lp: 2000, when: i * 0.28, pan: p }); } },
+  // TNT
+  partyPop: (v, p) => {
+    nz({ f: 2500, q: 0.8, dur: 0.15, vol: 0.4 * v, pan: p });
+    tone({ f: 600, fEnd: 1300, dur: 0.6, type: 'square', vol: 0.05 * v, lp: 3000, vib: [15, 30], when: 0.1, pan: p });
+    [523, 659, 784, 1046, 784, 1046].forEach((f, i) => tone({ f, dur: 0.25, type: 'triangle', vol: 0.08 * v, when: 0.25 + i * 0.11, pan: p }));
+  },
+  iceBlast: (v, p) => {
+    nz({ f: 4000, q: 1, dur: 0.6, vol: 0.3 * v, pan: p }); nz({ f: 800, fEnd: 200, type: 'lowpass', dur: 0.8, vol: 0.3 * v, pan: p });
+    for (let i = 0; i < 6; i++) tone({ f: randRange(2000, 4200), dur: 0.12, vol: 0.04 * v, when: i * 0.05, pan: p });
+  },
+  digBoom: (v, p) => { nz({ f: 600, fEnd: 100, type: 'lowpass', q: 0.7, dur: 0.5, vol: 0.4 * v, pan: p }); tone({ f: 60, fEnd: 35, dur: 0.4, vol: 0.3 * v, pan: p }); },
   creeperSay: () => {},
   creeperHurt: (v, p) => nz({ f: 2000, q: 1, dur: 0.2, vol: 0.2 * v, pan: p }),
   creeperDeath: (v, p) => nz({ f: 1500, fEnd: 400, q: 1, dur: 0.5, vol: 0.25 * v, pan: p }),

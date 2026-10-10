@@ -11,6 +11,7 @@ const B = {
   DOOR: 57, EMERALD_ORE: 58, EMERALD_BLOCK: 59,
   WOOL: 64, // 64..79
   NETHERRACK: 80, SOUL_SAND: 81, NETHER_QUARTZ_ORE: 82, QUARTZ_BLOCK: 83, NETHER_BRICKS: 84, NETHER_PORTAL: 85,
+  MEGA_TNT: 86, ICE_TNT: 87, DIG_TNT: 88, PARTY_TNT: 89, CLUSTER_TNT: 90, DISPENSER: 91, LEVER: 92, BUTTON: 93, RAIL: 94,
   UNLOADED: 255,
 };
 const I = {
@@ -21,8 +22,10 @@ const I = {
   DOOR: 290, EMERALD: 291, BREAD: 292,
   EGG: 293, // 293..309 spawn eggs, in EGG_MOBS order
   FLINT: 310, FLINT_AND_STEEL: 311, QUARTZ: 312, NETHER_BRICK: 313,
+  BOW: 314, ARROW: 315, CROSSBOW: 316, CROSSBOW_LOADED: 317, ENDER_PEARL: 318, GHAST_TEAR: 319, FIRE_CHARGE: 320,
+  MINECART: 321, CAR: 322, STRING: 323,
 };
-const EGG_MOBS = ['pig', 'cow', 'sheep', 'chicken', 'zombie', 'creeper', 'villager', 'piglin', 'magma'];
+const EGG_MOBS = ['pig', 'cow', 'sheep', 'chicken', 'zombie', 'creeper', 'villager', 'piglin', 'magma', 'enderman', 'ghast'];
 const MOB_NAMES = { piglin: 'Zombified Piglin', magma: 'Magma Cube' };
 const mobName = m => MOB_NAMES[m] || m[0].toUpperCase() + m.slice(1);
 const TOOL_MATS = ['wood', 'stone', 'iron', 'diamond'];
@@ -35,7 +38,7 @@ const WOOL_COLORS = ['#e9ecec', '#f07613', '#bd44b3', '#3aafd9', '#f8c527', '#70
   '#8e8e86', '#158991', '#792aac', '#35399d', '#724728', '#546d1b', '#a12722', '#141519'];
 const toolId = (mat, kind) => I.TOOL + mat * 4 + kind;
 
-const R_NONE = 0, R_CUBE = 1, R_CROSS = 2, R_TORCH = 3, R_LIQUID = 4, R_CACTUS = 5, R_BED = 6, R_DOOR = 7, R_PORTAL = 8;
+const R_NONE = 0, R_CUBE = 1, R_CROSS = 2, R_TORCH = 3, R_LIQUID = 4, R_CACTUS = 5, R_BED = 6, R_DOOR = 7, R_PORTAL = 8, R_RAIL = 9, R_LEVER = 10, R_BUTTON = 11;
 const DOOR_BOXES = [[0, 0, 13 / 16, 1, 1, 1], [0, 0, 0, 3 / 16, 1, 1], [0, 0, 0, 1, 1, 3 / 16], [13 / 16, 0, 0, 1, 1, 1]];
 const doorBox = d => DOOR_BOXES[((d & 3) + ((d & 4) ? 1 : 0)) & 3];
 const BLOCKS = new Array(256).fill(null);
@@ -93,7 +96,7 @@ defBlock(B.STONE_BRICKS, 'Stone Bricks', { tex: 'stone_bricks', hardness: 1.5, t
 defBlock(B.MOSSY_COBBLE, 'Mossy Cobblestone', { tex: 'mossy_cobblestone', hardness: 2, tool: 'pickaxe', tier: 1 });
 defBlock(B.OBSIDIAN, 'Obsidian', { tex: 'obsidian', hardness: 25, tool: 'pickaxe', tier: 4, blast: 1e9 });
 defBlock(B.GLOWSTONE, 'Glowstone', { tex: 'glowstone', emit: 15, hardness: 0.3, sound: 'glass' });
-defBlock(B.TNT, 'TNT', { tex: { top: 'tnt_top', bottom: 'tnt_bottom', side: 'tnt_side' }, hardness: 0, sound: 'grass' });
+defBlock(B.TNT, 'TNT', { tex: { top: 'tnt_top', bottom: 'tnt_bottom', side: 'tnt_side' }, hardness: 0, sound: 'grass', tnt: 'normal' });
 defBlock(B.CRAFTING_TABLE, 'Crafting Table', { tex: { top: 'crafting_table_top', bottom: 'oak_planks', side: 'crafting_table_side', front: 'crafting_table_front' }, hardness: 2.5, tool: 'axe', sound: 'wood', facing: true, fuel: 7.5 });
 defBlock(B.FURNACE, 'Furnace', { tex: { top: 'furnace_top', bottom: 'furnace_top', side: 'furnace_side', front: 'furnace_front' }, hardness: 3.5, tool: 'pickaxe', tier: 1, facing: true });
 defBlock(B.FURNACE_LIT, 'Furnace', { tex: { top: 'furnace_top', bottom: 'furnace_top', side: 'furnace_side', front: 'furnace_front_lit' }, emit: 13, hardness: 3.5, tool: 'pickaxe', tier: 1, facing: true, drop: B.FURNACE, creative: false });
@@ -127,6 +130,35 @@ defBlock(B.NETHER_BRICKS, 'Nether Bricks', { tex: 'nether_bricks', hardness: 2, 
 // data: 0 = the portal's face runs along x (thin in z), 1 = along z (thin in x)
 defBlock(B.NETHER_PORTAL, 'Nether Portal', { tex: 'nether_portal', solid: false, opaque: false, render: R_PORTAL, pass: 2, emit: 11, hardness: -1, drop: null, creative: false, ao: false, cullSame: true, blast: 1e9 });
 TARGETABLE[B.NETHER_PORTAL] = 0;
+// TNT that does different things (see 09k-tnt.js); Digging TNT digs a tunnel the way you faced when you placed it
+defBlock(B.MEGA_TNT, 'Mega TNT', { tex: { top: 'mega_tnt_top', bottom: 'tnt_bottom', side: 'mega_tnt_side' }, hardness: 0, sound: 'grass', tnt: 'mega' });
+defBlock(B.ICE_TNT, 'Ice TNT', { tex: { top: 'ice_tnt_top', bottom: 'ice_tnt_top', side: 'ice_tnt_side' }, hardness: 0, sound: 'glass', tnt: 'ice' });
+defBlock(B.DIG_TNT, 'Digging TNT', { tex: { top: 'dig_tnt_top', bottom: 'tnt_bottom', side: 'dig_tnt_side', front: 'dig_tnt_front' }, hardness: 0, sound: 'grass', facing: true, tnt: 'dig' });
+defBlock(B.PARTY_TNT, 'Party TNT', { tex: { top: 'party_tnt_top', bottom: 'party_tnt_top', side: 'party_tnt_side' }, hardness: 0, sound: 'wool', tnt: 'party' });
+defBlock(B.CLUSTER_TNT, 'Cluster TNT', { tex: { top: 'cluster_tnt_top', bottom: 'tnt_bottom', side: 'cluster_tnt_side' }, hardness: 0, sound: 'grass', tnt: 'cluster' });
+// data: 0-3 faces like a furnace, 4 = up, 5 = down. Shoots what is inside when a lever or button next to it is switched on.
+defBlock(B.DISPENSER, 'Dispenser', { tex: { top: 'furnace_top', bottom: 'furnace_top', side: 'furnace_side', front: 'dispenser_front' }, hardness: 3.5, tool: 'pickaxe', tier: 1, facing: true });
+// levers and buttons: data & 7 = the side their support is on (an index into DX/DY/DZ), data & 8 = on / pressed
+const ATTACH_BOXES = { lever: [4, 0, 5, 12, 3, 11], button: [5, 0, 6, 11, 2, 10] };
+function attachedBox(kind, data) {
+  const b = ATTACH_BOXES[kind], f = data & 7, pressed = kind === 'button' && (data & 8);
+  return attachBox(f, b[0], b[1], b[2], b[3], pressed ? 1 : b[4], b[5]).map(v => v / 16);
+}
+/* a box given as if its support were below (y up from the support), turned to face the support side f */
+function attachBox(f, x0, y0, z0, x1, y1, z1) {
+  switch (f) {
+    case 2: return [x0, 16 - y1, z0, x1, 16 - y0, z1];   // support above
+    case 0: return [16 - y1, x0, z0, 16 - y0, x1, z1];   // support at +x
+    case 1: return [y0, x0, z0, y1, x1, z1];             // support at -x
+    case 4: return [x0, z0, 16 - y1, x1, z1, 16 - y0];   // support at +z
+    case 5: return [x0, z0, y0, x1, z1, y1];             // support at -z
+    default: return [x0, y0, z0, x1, y1, z1];            // support below
+  }
+}
+defBlock(B.LEVER, 'Lever', { tex: 'lever', solid: false, opaque: false, render: R_LEVER, hardness: 0.5, sound: 'wood', plant: 'attached', ao: false, boxFn: d => attachedBox('lever', d) });
+defBlock(B.BUTTON, 'Button', { tex: 'button', solid: false, opaque: false, render: R_BUTTON, hardness: 0.5, sound: 'stone', plant: 'attached', ao: false, boxFn: d => attachedBox('button', d) });
+// data: the rail's shape, 0-9 (see RAIL_EXITS in 09c-vehicles.js)
+defBlock(B.RAIL, 'Rail', { tex: 'rail', solid: false, opaque: false, render: R_RAIL, hardness: 0.7, tool: 'pickaxe', sound: 'metal', plant: 'rail', ao: false, box: [0, 0, 0, 1, 2 / 16, 1] });
 defBlock(B.UNLOADED, 'Unloaded', { tex: 'stone', render: R_NONE, pass: 0, hardness: -1, creative: false, drop: null });
 TARGETABLE[B.UNLOADED] = 0;
 
@@ -157,6 +189,17 @@ defItem(I.FLINT, 'Flint', { tex: 'flint' });
 defItem(I.FLINT_AND_STEEL, 'Flint and Steel', { tex: 'flint_and_steel', stack: 1, tool: { kind: 'lighter', tier: 0, speed: 1, dur: 64, dmg: 1 } });
 defItem(I.QUARTZ, 'Nether Quartz', { tex: 'quartz' });
 defItem(I.NETHER_BRICK, 'Nether Brick', { tex: 'nether_brick' });
+// ranged weapons don't wear out from hitting or digging, only from shooting
+defItem(I.BOW, 'Bow', { tex: 'bow', stack: 1, tool: { kind: 'bow', tier: 0, speed: 1, dur: 384, dmg: 1, ranged: true } });
+defItem(I.ARROW, 'Arrow', { tex: 'arrow' });
+defItem(I.CROSSBOW, 'Crossbow', { tex: 'crossbow', stack: 1, tool: { kind: 'crossbow', tier: 0, speed: 1, dur: 465, dmg: 1, ranged: true } });
+defItem(I.CROSSBOW_LOADED, 'Crossbow (loaded)', { tex: 'crossbow_loaded', stack: 1, tool: { kind: 'crossbow', tier: 0, speed: 1, dur: 465, dmg: 1, ranged: true } });
+defItem(I.ENDER_PEARL, 'Ender Pearl', { tex: 'ender_pearl', stack: 16 });
+defItem(I.GHAST_TEAR, 'Ghast Tear', { tex: 'ghast_tear' });
+defItem(I.FIRE_CHARGE, 'Fire Charge', { tex: 'fire_charge' });
+defItem(I.MINECART, 'Minecart', { tex: 'minecart', stack: 1 });
+defItem(I.CAR, 'Car', { tex: 'car', stack: 1 });
+defItem(I.STRING, 'String', { tex: 'string' });
 for (let m = 0; m < 4; m++) for (let k = 0; k < 4; k++) {
   const dmgs = [[2, 3, 4, 5], [3, 4, 5, 6], [1.5, 2.5, 3.5, 4.5], [4, 5, 6, 7]][k];
   defItem(toolId(m, k), TOOL_MAT_NAMES[m] + ' ' + TOOL_KIND_NAMES[k], {
@@ -178,6 +221,7 @@ const TAGS = {
   log: [B.OAK_LOG, B.BIRCH_LOG, B.SPRUCE_LOG],
   wool: Array.from({ length: 16 }, (_, i) => B.WOOL + i),
   stone: [B.COBBLE, B.MOSSY_COBBLE],
+  cold: [B.ICE, B.SNOW],
 };
 const RECIPES = [];
 function shaped(out, count, pattern, key) { RECIPES.push({ out, count, pattern, key }); }
@@ -213,6 +257,22 @@ shaped(B.GLOWSTONE, 1, ['TGT', 'GTG', 'TGT'], { T: B.TORCH, G: B.GLASS });
 shapeless(I.FLINT_AND_STEEL, 1, [I.IRON_INGOT, I.FLINT]);
 shaped(B.QUARTZ_BLOCK, 1, ['QQ', 'QQ'], { Q: I.QUARTZ });
 shaped(B.NETHER_BRICKS, 1, ['NN', 'NN'], { N: I.NETHER_BRICK });
+shapeless(I.STRING, 4, ['wool']);
+shaped(I.BOW, 1, [' ST', 'S T', ' ST'], { S: I.STICK, T: I.STRING });
+shaped(I.ARROW, 4, ['F', 'S', 'E'], { F: I.FLINT, S: I.STICK, E: I.FEATHER });
+shaped(I.CROSSBOW, 1, ['SIS', 'TFT', ' S '], { S: I.STICK, I: I.IRON_INGOT, T: I.STRING, F: I.FLINT });
+shapeless(I.FIRE_CHARGE, 3, [I.GUNPOWDER, I.COAL, I.FLINT]);
+shaped(B.DISPENSER, 1, ['CCC', 'CBC', 'CCC'], { C: 'stone', B: I.BOW });
+shaped(B.LEVER, 1, ['S', 'C'], { S: I.STICK, C: 'stone' });
+shapeless(B.BUTTON, 1, [B.STONE]);
+shaped(B.RAIL, 16, ['I I', 'ISI', 'I I'], { I: I.IRON_INGOT, S: I.STICK });
+shaped(I.MINECART, 1, ['I I', 'III'], { I: I.IRON_INGOT });
+shaped(I.CAR, 1, [' G ', 'III', 'C C'], { G: B.GLASS, I: I.IRON_INGOT, C: I.COAL });
+shaped(B.MEGA_TNT, 1, ['TT', 'TT'], { T: B.TNT });
+shapeless(B.ICE_TNT, 1, [B.TNT, 'cold']);
+shapeless(B.DIG_TNT, 1, [B.TNT, I.IRON_INGOT, I.FLINT]);
+shapeless(B.PARTY_TNT, 1, [B.TNT, I.FEATHER, 'wool']);
+shapeless(B.CLUSTER_TNT, 1, [B.TNT, I.GUNPOWDER, I.GUNPOWDER, I.GUNPOWDER]);
 
 function ingredientMatches(want, id) {
   if (want === undefined || want === null) return id === 0;
@@ -274,13 +334,15 @@ const CREATIVE_LIST = [
   B.OAK_LEAVES, B.BIRCH_LEAVES, B.SPRUCE_LEAVES, B.GLASS, B.ICE, B.SNOW, B.SNOWY_GRASS, B.OBSIDIAN, B.BEDROCK,
   B.COAL_ORE, B.IRON_ORE, B.GOLD_ORE, B.DIAMOND_ORE, B.EMERALD_ORE, B.COAL_BLOCK, B.IRON_BLOCK, B.GOLD_BLOCK, B.DIAMOND_BLOCK, B.EMERALD_BLOCK,
   B.NETHERRACK, B.SOUL_SAND, B.NETHER_QUARTZ_ORE, B.QUARTZ_BLOCK, B.NETHER_BRICKS,
-  B.GLOWSTONE, B.TORCH, B.JACK_O_LANTERN, B.PUMPKIN, B.TNT, B.CRAFTING_TABLE, B.FURNACE, B.CHEST, B.BOOKSHELF, B.BED, I.DOOR,
+  B.GLOWSTONE, B.TORCH, B.JACK_O_LANTERN, B.PUMPKIN, B.TNT, B.MEGA_TNT, B.ICE_TNT, B.DIG_TNT, B.PARTY_TNT, B.CLUSTER_TNT,
+  B.CRAFTING_TABLE, B.FURNACE, B.CHEST, B.BOOKSHELF, B.BED, I.DOOR, B.DISPENSER, B.LEVER, B.BUTTON, B.RAIL, I.MINECART, I.CAR,
   B.CACTUS, B.TALL_GRASS, B.DANDELION, B.POPPY, B.CORNFLOWER, B.DEAD_BUSH, B.OAK_SAPLING, B.BIRCH_SAPLING, B.SPRUCE_SAPLING,
   B.WATER, B.LAVA,
   ...TAGS.wool,
   toolId(0, 0), toolId(0, 1), toolId(0, 2), toolId(0, 3), toolId(1, 0), toolId(1, 1), toolId(1, 2), toolId(1, 3),
   toolId(2, 0), toolId(2, 1), toolId(2, 2), toolId(2, 3), toolId(3, 0), toolId(3, 1), toolId(3, 2), toolId(3, 3), I.FLINT_AND_STEEL,
-  I.STICK, I.COAL, I.IRON_INGOT, I.GOLD_INGOT, I.DIAMOND, I.EMERALD, I.FLINT, I.QUARTZ, I.NETHER_BRICK, I.GUNPOWDER, I.FEATHER, I.LEATHER,
+  I.BOW, I.CROSSBOW, I.ARROW, I.FIRE_CHARGE, I.ENDER_PEARL,
+  I.STICK, I.COAL, I.IRON_INGOT, I.GOLD_INGOT, I.DIAMOND, I.EMERALD, I.FLINT, I.QUARTZ, I.NETHER_BRICK, I.GUNPOWDER, I.FEATHER, I.LEATHER, I.STRING, I.GHAST_TEAR,
   I.APPLE, I.BREAD, I.PORKCHOP, I.COOKED_PORKCHOP, I.BEEF, I.STEAK, I.CHICKEN, I.COOKED_CHICKEN, I.ROTTEN_FLESH,
   ...EGG_MOBS.map((m, i) => I.EGG + i),
 ];

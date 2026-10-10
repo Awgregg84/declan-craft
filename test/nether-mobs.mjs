@@ -27,7 +27,7 @@ let fails = 0; const check = (name, ok, info) => { if (!ok) fails++; console.log
   // 1. piglins turn up by themselves; no overworld monsters or animals here
   await E(() => { for (let i = 0; i < 40; i++) spawnTick(game); });
   const pop = await E(() => { const c = {}; for (const e of game.entities) if (e.mob) c[e.type] = (c[e.type] || 0) + 1; return c; });
-  check('zombified piglins spawn in the Nether, and only Nether creatures', (pop.piglin || 0) >= 2 && Object.keys(pop).every(t => t === 'piglin' || t === 'magma'), pop);
+  check('zombified piglins spawn in the Nether, and only Nether creatures', (pop.piglin || 0) >= 2 && Object.keys(pop).every(t => t === 'piglin' || t === 'magma' || t === 'ghast'), pop);
 
   // 2. a test arena: a netherrack floor in the air
   const A = await E(() => {

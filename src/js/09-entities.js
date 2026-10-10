@@ -8,8 +8,11 @@ const MOB_DEFS = {
   creeper: { model: 'creeper', w: 0.3, h: 1.7, hp: 20, speed: 2.2, hostile: true, drops: [[I.GUNPOWDER, 1, 2]], sound: 'creeper' },
   villager: { model: 'villager_farmer', w: 0.3, h: 1.9, hp: 20, speed: 1.1, drops: [], sound: 'villager', villager: true },
   // the Nether: piglins leave you alone until one is hit; magma cubes hop after you and don't mind lava
-  piglin: { model: 'piglin', w: 0.3, h: 1.95, hp: 20, speed: 2.4, neutral: true, dmg: 4, fireproof: true, nether: true, drops: [[I.ROTTEN_FLESH, 0, 1], [I.GOLD_INGOT, 0, 1]], sound: 'piglin' },
+  piglin: { model: 'piglin', w: 0.3, h: 1.95, hp: 20, speed: 2.4, neutral: true, group: true, dmg: 4, fireproof: true, nether: true, drops: [[I.ROTTEN_FLESH, 0, 1], [I.GOLD_INGOT, 0, 1]], sound: 'piglin' },
   magma: { model: 'magma', w: 0.3, h: 0.6, hp: 6, speed: 3, hostile: true, hopper: true, dmg: 3, fireproof: true, nether: true, drops: [], sound: 'magma' },
+  // endermen leave you alone unless you look them in the eyes or hit them; ghasts float in the Nether and shoot fireballs
+  enderman: { model: 'enderman', w: 0.3, h: 2.8, hp: 40, speed: 3.4, neutral: true, ender: true, dmg: 5, drops: [[I.ENDER_PEARL, 0, 1]], sound: 'enderman' },
+  ghast: { model: 'ghast', w: 1.5, h: 3, hp: 10, speed: 1.6, hostile: true, flyer: true, fireproof: true, nether: true, drops: [[I.GHAST_TEAR, 0, 1], [I.GUNPOWDER, 0, 2]], sound: 'ghast' },
 };
 const MOB_TYPES = Object.keys(MOB_DEFS);
 let ENTITY_NID = 0;
@@ -209,11 +212,12 @@ function hurtMob(game, e, dmg, fx, fz, cause, by) {
   if (d.neutral && cause === 'player' && game.settings.difficulty > 0) {   // on Peaceful they just take the hit
     const who = by || 'me';
     for (const o of game.entities) {
-      if (o.type !== e.type || o.dead || o.removed || Math.hypot(o.x - e.x, o.z - e.z) > 16) continue;
+      if (o.type !== e.type || o.dead || o.removed || Math.hypot(o.x - e.x, o.z - e.z) > 16 || (!d.group && o !== e)) continue;
       if (!(o.angryT > 0)) sfx(d.sound + 'Angry', o.x, o.y + 1.6, o.z);
       o.angryAt = who; o.angryT = 30;
     }
   }
+  if (e.frozen > 0) e.frozen = Math.min(e.frozen, 1);   // a hit cracks the ice
   e.hp -= dmg;
   sfx(d.sound + (e.hp <= 0 ? 'Death' : 'Hurt'), e.x, e.y + 0.5, e.z);
   if (e.hp <= 0) {
@@ -225,6 +229,7 @@ function hurtMob(game, e, dmg, fx, fz, cause, by) {
         const n = randInt(a, b);
         if (n > 0) loot.push([id === 'wool' ? B.WOOL + (e.wool || 0) : id, n]);
       }
+      if (e.carry) loot.push([e.carry, 1]);   // what an enderman was carrying
       if (killer) MP.sendDrops(killer, loot, e.x, e.y + 0.5, e.z);
       else for (const [id, n] of loot) dropItem(game, e.x, e.y + 0.5, e.z, id, n);
     }
@@ -236,15 +241,17 @@ function explode(game, x, y, z, power) {
   sfx('explode', x, y, z);
   smokeParticles(x, y, z, 40, r * 0.6, true);
   const cx = Math.floor(x), cy = Math.floor(y), cz = Math.floor(z), R = Math.ceil(r) + 1;
+  world.beginBlast();
   for (let dy = -R; dy <= R; dy++) for (let dz = -R; dz <= R; dz++) for (let dx = -R; dx <= R; dx++) {
     const d = Math.hypot(dx, dy, dz);
     if (d > r + randRange(-0.6, 0.4)) continue;
     const bx = cx + dx, by = cy + dy, bz = cz + dz, b = world.getBlock(bx, by, bz);
     if (!b || b === B.UNLOADED || LIQUID[b] || BLOCKS[b].blast >= 1e9) continue;
-    if (b === B.TNT) { world.setBlock(bx, by, bz, B.AIR, 0, true); primeTNT(game, bx, by, bz, randRange(0.4, 1.2)); continue; }
+    if (BLOCKS[b].tnt) { igniteTNT(game, bx, by, bz, randRange(0.4, 1.2)); continue; }
     world.setBlock(bx, by, bz, B.AIR, 0, true);
-    if (game.mode === 'survival' && Math.random() < 0.3) for (const [id, n] of blockDrops(b, toolId(3, 0))) dropItem(game, bx + 0.5, by + 0.5, bz + 0.5, id, n);
+    if (game.mode === 'survival' && Math.random() < (r > 5 ? 0.12 : 0.3)) for (const [id, n] of blockDrops(b, toolId(3, 0))) dropItem(game, bx + 0.5, by + 0.5, bz + 0.5, id, n);
   }
+  world.endBlast();
   const reach = r * 2;
   const hit = (e, isPlayer) => {
     const ex = e.x, ey = e.y + e.h * 0.5, ez = e.z, d = Math.hypot(ex - x, ey - y, ez - z);
@@ -260,9 +267,11 @@ function explode(game, x, y, z, power) {
   if (MP.role === 'host') MP.explosion(x, y, z, power, reach);
   game.shake = Math.max(game.shake || 0, 0.25 + power * 0.08);
 }
-function primeTNT(game, x, y, z, fuse) {
+function primeTNT(game, x, y, z, fuse, kind, data) {
   const e = new Entity('tnt', x + 0.5, y, z + 0.5);
   e.w = 0.49; e.h = 0.98; e.fuse = fuse; e.vy = 3; e.vx = randRange(-0.5, 0.5); e.vz = randRange(-0.5, 0.5);
+  e.kind = TNT_KINDS.includes(kind) ? kind : 'normal'; e.dir = data | 0;   // (Digging TNT: which way its drill faces)
+  if (e.kind === 'dig') e.vx = e.vz = 0;
   game.entities.push(e);
   sfx('fuse', x + 0.5, y + 0.5, z + 0.5);
   return e;
@@ -273,7 +282,7 @@ function updateEntities(game, dt) {
   const world = game.world, pl = game.player;
   for (const e of game.entities) {
     if (e.removed) continue;
-    if (e.proxy) { updateProxy(e, dt); continue; }   // the host's creatures, TNT and sand: only glide to where the host says
+    if (e.proxy && !e.local) { updateProxy(e, dt); continue; }   // the host's creatures, TNT and sand: only glide to where the host says
     e.age += dt;
     if (e.type === 'item') {
       physicsStep(world, e, dt, 20);
@@ -307,12 +316,15 @@ function updateEntities(game, dt) {
       physicsStep(world, e, dt, 24);
       if (e.onGround) { e.vx *= 0.8; e.vz *= 0.8; }
       e.fuse -= dt;
-      if (Math.random() < dt * 20) smokeParticles(e.x, e.y + 1.1, e.z, 1, 0.05, false);
-      if (e.fuse <= 0) { e.removed = true; explode(game, e.x, e.y + 0.5, e.z, 4); }
+      if (Math.random() < dt * 20) smokeParticles(e.x, e.y + e.h + 0.1, e.z, 1, 0.05, false);
+      if (e.fuse <= 0) { e.removed = true; tntGoesOff(game, e); }
       continue;
     }
+    if (e.type === 'proj') { updateProjectile(game, e, dt); continue; }
+    if (e.vehicle) { updateVehicle(game, e, dt); continue; }
     if (e.mob) updateMob(game, e, dt);
   }
+  if (!world.remote) { tickDiggers(game, dt); tickPower(game, dt); }
   let j = 0;
   for (const e of game.entities) if (!e.removed) game.entities[j++] = e;
   game.entities.length = j;
@@ -401,7 +413,18 @@ function updateMob(game, e, dt) {
     return;
   }
   let mx = 0, mz = 0, speed = d.speed;
+  if (e.partyT > 0) e.partyT -= dt;
+  if (e.frozen > 0) {   // Ice TNT: stuck in place for a while
+    e.frozen -= dt;
+    e.vx *= 0.5; e.vz *= 0.5;
+    if (!d.flyer) physicsStep(world, e, dt, 26);
+    if (e.landed) e.fallDist = 0;
+    if (Math.random() < dt * 4) PARTICLES.push({ x: e.x + randRange(-e.w, e.w), y: e.y + Math.random() * e.h, z: e.z + randRange(-e.w, e.w), vx: 0, vy: -0.3, vz: 0, life: 0.8, tile: TILE.snowflake, u: 0, v: 0, us: 16, size: 0.06, grav: 0.5, bright: 1 });
+    return;
+  }
   if (e.angryT > 0) e.angryT -= dt;
+  if (d.ender) { enderTick(game, e, dt); if (e.removed || e.dead) return; }
+  if (d.flyer) { updateGhast(game, e, d, dt); return; }
   const tg = d.hostile ? mobTarget(game, e) : d.neutral && e.angryT > 0 ? angryTarget(game, e) : null, chase = !!tg;
   if (d.hopper) { hopMob(game, e, d, dt, tg); return; }
   const dxp = tg ? tg.dx : 0, dzp = tg ? tg.dz : 0, dist = tg ? tg.dist : 0;
@@ -437,7 +460,7 @@ function updateMob(game, e, dt) {
         else { e.moving = true; e.yaw = Math.random() * TAU; e.aiT = randRange(1.5, 4); }
         if (Math.random() < 0.08) sfx(d.sound + 'Say', e.x, e.y + 0.5, e.z);
       }
-      if (e.moving) { mx = -Math.sin(e.yaw); mz = -Math.cos(e.yaw); speed *= d.hostile ? 0.45 : 0.55; }
+      if (e.moving) { mx = -Math.sin(e.yaw); mz = -Math.cos(e.yaw); speed *= d.hostile ? 0.45 : d.ender ? 0.35 : 0.55; }
     }
   }
   if ((mx || mz) && !chase) {
@@ -453,7 +476,7 @@ function updateMob(game, e, dt) {
   if (e.inWater && e.type !== 'zombie') e.vy += 16 * dt;
   if (e.type === 'chicken' && !e.onGround && e.vy < -2) e.vy = -2;
   physicsStep(world, e, dt, 26);
-  if (e.landed) { if (e.fallDist > 4 && e.type !== 'chicken') hurtMob(game, e, Math.floor(e.fallDist - 3), e.x, e.z, 'fall'); e.fallDist = 0; }
+  if (e.landed) { if (e.fallDist > 4 && e.type !== 'chicken' && !(e.partyT > 0)) hurtMob(game, e, Math.floor(e.fallDist - 3), e.x, e.z, 'fall'); e.fallDist = 0; }
   if (e.inLava && !d.fireproof && e.age % 0.5 < dt) hurtMob(game, e, 2, e.x, e.z, 'lava');
   if (e.type === 'zombie') {
     const s = game.sky;
@@ -487,7 +510,7 @@ function spawnTick(game) {
   if (MP.role === 'guest') { world.spawnQueue.length = 0; return; }
   if (game.settings.difficulty === 0) for (const e of game.entities) if (e.mob) { if (MOB_DEFS[e.type].hostile) e.removed = true; else if (e.angryT) e.angryT = 0; }   // Peaceful: no monsters, and nothing stays angry
   let passive = 0, hostile = 0;
-  for (const e of game.entities) if (e.mob && !e.dead) { const d = MOB_DEFS[e.type]; if (d.hostile) hostile++; else if (!d.villager) passive++; }
+  for (const e of game.entities) if (e.mob && !e.dead) { const d = MOB_DEFS[e.type]; if (d.hostile || d.ender) hostile++; else if (!d.villager) passive++; }
   while (world.spawnQueue.length) {
     const sp = world.spawnQueue.shift(), [type, x, y, z, count] = sp;
     if (type === 'villager') { spawnVillagers(game, sp); continue; }
@@ -520,7 +543,8 @@ function spawnTick(game) {
     const L = world.getLight(x, found, z);
     const eff = Math.max(L & 15, (L >> 4) - Math.round((1 - s.day) * 11));
     if (eff >= 7) continue;
-    spawnMob(game, Math.random() < 0.6 ? 'zombie' : 'creeper', x + 0.5, found, z + 0.5);
+    const r = Math.random(), tall = world.getBlock(x, found + 2, z) === B.AIR;
+    spawnMob(game, r < 0.5 ? 'zombie' : r < 0.85 || !tall ? 'creeper' : 'enderman', x + 0.5, found, z + 0.5);
     return;
   }
 }
@@ -529,6 +553,7 @@ function spawnTick(game) {
 function netherSpawnTick(game) {
   const world = game.world, players = allPlayers(game).filter(p => p.alive && (p === game.player || p.lastState));
   if (!players.length) return;
+  if (game.settings.difficulty > 0) ghastSpawnTick(game, players);
   let pig = 0, mag = 0;
   for (const e of game.entities) if (e.mob && !e.dead) { if (e.type === 'piglin') pig++; else if (e.type === 'magma') mag++; }
   const n = Math.min(2, players.length), wantMagma = game.settings.difficulty > 0 && mag < 4 * n && Math.random() < 0.35;
@@ -569,20 +594,33 @@ function mobPose(e, t) {
     return { head, rarm: [-a * 0.6 + up - sw, 0, 0.05], larm: [a * 0.6, 0, -0.05], rleg: [a, 0, 0], lleg: [-a, 0, 0] };
   }
   if (e.type === 'chicken') return { head, leg1: [a, 0, 0], leg2: [-a, 0, 0], wing1: [0, 0, e.onGround ? 0 : Math.sin(t * 25) * 0.6 + 0.6], wing2: [0, 0, e.onGround ? 0 : -(Math.sin(t * 25) * 0.6 + 0.6)] };
+  if (e.type === 'enderman') {
+    const angry = e.angryT > 0 || e.angry, sw = e.armSwing > 0 ? Math.sin(e.armSwing / 0.3 * Math.PI) * 0.8 : 0, hold = e.carry ? -0.75 : 0;
+    const shake = angry && !REDUCED_MOTION ? Math.sin(t * 40) * 0.05 : 0, b = a * 0.5;
+    return { head: [head[0] + shake, head[1], shake], jaw: [head[0] + (angry ? 0.35 : 0), head[1], 0], rarm: [hold || -b - sw, 0, 0.05], larm: [hold || b, 0, -0.05], rleg: [b, 0, 0], lleg: [-b, 0, 0] };
+  }
+  if (e.type === 'ghast') {
+    const p = {};
+    for (let i = 0; i < 9; i++) p['t' + i] = [Math.sin(t * 2.2 + i * 1.3) * 0.25, 0, Math.cos(t * 1.7 + i) * 0.12];
+    return p;
+  }
   return { head, leg1: [a, 0, 0], leg2: [-a, 0, 0], leg3: [-a, 0, 0], leg4: [a, 0, 0] };
 }
 function drawEntities(game, s, t, cam) {
   const world = game.world, P = PROG.entity;
   entityBegin(texSkins);
   gl.enable(gl.CULL_FACE);
+  const held = [];
   for (const e of game.entities) {
-    if (!e.mob) continue;
+    if (!e.mob && !e.vehicle) continue;
     const dx = e.x - cam.x, dy = e.y - cam.y, dz = e.z - cam.z;
     if (dx * dx + dz * dz > R.fogEnd * R.fogEnd) continue;
-    if (!boxInFrustum(R.planes, dx - 1, dy, dz - 1, dx + 1, dy + 2.2, dz + 1)) continue;
-    const def = MOB_DEFS[e.type], model = MODELS[e.type === 'villager' ? 'villager_' + (e.prof || 'farmer') : def.model];
+    const bw = Math.max(1, e.w + 0.6), low = e.type === 'ghast' ? 2.4 : 0;
+    if (!boxInFrustum(R.planes, dx - bw, dy - low, dz - bw, dx + bw, dy + Math.max(2.2, e.h + 0.4), dz + bw)) continue;
+    if (e.vehicle) { drawVehicle(game, e, dx, dy, dz, s); continue; }
+    const def = MOB_DEFS[e.type], model = MODELS[e.type === 'villager' ? 'villager_' + (e.prof || 'farmer') : e.type === 'ghast' && e.firing > 0 ? 'ghast_fire' : def.model];
     gl.uniform1f(P.u.uBright, brightAt(world, e.x, e.y + e.h * 0.7, e.z, s));
-    let tint = e.hurt > 0 || e.dead ? [0.8, 0.1, 0.1, 0.45] : [0, 0, 0, 0];
+    let tint = e.hurt > 0 || e.dead ? [0.8, 0.1, 0.1, 0.45] : e.frozen > 0 ? [0.6, 0.85, 1, 0.5] : [0, 0, 0, 0];
     let sc = model.scale;
     if (e.type === 'creeper' && e.fuse > 0) {
       const f = e.fuse / 1.5;
@@ -594,6 +632,8 @@ function drawEntities(game, s, t, cam) {
     M4.translate(_eb, _eb, dx, dy, dz);
     M4.rotY(_eb, _eb, e.bodyYaw + Math.PI);
     if (e.dead) M4.rotZ(_eb, _eb, Math.min(1, e.dead / 0.4) * Math.PI / 2);
+    if (e.type === 'ghast') M4.translate(_eb, _eb, 0, -2.25, 0);   // its tentacles hang below it
+    if (e.carry) held.push(e);
     if (e.type === 'magma') {
       const k = e.squash > 0 ? -e.squash * 1.4 : e.onGround ? 0 : clamp((e.vy || 0) / 14, -0.25, 0.4), z = (e.size || 1) * 1.2;
       M4.scale(_eb, _eb, sc * z * (1 - k * 0.5), sc * z * (1 + k), sc * z * (1 - k * 0.5));
@@ -604,12 +644,29 @@ function drawEntities(game, s, t, cam) {
   if (MP.remotes.size) drawRemotePlayers(game, s, t, cam);
   entityBegin(texTiles);
   gl.disable(gl.CULL_FACE);
+  for (const e of held) {   // the block an enderman carries, held out in front
+    if (!itemDef(e.carry)) continue;
+    gl.uniform1f(P.u.uBright, brightAt(world, e.x, e.y + 1.4, e.z, s));
+    gl.uniform4f(P.u.uTint, 0, 0, 0, 0);
+    M4.identity(_eb);
+    M4.translate(_eb, _eb, e.x - cam.x, e.y - cam.y, e.z - cam.z);
+    M4.rotY(_eb, _eb, e.bodyYaw + Math.PI);
+    const sc = MODELS.enderman.scale;
+    M4.scale(_eb, _eb, sc, sc, sc);
+    M4.translate(_eb, _eb, 0, 13, 13);
+    M4.scale(_eb, _eb, 0.55, 0.55, 0.55);
+    gl.enable(gl.CULL_FACE);
+    drawMesh(itemMesh(e.carry), _eb);
+    gl.disable(gl.CULL_FACE);
+  }
   for (const e of game.entities) {
-    if (e.mob) continue;
+    if (e.mob || e.vehicle) continue;
     const dx = e.x - cam.x, dy = e.y - cam.y, dz = e.z - cam.z;
     if (dx * dx + dz * dz > R.fogEnd * R.fogEnd) continue;
     gl.uniform1f(P.u.uBright, brightAt(world, e.x, e.y + 0.3, e.z, s));
     M4.identity(_eb);
+    if (e.type === 'proj') { gl.uniform4f(P.u.uTint, 0, 0, 0, 0); drawProjectile(e, dx, dy, dz); continue; }
+    if (e.type === 'tnt') { drawTNT(e, dx, dy, dz, _eb); continue; }
     if (e.type === 'item') {
       const cube = isCubeItem(e.id), bob = Math.sin(e.age * 2.5 + e.spin) * 0.06 + 0.08;
       M4.translate(_eb, _eb, dx, dy + bob, dz);
@@ -620,14 +677,12 @@ function drawEntities(game, s, t, cam) {
       const mesh = itemMesh(e.id);
       drawMesh(mesh, _eb);
       if (e.count > 1 && cube) { M4.translate(_eb, _eb, 3, 3, 3); drawMesh(mesh, _eb); }
-    } else if (e.type === 'falling' || e.type === 'tnt') {
-      const grow = e.type === 'tnt' && e.fuse < 0.4 ? 1 + (0.4 - e.fuse) * 0.4 : 1;
+    } else if (e.type === 'falling') {
       M4.translate(_eb, _eb, dx, dy, dz);
-      M4.scale(_eb, _eb, grow / 16, grow / 16, grow / 16);
-      const flash = e.type === 'tnt' && Math.floor(e.fuse * 5) % 2 === 0;
-      gl.uniform4f(P.u.uTint, 1, 1, 1, flash ? 0.5 : 0);
+      M4.scale(_eb, _eb, 1 / 16, 1 / 16, 1 / 16);
+      gl.uniform4f(P.u.uTint, 0, 0, 0, 0);
       gl.enable(gl.CULL_FACE);
-      drawMesh(itemMesh(e.type === 'tnt' ? B.TNT : e.id), _eb);
+      drawMesh(itemMesh(e.id), _eb);
       gl.disable(gl.CULL_FACE);
     }
   }

@@ -12,7 +12,8 @@ function rayBox(ox, oy, oz, dx, dy, dz, x0, y0, z0, x1, y1, z1) {
   }
   return tmax < 0 ? -1 : Math.max(tmin, 0);
 }
-function raycast(world, ox, oy, oz, dx, dy, dz, maxD) {
+/* the first block along a ray (solidOnly: only blocks you bump into, the way arrows see them) */
+function raycast(world, ox, oy, oz, dx, dy, dz, maxD, solidOnly) {
   let x = Math.floor(ox), y = Math.floor(oy), z = Math.floor(oz);
   const sx = dx > 0 ? 1 : -1, sy = dy > 0 ? 1 : -1, sz = dz > 0 ? 1 : -1;
   const tdx = dx ? Math.abs(1 / dx) : Infinity, tdy = dy ? Math.abs(1 / dy) : Infinity, tdz = dz ? Math.abs(1 / dz) : Infinity;
@@ -20,9 +21,10 @@ function raycast(world, ox, oy, oz, dx, dy, dz, maxD) {
   let tmy = dy ? (dy > 0 ? y + 1 - oy : oy - y) * tdy : Infinity;
   let tmz = dz ? (dz > 0 ? z + 1 - oz : oz - z) * tdz : Infinity;
   let face = -1, t = 0;
-  for (let i = 0; i < 64 && t <= maxD; i++) {
+  const cells = Math.max(64, Math.ceil(maxD * 3) + 3);   // a long diagonal ray passes through up to 3 blocks per block of length
+  for (let i = 0; i < cells && t <= maxD; i++) {
     const b = world.getBlock(x, y, z);
-    if (TARGETABLE[b]) {
+    if (solidOnly ? SOLID[b] : TARGETABLE[b]) {
       const bd = BLOCKS[b], bx = bd.boxFn ? bd.boxFn(world.getData(x, y, z)) : bd.box;
       if (!bx) return { x, y, z, id: b, face, t };
       const tb = rayBox(ox, oy, oz, dx, dy, dz, x + bx[0], y + bx[1], z + bx[2], x + bx[3], y + bx[4], z + bx[5]);
@@ -67,6 +69,9 @@ class Player {
     this.bob = 0; this.bobAmt = 0; this.stepT = 0; this.target = null; this.targetEnt = null; this.digSndT = 0;
     this.lastJump = -1; this.lastFwd = -1;
     this.portalT = 0; this.portalLock = true;   // seconds spent in a portal; locked until you step out (after travelling, loading or respawning)
+    this.drawT = 0; this.loadT = 0; this.shotCd = 0;   // pulling a bow back; loading a crossbow
+    this.riding = null; this.sneakHeld = false;      // the minecart or car you are in
+    this.chill = 0; this.partyT = 0;                 // slowed by Ice TNT; bounced by Party TNT (no fall damage)
   }
   held() { return this.inv[this.sel]; }
   heldId() { const s = this.inv[this.sel]; return s ? s.id : 0; }
@@ -92,12 +97,18 @@ class Player {
     let fz = (inp.fwd ? 1 : 0) - (inp.back ? 1 : 0) + inp.joyY;
     const len = Math.hypot(fx, fz);
     if (len > 1) { fx /= len; fz /= len; }
-    this.sneaking = !!inp.sneak && !this.flying;
+    this.sneaking = !!inp.sneak && !this.flying && !this.riding;
+    if (this.chill > 0) this.chill -= dt;
+    if (this.partyT > 0) this.partyT -= dt;
+    if (this.riding) rideControls(game, this, fx, fz, inp, dt);
+    if (this.riding) { this.vy = 0; this.fallDist = 0; this.onGround = true; this.sprinting = false; liquidAt(world, this); }
+    else {
     if ((inp.sprint || inp.joySprint) && fz > 0.5 && !this.sneaking && (this.food > 6 || creative)) this.sprinting = true;
     if (fz <= 0.2 || this.sneaking || (this.collidedH && !this.flying)) this.sprinting = false;
     let speed = this.flying ? (this.sprinting ? 21.6 : 10.9) : this.sneaking ? 1.3 : this.sprinting ? 5.6 : 4.317;
     if ((this.inWater || this.inLava) && !this.flying) speed *= this.inLava ? 0.35 : 0.55;
-    if (this.eatT > 0) speed *= 0.4;
+    if (this.eatT > 0 || this.drawT > 0 || this.loadT > 0) speed *= 0.4;
+    if (this.chill > 0) speed *= 0.45;
     if (this.onGround && !this.flying) { const under = BLOCKS[game.world.getBlock(Math.floor(this.x), Math.floor(this.y - 0.1), Math.floor(this.z))]; if (under && under.slow) speed *= under.slow; }   // soul sand
     const sy = Math.sin(this.yaw), cy = Math.cos(this.yaw);
     const wx = (-sy * fz + cy * fx) * speed, wz = (-cy * fz - sy * fx) * speed;
@@ -132,7 +143,7 @@ class Player {
       }
       physicsStep(world, this, dt, 30);
       if (this.landed) {
-        if (this.fallDist > 3.5 && !creative) this.damage(Math.floor(this.fallDist - 3), 'fall');
+        if (this.fallDist > 3.5 && !creative && !(this.partyT > 0)) this.damage(Math.floor(this.fallDist - 3), 'fall');
         if (this.fallDist > 1.2) sfx('step_' + SOUND_OF(world.getBlock(Math.floor(this.x), Math.floor(this.y - 0.2), Math.floor(this.z))), this.x, this.y, this.z, 0.6);
         this.fallDist = 0;
       }
@@ -142,14 +153,15 @@ class Player {
         if (boxFree(world, this.x + dirx * 0.45, this.y + 1.05, this.z + dirz * 0.45, this.w, this.h)) this.vy = 8.7;
       }
     }
+    }
     this.h = this.sneaking ? 1.5 : 1.8;
     const eyeT = this.sneaking ? 1.27 : 1.62;
     this.eye += (eyeT - this.eye) * Math.min(1, dt * 12);
     this.collidedH = this.collidedH || false;
     const eb = world.getBlock(Math.floor(this.x), Math.floor(this.y + this.eye), Math.floor(this.z));
     this.headInWater = eb === B.WATER; this.headInLava = eb === B.LAVA;
-    // walking animation and footsteps
-    const hs = Math.hypot(this.vx, this.vz);
+    // walking animation and footsteps (none while riding)
+    const hs = this.riding ? 0 : Math.hypot(this.vx, this.vz);
     this.walk += hs * dt * 2.6;
     this.walkAmt = lerp(this.walkAmt, this.onGround || this.flying ? Math.min(1, hs / 4.3) : 0, Math.min(1, dt * 8));
     if (this.onGround && hs > 1 && !this.sneaking) {
@@ -162,8 +174,8 @@ class Player {
     const d = ((this.yaw - this.bodyYaw + Math.PI) % TAU + TAU) % TAU - Math.PI;
     if (Math.abs(d) > 0.9) this.bodyYaw = this.yaw - Math.sign(d) * 0.9;
     if (this.swingP < 1) this.swingP = Math.min(1, this.swingP + dt * 3.3);
-    const hid = this.heldId();
-    if (hid !== this.lastHeld) { this.equip = 0; this.lastHeld = hid; }
+    const hid = this.heldId(), fam = hid === I.CROSSBOW_LOADED ? I.CROSSBOW : hid;
+    if (fam !== this.lastHeld) { this.equip = 0; this.lastHeld = fam; this.drawT = 0; this.loadT = 0; heldTip(fam); }
     this.equip = Math.min(1, this.equip + dt * 5);
     this.vitals(dt, creative);
     this.interact(dt, creative);
@@ -215,8 +227,10 @@ class Player {
     const hit = raycast(game.world, ox, oy, oz, dx, dy, dz, reach);
     let best = null, bt = hit ? hit.t : reach;
     for (const e of game.entities) {
-      if (!e.mob || e.dead) continue;
-      const t = rayBox(ox, oy, oz, dx, dy, dz, e.x - e.w, e.y, e.z - e.w, e.x + e.w, e.y + e.h, e.z + e.w);
+      if (e.mob ? e.dead : !(e.vehicle || (e.type === 'proj' && e.kind === 'fireball'))) continue;
+      if (e === this.riding || e.removed) continue;
+      const pad = e.type === 'proj' ? 0.6 : 0, y0 = e.type === 'proj' ? e.y - pad : e.y;
+      const t = rayBox(ox, oy, oz, dx, dy, dz, e.x - e.w - pad, y0, e.z - e.w - pad, e.x + e.w + pad, e.y + e.h + pad, e.z + e.w + pad);
       if (t >= 0 && t < bt) { bt = t; best = e; }
     }
     this.targetEnt = best;
@@ -225,6 +239,7 @@ class Player {
   interact(dt, creative) {
     const inp = game.input, world = game.world;
     if (this.useCd > 0) this.useCd -= dt;
+    if (this.shotCd > 0) this.shotCd -= dt;
     if (this.breakCd > 0) this.breakCd -= dt;
     if (this.attackCd > 0) this.attackCd -= dt;
     if (!this.alive || game.uiOpen) { this.mining = null; this.eatT = 0; return; }
@@ -236,12 +251,14 @@ class Player {
         this.mining = null;
         if (inp.minePressed || this.attackCd <= 0) {
           if (this.attackCd <= 0) {
-            const tool = toolOf(hid);
+            const tool = toolOf(hid), te = this.targetEnt;
             const dmg = tool ? tool.dmg : 1;
-            hurtMob(game, this.targetEnt, this.sprinting ? dmg + 1 : dmg, this.x, this.z, 'player');
+            if (te.vehicle) { if (te.proxy) MP.sendHit(te, 1, this.x, this.z); else hitVehicle(game, te, game.mode, 'me'); }
+            else if (te.type === 'proj') { if (te.proxy) MP.sendHit(te, 0, this.x, this.z); else deflectFireball(game, te, this.lookDir(), 'me'); }
+            else hurtMob(game, te, this.sprinting ? dmg + 1 : dmg, this.x, this.z, 'player');
             this.attackCd = 0.4;
             this.swing();
-            if (tool && tool.kind !== 'lighter' && !creative) this.damageTool(tool.kind === 'sword' ? 1 : 2);
+            if (tool && tool.kind !== 'lighter' && !tool.ranged && te.mob && !creative) this.damageTool(tool.kind === 'sword' ? 1 : 2);
             this.addFoodExhaust(0.5);
           }
         }
@@ -270,6 +287,28 @@ class Player {
       inp.use = false; inp.usePressed = false;
       return;
     }
+    // get into a minecart or car; in the car, a tap honks the horn
+    if (inp.use && inp.usePressed && tEnt && tEnt.vehicle && !this.riding) { this.swing(); mountVehicle(game, tEnt); inp.use = false; inp.usePressed = false; return; }
+    if (this.riding && this.riding.type === 'car' && inp.use) {
+      if (inp.usePressed && this.useCd <= 0) { this.useCd = 0.5; sfx('honk', this.x, this.y + 1, this.z); if (game.net) MP.localFx('sfx', this.x, this.y + 1, this.z, SFX_NET.indexOf('honk')); }
+      inp.usePressed = false;
+      return;
+    }
+    const interactive = this.target && !this.sneaking && this.isInteractive(this.target.id);
+    // bows and crossbows
+    const rtool = toolOf(hid);
+    if (rtool && rtool.ranged && !(interactive && inp.usePressed && !this.drawT && !this.loadT)) { this.useRanged(inp, hid, rtool, dt, creative); inp.usePressed = false; return; }
+    // throw an ender pearl; a fire charge lights a portal frame, or flies off as a little fireball
+    if ((hid === I.ENDER_PEARL || hid === I.FIRE_CHARGE) && inp.use && inp.usePressed && this.useCd <= 0 && !interactive) {
+      this.useCd = 0.6; inp.usePressed = false;
+      const t = this.target;
+      if (hid === I.FIRE_CHARGE && t && t.face >= 0 && lightPortalAt(game, t.x + DX[t.face], t.y + DY[t.face], t.z + DZ[t.face])) sfx('portalLight', t.x + 0.5, t.y + 1, t.z + 0.5);
+      else if (hid === I.ENDER_PEARL) { playerShoot(game, 'pearl', 24, {}); sfx('pearlThrow', this.x, this.y + 1.5, this.z); if (MP.role === 'host') MP.sfx('pearlThrow', this.x, this.y + 1.5, this.z); }
+      else { playerShoot(game, 'charge', 18, {}); sfx('ghastShoot', this.x, this.y + 1.5, this.z, 0.6); if (MP.role === 'host') MP.sfx('ghastShoot', this.x, this.y + 1.5, this.z); }
+      this.swing();
+      if (!creative) this.consumeHeld(1);
+      return;
+    }
     // use / place / eat
     const food = hid >= 256 && ITEMS[hid].food;
     if (inp.use && food && (this.food < 20 || creative) && !(this.target && !this.sneaking && this.isInteractive(this.target.id))) {
@@ -289,7 +328,60 @@ class Player {
     }
     inp.usePressed = false;
   }
-  isInteractive(id) { return id === B.DOOR || id === B.CRAFTING_TABLE || id === B.FURNACE || id === B.FURNACE_LIT || id === B.CHEST || id === B.BED || id === B.TNT; }
+  isInteractive(id) {
+    return id === B.DOOR || id === B.CRAFTING_TABLE || id === B.FURNACE || id === B.FURNACE_LIT || id === B.CHEST || id === B.BED || !!(BLOCKS[id] && BLOCKS[id].tnt) ||
+      id === B.LEVER || id === B.BUTTON || id === B.DISPENSER;
+  }
+  /* bows: hold to pull back and let go to shoot (a quick tap is a quick shot); crossbows: tap to load, tap to fire */
+  useRanged(inp, hid, tool, dt, creative) {
+    const s = this.inv[this.sel];
+    if (tool.kind === 'bow') {
+      if (inp.useOnce && !this.drawT) { if (this.shotCd <= 0) { if (this.hasArrow(creative)) this.shootArrow(0.7, false, 'bow'); else this.noArrows(); } return; }
+      if (inp.use) {
+        if (!this.drawT) { if (!this.hasArrow(creative)) { if (inp.usePressed) this.noArrows(); return; } sfx('bowDraw', this.x, this.y + 1.5, this.z); }
+        this.drawT += dt;
+        return;
+      }
+      if (this.drawT > 0) {
+        const t = Math.min(1, this.drawT), power = (t * t + 2 * t) / 3;
+        this.drawT = 0;
+        if (power >= 0.12 && this.hasArrow(creative)) this.shootArrow(power, power >= 1, 'bow');
+      }
+      return;
+    }
+    if (hid === I.CROSSBOW_LOADED) {
+      if (inp.usePressed && this.shotCd <= 0) { this.shootArrow(1, true, 'crossbow'); s.id = I.CROSSBOW; game.ui.dirty = true; }
+      return;
+    }
+    if (inp.use || this.loadT > 0) {   // a tap starts loading, and it finishes by itself
+      if (!this.loadT) { if (!this.hasArrow(creative)) { if (inp.usePressed) this.noArrows(); return; } sfx('crossbowLoad', this.x, this.y + 1.5, this.z); }
+      this.loadT += dt;
+      if (this.loadT >= 1.25) {
+        this.loadT = 0;
+        if (!this.hasArrow(creative)) { this.noArrows(); return; }   // (the arrows were put away while it was loading)
+        if (!creative) this.takeArrow();
+        s.id = I.CROSSBOW_LOADED; game.ui.dirty = true; sfx('crossbowLoaded', this.x, this.y + 1.5, this.z);
+      }
+    }
+  }
+  hasArrow(creative) { return creative || this.inv.some(s => s && s.id === I.ARROW); }
+  takeArrow() {
+    const i = this.inv.findIndex(s => s && s.id === I.ARROW);
+    if (i < 0) return;
+    if (--this.inv[i].count <= 0) this.inv[i] = null;
+    game.ui.dirty = true;
+  }
+  noArrows() { if (!this.arrowTipT || game.t - this.arrowTipT > 6) { this.arrowTipT = game.t; toast('You need arrows. Craft them from flint, a stick and a feather.', 3); } }
+  shootArrow(power, crit, kind) {
+    const creative = game.mode === 'creative', xbow = kind === 'crossbow';
+    const vel = xbow ? 50 : 12 + 36 * power, dmg = xbow ? 9 : Math.round(2 + 4 * power) + (crit ? 2 : 0);
+    playerShoot(game, 'arrow', vel, { dmg, crit, pickup: !creative, snd: xbow ? 'crossbowShoot' : 'bowShoot' });
+    if (!creative) { if (!xbow) this.takeArrow(); this.damageTool(1); }
+    const snd = xbow ? 'crossbowShoot' : 'bowShoot';
+    sfx(snd, this.x, this.y + 1.5, this.z);
+    if (MP.role === 'host') MP.sfx(snd, this.x, this.y + 1.5, this.z);
+    this.shotCd = xbow ? 0.3 : 0.45;
+  }
   useBlock(hid, creative) {
     const t = this.target, world = game.world;
     if (!t) return false;
@@ -298,11 +390,13 @@ class Player {
       if (t.id === B.FURNACE || t.id === B.FURNACE_LIT) { this.swing(); const tile = MP.useTile(t.x, t.y, t.z, 'furnace'); if (tile) game.openScreen('furnace', tile); return true; }
       if (t.id === B.CHEST) { this.swing(); const tile = MP.useTile(t.x, t.y, t.z, 'chest'); if (tile) { sfx('chest'); game.openScreen('chest', tile); } return true; }
       if (t.id === B.BED) { game.trySleep(t.x, t.y, t.z); return true; }
-      if (t.id === B.TNT) {
+      if (BLOCKS[t.id].tnt) {
         if (MP.role === 'guest') MP.send({ t: 'tnt', x: t.x, y: t.y, z: t.z });
-        else { world.setBlock(t.x, t.y, t.z, B.AIR, 0, true); primeTNT(game, t.x, t.y, t.z, 4); }
+        else igniteTNT(game, t.x, t.y, t.z);
         this.swing(); return true;
       }
+      if (t.id === B.LEVER || t.id === B.BUTTON) { useSwitch(game, t.x, t.y, t.z, t.id); this.swing(); return true; }
+      if (t.id === B.DISPENSER) { this.swing(); const tile = MP.useTile(t.x, t.y, t.z, 'dispenser'); if (tile) { sfx('chest', t.x + 0.5, t.y + 0.5, t.z + 0.5); game.openScreen('dispenser', tile); } return true; }
       if (t.id === B.DOOR) {
         const d = world.getData(t.x, t.y, t.z), ly = (d & 8) ? t.y - 1 : t.y, ld = world.getData(t.x, ly, t.z) ^ 4;
         world.setBlock(t.x, ly, t.z, B.DOOR, ld, true);
@@ -348,6 +442,23 @@ class Player {
       if (!creative) this.consumeHeld(1);
       return true;
     }
+    if ((hid === I.MINECART || hid === I.CAR) && t.face >= 0) {
+      let vx = t.x + 0.5, vy = t.y + 1, vz = t.z + 0.5;
+      if (hid === I.MINECART) {
+        if (t.id !== B.RAIL) { if (!this.toldRails) { this.toldRails = true; toast('Minecarts go on rails. Put some rails down first.', 3); } return false; }
+        vy = t.y + 0.0625;
+      } else {
+        if (t.face !== 2 && !BLOCKS[t.id].replaceable) return false;   // on top of a block
+        if (BLOCKS[t.id].replaceable) vy = t.y;
+        if (!boxFree(world, vx, vy, vz, VEHICLES.car.w, VEHICLES.car.h)) return false;
+      }
+      const type = hid === I.CAR ? 'car' : 'minecart';
+      if (MP.role === 'guest') MP.send({ t: 'veh+', k: type, at: [r2(vx), r2(vy), r2(vz)], yaw: r2(this.yaw) });
+      else spawnVehicle(game, type, vx, vy, vz, this.yaw);
+      sfx('place_metal', vx, vy, vz); this.swing();
+      if (!creative) this.consumeHeld(1);
+      return true;
+    }
     if (!hid || hid >= 256) return false;
     let px = t.x + DX[t.face], py = t.y + DY[t.face], pz = t.z + DZ[t.face];
     if (t.face < 0) return false;
@@ -364,13 +475,20 @@ class Player {
     }
     let data = 0;
     if (BLOCKS[hid].facing) data = facingFromYaw(this.yaw);
-    if (hid === B.TORCH) {
+    if (hid === B.DISPENSER && Math.abs(this.pitch) > 0.9) data = this.pitch < 0 ? 4 : 5;   // looking down at it: it faces up at you
+    if (hid === B.DIG_TNT) data = this.pitch < -0.9 ? 5 : this.pitch > 0.9 ? 4 : (facingFromYaw(this.yaw) + 2) & 3;   // it digs the way you are looking
+    if (hid === B.LEVER || hid === B.BUTTON) {   // stuck to the side you clicked
+      if (t.face < 0) return false;
+      data = t.face ^ 1;
+      if (!world.canStay(px, py, pz, hid, data)) return false;
+    } else if (hid === B.TORCH) {
       if (t.face === 3) return false;
       data = t.face === 2 ? 0 : ({ 0: 1, 1: 2, 4: 3, 5: 4 })[t.face];
       if (!world.canStay(px, py, pz, hid, data)) { data = 0; if (!world.canStay(px, py, pz, hid, 0)) return false; }
     } else if (!world.canStay(px, py, pz, hid, data)) return false;
     if (cur !== B.AIR && !LIQUID[cur]) world.setBlock(px, py, pz, B.AIR, 0, true);
-    world.setBlock(px, py, pz, hid, data, true);
+    if (hid === B.RAIL) shapeRail(world, px, py, pz, this.yaw);
+    else world.setBlock(px, py, pz, hid, data, true);
     if (hid === B.CHEST) world.getTile(px, py, pz, 'chest');
     if (hid === B.FURNACE) world.getTile(px, py, pz, 'furnace');
     sfx('place_' + SOUND_OF(hid), px + 0.5, py + 0.5, pz + 0.5);
@@ -383,9 +501,9 @@ class Player {
   breakBlock(x, y, z, drops) {
     const world = game.world, id = world.getBlock(x, y, z);
     if (!id || id === B.UNLOADED) return;
-    if (MP.role === 'host' && (id === B.CHEST || id === B.FURNACE || id === B.FURNACE_LIT)) {
+    if (MP.role === 'host' && (id === B.CHEST || id === B.FURNACE || id === B.FURNACE_LIT || id === B.DISPENSER)) {
       const t = world.tiles.get(tileKey(x, y, z)), by = t && MP.tileUser(t, 'host');
-      if (by) { toast(by + ' is using this ' + (id === B.CHEST ? 'chest' : 'furnace') + '.', 2.5); return; }
+      if (by) { toast(by + ' is using this ' + (id === B.CHEST ? 'chest' : id === B.DISPENSER ? 'dispenser' : 'furnace') + '.', 2.5); return; }
     }
     const hid = this.heldId();
     let repl = B.AIR;
@@ -397,7 +515,7 @@ class Player {
     if (drops) {
       for (const [did, n] of blockDrops(id, hid)) dropItem(game, x + 0.5, y + 0.4, z + 0.5, did, n);
       const tool = toolOf(hid);
-      if (tool && tool.kind !== 'lighter' && BLOCKS[id].hardness > 0) this.damageTool(tool.kind === 'sword' ? 2 : 1);
+      if (tool && tool.kind !== 'lighter' && !tool.ranged && BLOCKS[id].hardness > 0) this.damageTool(tool.kind === 'sword' ? 2 : 1);
       this.addFoodExhaust(0.1);
     }
     if (game.stats) game.stats.mined = (game.stats.mined || 0) + 1;
@@ -480,14 +598,37 @@ function drawFirstPerson(pl, s, world) {
       M4.scale(_hm, _hm, 0.36 / 16, 0.36 / 16, 0.36 / 16);
       M4.translate(_hm, _hm, 0, -8, 0);
     } else {
-      M4.translate(_hm, _hm, 0.56 + bx - f2 * 0.32 - (pl.eatT > 0 ? 0.3 : 0), -0.5 + by + f3 * 0.12 - eq * 0.55 + eat + (pl.eatT > 0 ? 0.14 : 0), -0.95 - f1 * 0.2);
-      M4.rotY(_hm, _hm, -0.78 + f2 * 0.25);
-      M4.rotZ(_hm, _hm, 0.32 + f1 * 0.8);
+      // pulling a bow back brings it to the middle (and it shakes a little when fully drawn); a loading crossbow tips up
+      const aim = held.id === I.BOW ? Math.min(1, pl.drawT * 3) : 0, load = held.id === I.CROSSBOW && pl.loadT > 0 ? Math.sin(Math.min(1, pl.loadT / 1.25) * Math.PI) : 0;
+      const shake = pl.drawT >= 1 && !REDUCED_MOTION ? Math.sin(game.t * 50) * 0.006 : 0;
+      M4.translate(_hm, _hm, 0.56 + bx - f2 * 0.32 - (pl.eatT > 0 ? 0.3 : 0) - aim * 0.4, -0.5 + by + f3 * 0.12 - eq * 0.55 + eat + (pl.eatT > 0 ? 0.14 : 0) + aim * 0.1 + shake, -0.95 - f1 * 0.2 + aim * 0.15);
+      M4.rotY(_hm, _hm, -0.78 + f2 * 0.25 + aim * 0.5);
+      M4.rotZ(_hm, _hm, 0.32 + f1 * 0.8 + load * 0.5);
       M4.scale(_hm, _hm, 0.5 / 16, 0.5 / 16, 0.5 / 16);
       M4.translate(_hm, _hm, 0, -3, 0);
     }
-    drawMesh(itemMesh(held.id), _hm);
+    drawMesh(heldMesh(pl, held.id), _hm);
   }
+}
+/* the first time something new is in your hand, a word on how to use it */
+const HELD_TIPS = {
+  [I.BOW]: ['Hold Place to pull the bow back, then let go to shoot. A quick tap is a quick shot.', 'Hold the right mouse button to pull the bow back, then let go to shoot.'],
+  [I.CROSSBOW]: ['Tap once to load the crossbow, then tap again to shoot.', 'Right-click once to load the crossbow, then again to shoot.'],
+  [I.ENDER_PEARL]: ['Tap to throw the ender pearl. You land where it lands!', 'Right-click to throw the ender pearl. You land where it lands!'],
+  [I.FIRE_CHARGE]: ['Tap to throw a fireball, or tap an obsidian frame to light a portal.', 'Right-click to throw a fireball, or right-click an obsidian frame to light a portal.'],
+};
+function heldTip(id) {
+  const t = HELD_TIPS[id];
+  if (!t || game.state !== 'playing') return;
+  if (!game.tipped) game.tipped = {};
+  if (game.tipped['held' + id]) return;
+  game.tipped['held' + id] = 1;
+  toast(game.touchOn ? t[0] : t[1], 4);
+}
+/* what an item looks like in the hand: a bow shows how far it is pulled back */
+function heldMesh(pl, id) {
+  if (id === I.BOW && pl.drawT > 0) return tileMesh('bow_pull_' + (pl.drawT < 0.65 ? 0 : pl.drawT < 0.9 ? 1 : 2));
+  return itemMesh(id);
 }
 const _pmB = M4.create(), _pmH = M4.create();
 function playerPose(pl, t) {
@@ -497,13 +638,20 @@ function playerPose(pl, t) {
   const idle = Math.sin(t * 1.6) * 0.04;
   const sneak = pl.sneaking ? 0.35 : 0;
   const holding = pl.heldId ? pl.heldId() : pl.held;
-  return {
-    head: [-pl.pitch, hy, 0],
+  const ride = pl.riding ? (typeof pl.riding === 'string' ? pl.riding : pl.riding.type === 'car' ? 'car' : 'cart') : null;
+  const pose = {
+    head: [-pl.pitch, ride ? clamp(hy, -1.3, 1.3) : hy, 0],
     body: [sneak, 0, 0],
     rarm: [-a - f2 * 1.3 - (holding ? 0.25 : 0) + idle, f2 * 0.3, 0.05 + idle],
     larm: [a - idle, 0, -0.05 - idle],
     rleg: [a, 0, 0], lleg: [-a, 0, 0],
   };
+  if (ride) {   // sitting, legs out in front; hands on the wheel in the car
+    pose.rleg = [-1.4, 0.15, 0]; pose.lleg = [-1.4, -0.15, 0];
+    if (ride === 'car') { pose.rarm = [-0.95, 0.25, 0]; pose.larm = [-0.95, -0.25, 0]; }
+  }
+  if (pl.drawT > 0 || pl.loadT > 0 || pl.aiming) { const up = -1.45 - pl.pitch; pose.rarm = [up, -0.1, 0]; pose.larm = [up, 0.5, 0]; }   // aiming a bow or crossbow
+  return pose;
 }
 function drawPlayerModel(game, s, t, cam) { drawHumanoid(game.player, playerModelFor(PROFILE.skin), game.player.heldId(), s, t, cam); }
 function drawHumanoid(pl, model, heldId, s, t, cam) {
@@ -527,7 +675,7 @@ function drawHumanoid(pl, model, heldId, s, t, cam) {
     M4.translate(_pmH, _pmH, 0, -11, 1.5);
     if (isCubeItem(held.id)) { M4.rotY(_pmH, _pmH, 0.6); M4.scale(_pmH, _pmH, 0.38, 0.38, 0.38); M4.translate(_pmH, _pmH, 0, -8, 0); }
     else { M4.rotX(_pmH, _pmH, -1.2); M4.rotY(_pmH, _pmH, -Math.PI / 2); M4.scale(_pmH, _pmH, 0.6, 0.6, 0.6); M4.translate(_pmH, _pmH, 0, -3, 0); }
-    drawMesh(itemMesh(held.id), _pmH);
+    drawMesh(pl.drawT !== undefined ? heldMesh(pl, held.id) : itemMesh(held.id), _pmH);
     entityBegin(texSkins);
   }
 }

@@ -125,6 +125,10 @@ class World {
     this.remote = false;       // true on a guest: the host runs liquids, falling sand, plants and furnaces
     this.extraCenters = [];    // host: other players' positions to keep loaded
     this.villageBlock = [];    // villages kept out of areas that were built before villages existed
+    this.lightBatch = null;    // during a blast: cleared blocks whose light is worked out at the end
+    this.diggers = [];         // Digging TNT on its way through the ground
+    this.powerQ = [];          // levers and buttons that changed, and machines placed (host or single player)
+    this.buttons = [];         // pressed buttons: [x, y, z, clock to pop back up]
     this.alive = true;
   }
   getChunk(cx, cz) {
@@ -253,6 +257,22 @@ class World {
       if (y === WH - 1) { c.light[i] = (c.light[i] & 15) | 0xf0; qa.push(x, y, z); }
       for (let d = 0; d < 6; d++) { const ny = y + DY[d]; if (ny >= 0 && ny < WH) qa.push(x + DX[d], ny, z + DZ[d]); }
     }
+    this.lightAdd(qa, true);
+  }
+
+  /* many blocks cleared at once (explosions): open up the light for all of them in one go */
+  beginBlast() { if (!this.lightBatch) this.lightBatch = []; }
+  endBlast() {
+    const list = this.lightBatch, qa = this._qa, qb = this._qb;
+    this.lightBatch = null;
+    if (!list || !list.length) return;
+    for (let i = 0; i < list.length; i += 4) if (EMIT[list[i + 3]]) this.lightRemove(list[i], list[i + 1], list[i + 2], false, qb);
+    for (let i = 0; i < list.length; i += 4) {
+      const x = list[i], y = list[i + 1], z = list[i + 2];
+      if (y === WH - 1) { const c = this.getChunk(x >> 4, z >> 4); if (c) { const k = (x & 15) | ((z & 15) << 4) | (y << 8); c.light[k] = (c.light[k] & 15) | 0xf0; qa.push(x, y, z); } }
+      for (let d = 0; d < 6; d++) { const ny = y + DY[d]; if (ny >= 0 && ny < WH) { qb.push(x + DX[d], ny, z + DZ[d]); qa.push(x + DX[d], ny, z + DZ[d]); } }
+    }
+    this.lightAdd(qb, false);
     this.lightAdd(qa, true);
   }
 
@@ -412,11 +432,15 @@ class World {
     let em = this.edits.get(c.key);
     if (!em) { em = new Map(); this.edits.set(c.key, em); }
     em.set(i, id | (data << 8));
-    if (old !== id) this.relight(x, y, z, old, id);
+    if (old !== id) {
+      if (this.lightBatch && !OPAQUE[id] && !FILTER[id] && !EMIT[id]) this.lightBatch.push(x, y, z, old);   // blasting: light is worked out once at the end
+      else this.relight(x, y, z, old, id);
+    }
     this.markAround(x, y, z, urgent);
     if (this.onChange) this.onChange(x, y, z, id, data, old);
+    if (!this.remote && (POWER_SRC[old] || POWER_SRC[id] || (old !== id && POWER_DEV[id]))) this.powerQ.push(x, y, z, old, od, id, data);   // levers, buttons and machines
     if (old !== id) {
-      const tileOld = old === B.CHEST || old === B.FURNACE || old === B.FURNACE_LIT;
+      const tileOld = old === B.CHEST || old === B.FURNACE || old === B.FURNACE_LIT || old === B.DISPENSER;
       const furnaceSwap = (old === B.FURNACE || old === B.FURNACE_LIT) && (id === B.FURNACE || id === B.FURNACE_LIT);
       if (tileOld && !furnaceSwap && !this.remote) this.dropTile(x, y, z);
       if (SAPLING_KIND[id] !== undefined) this.saplings.set(posKey(x, y, z), this.clock + randRange(40, 100));
@@ -440,6 +464,11 @@ class World {
     if (below === B.UNLOADED) return true;
     if (d.plant === 'soil') return below === B.GRASS || below === B.DIRT || below === B.SNOWY_GRASS;
     if (d.plant === 'sand') return id === B.CACTUS ? (below === B.SAND || below === B.CACTUS) : (below === B.SAND || below === B.DIRT || below === B.GRASS);
+    if (d.plant === 'attached') {   // levers and buttons: on the side of a solid block
+      const f = (data | 0) & 7, b = this.getBlock(x + DX[f], y + DY[f], z + DZ[f]);
+      return b === B.UNLOADED || (SOLID[b] && OPAQUE[b]);
+    }
+    if (d.plant === 'rail') return SOLID[below] && OPAQUE[below];
     if (d.plant === 'torch') {
       if (!data) return SOLID[below] && OPAQUE[below];
       const o = TORCH_DIRS[data];
@@ -473,7 +502,7 @@ class World {
       const nb = this.getBlock(nx, ny, nz);
       if (LIQUID[nb]) this.scheduleLiquid(nx, ny, nz);
       if (d === 2 && BLOCKS[nb] && BLOCKS[nb].gravity) this.gravQ.push(nx, ny, nz);
-      if (nb && nb !== B.UNLOADED && BLOCKS[nb].plant && d !== 3) this.checkSupport(nx, ny, nz);
+      if (nb && nb !== B.UNLOADED && BLOCKS[nb].plant && (d !== 3 || BLOCKS[nb].plant === 'attached')) this.checkSupport(nx, ny, nz);
       if (nb === B.NETHER_PORTAL) this.portalQ.push(nx, ny, nz);
     }
   }
@@ -650,12 +679,13 @@ class World {
     }
   }
 
-  /* ---- tile entities (chests and furnaces) ---- */
+  /* ---- tile entities (chests, furnaces and dispensers) ---- */
   getTile(x, y, z, create) {
     const k = tileKey(x, y, z);
     let t = this.tiles.get(k);
     if (!t && create) {
-      t = create === 'chest' ? { type: 'chest', slots: new Array(27).fill(null) } : { type: 'furnace', slots: [null, null, null], burn: 0, burnMax: 0, cook: 0 };
+      t = create === 'chest' ? { type: 'chest', slots: new Array(27).fill(null) } : create === 'dispenser' ? { type: 'dispenser', slots: new Array(9).fill(null) }
+        : { type: 'furnace', slots: [null, null, null], burn: 0, burnMax: 0, cook: 0 };
       this.tiles.set(k, t);
     }
     return t || null;
@@ -665,6 +695,8 @@ class World {
     if (!t) return;
     this.tiles.delete(k);
     if (this.onDrop) for (const s of t.slots) if (s) this.onDrop(x + 0.5, y + 0.5, z + 0.5, s);
+    t.slots.fill(null);   // they are on the ground now, so an open screen can't hand them out again
+    if (this.onTileGone) this.onTileGone(t);
   }
   tickFurnaces(dt) {
     for (const [k, t] of this.tiles) {
@@ -700,7 +732,7 @@ class World {
     for (const [k, em] of this.edits) {
       const cx = Math.floor(k / 65536) - 32768, cz = (k % 65536) - 32768;
       const a = [];
-      for (const [i, v] of em) a.push(i, v);
+      for (const [i, v] of em) a.push(i, (v & 255) === B.BUTTON && (v >> 8) & 8 ? B.BUTTON | (((v >> 8) & 7) << 8) : v);   // a pressed button is saved popped up
       edits[cx + ',' + cz] = a;
     }
     const tiles = {};
