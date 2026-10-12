@@ -9,10 +9,15 @@ const MOB_DEFS = {
   villager: { model: 'villager_farmer', w: 0.3, h: 1.9, hp: 20, speed: 1.1, drops: [], sound: 'villager', villager: true },
   // the Nether: piglins leave you alone until one is hit; magma cubes hop after you and don't mind lava
   piglin: { model: 'piglin', w: 0.3, h: 1.95, hp: 20, speed: 2.4, neutral: true, group: true, dmg: 4, fireproof: true, nether: true, drops: [[I.ROTTEN_FLESH, 0, 1], [I.GOLD_INGOT, 0, 1]], sound: 'piglin' },
-  magma: { model: 'magma', w: 0.3, h: 0.6, hp: 6, speed: 3, hostile: true, hopper: true, dmg: 3, fireproof: true, nether: true, drops: [], sound: 'magma' },
+  magma: { model: 'magma', w: 0.3, h: 0.6, hp: 6, speed: 3, hostile: true, hopper: true, dmg: 3, fireproof: true, nether: true, drops: [[I.MAGMA_CREAM, 0, 1]], sound: 'magma' },
   // endermen leave you alone unless you look them in the eyes or hit them; ghasts float in the Nether and shoot fireballs
   enderman: { model: 'enderman', w: 0.3, h: 2.8, hp: 40, speed: 3.4, neutral: true, ender: true, dmg: 5, drops: [[I.ENDER_PEARL, 0, 1]], sound: 'enderman' },
   ghast: { model: 'ghast', w: 1.5, h: 3, hp: 10, speed: 1.6, hostile: true, flyer: true, fireproof: true, nether: true, drops: [[I.GHAST_TEAR, 0, 1], [I.GUNPOWDER, 0, 2]], sound: 'ghast' },
+  // fish swim about in the water (see 09f-fish.js)
+  cod: { model: 'cod', w: 0.25, h: 0.3, hp: 3, speed: 1.6, fish: true, xp: [1, 3], drops: [[I.COD, 1, 1]], sound: 'fish' },
+  salmon: { model: 'salmon', w: 0.3, h: 0.4, hp: 3, speed: 1.9, fish: true, xp: [1, 3], drops: [[I.SALMON, 1, 1]], sound: 'fish' },
+  tropical: { model: 'tropical', w: 0.2, h: 0.35, hp: 3, speed: 1.4, fish: true, xp: [1, 3], drops: [[I.TROPICAL_FISH, 1, 1]], sound: 'fish' },
+  pufferfish: { model: 'pufferfish', w: 0.25, h: 0.35, hp: 3, speed: 1.0, fish: true, puffs: true, xp: [1, 3], drops: [[I.PUFFERFISH, 1, 1]], sound: 'fish' },
 };
 const MOB_TYPES = Object.keys(MOB_DEFS);
 let ENTITY_NID = 0;
@@ -106,6 +111,8 @@ class Entity {
 }
 /* true only for real creature names (not "constructor" and other built-in object names) */
 const isMobType = t => typeof t === 'string' && Object.prototype.hasOwnProperty.call(MOB_DEFS, t);
+/* a creature's full health (a big magma cube has more than a small one) */
+const mobMaxHp = e => e.type === 'magma' && e.size === 2 ? 12 : e.type === 'magma' ? 5 : MOB_DEFS[e.type].hp;
 function spawnMob(game, type, x, y, z, opts) {
   const d = MOB_DEFS[type], e = new Entity(type, x, y, z);
   e.w = d.w; e.h = d.h; e.hp = d.hp; e.mob = true;
@@ -114,10 +121,13 @@ function spawnMob(game, type, x, y, z, opts) {
     e.prof = VILLAGER_PROFS.includes(o.prof) ? o.prof : VILLAGER_PROFS[randInt(0, VILLAGER_PROFS.length - 1)];
     e.home = o.home || [x, z]; e.village = o.village || null; e.vseed = o.vseed !== undefined ? o.vseed : randInt(0, 99999);
   }
-  if (type === 'magma') {   // small or big
+  if (type === 'magma') {   // small or big (see mobMaxHp)
     e.size = opts && opts.size ? clamp(opts.size | 0, 1, 2) : Math.random() < 0.6 ? 1 : 2;
-    e.w = 0.3 * e.size; e.h = 0.6 * e.size; e.hp = e.size === 2 ? 12 : 5; e.hopT = randRange(0.5, 1.5);
+    e.w = 0.3 * e.size; e.h = 0.6 * e.size; e.hp = mobMaxHp(e); e.hopT = randRange(0.5, 1.5);
   }
+  if (type === 'tropical') { e.variant = opts && opts.variant !== undefined ? clamp(opts.variant | 0, 0, TROPICAL_COLORS.length - 1) : randInt(0, TROPICAL_COLORS.length - 1); e.color = hexRGB(TROPICAL_COLORS[e.variant]).map(v => v / 255); }
+  if (type === 'pufferfish') e.puff = 0;
+  if (MOB_DEFS[type].fish) { e.aiT = 0; e.yaw = Math.random() * TAU; }
   if (type === 'sheep') {
     let r = Math.random();
     e.wool = 0;
@@ -127,21 +137,28 @@ function spawnMob(game, type, x, y, z, opts) {
   game.entities.push(e);
   return e;
 }
-function dropItem(game, x, y, z, id, count, strong) {
+/* ex: the stack it came from, for its wear (dmg) and tag */
+function dropItem(game, x, y, z, id, count, strong, ex) {
   if (!id || count <= 0) return;
   const e = new Entity('item', x, y, z);
   e.id = id; e.count = count; e.w = 0.15; e.h = 0.3; e.pickup = strong ? 1.2 : 0.4;
+  if (ex) { if (ex.dmg) e.dmg = ex.dmg; if (ex.tag) e.tag = cloneTag(ex.tag); }
   const s = strong ? 4 : 2;
   e.vx = randRange(-1, 1) * s * 0.5; e.vz = randRange(-1, 1) * s * 0.5; e.vy = randRange(2, 4);
   e.spin = Math.random() * TAU;
   game.entities.push(e);
   return e;
 }
-function blockDrops(id, held) {
+/* what a block drops when broken with held (st: the held stack, for Silk Touch and Fortune) */
+function blockDrops(id, held, st) {
   const d = BLOCKS[id];
-  if (!d || d.drop === null) return [];
+  if (!d) return [];
   const tool = toolOf(held);
   if (d.tier > 0 && (!tool || tool.kind !== d.tool || tool.tier < d.tier)) return [];
+  if (st && enchLvl(st, 'silk_touch') && id !== B.BEDROCK && !LIQUID[id] && d.creative !== false && d.hardness >= 0) return [[id, 1]];   // the block itself
+  if (d.drop === null) return [];
+  const fortune = st ? enchLvl(st, 'fortune') : 0, base = id === B.LAPIS_ORE ? randInt(4, 8) : 1;
+  if (d.xp) return [[d.drop, base * Math.max(1, randInt(0, fortune + 1))]];   // ores: more with Fortune
   if (d.drop === 'leaves') {
     const out = [];
     const sap = id === B.BIRCH_LEAVES ? B.BIRCH_SAPLING : id === B.SPRUCE_LEAVES ? B.SPRUCE_SAPLING : B.OAK_SAPLING;
@@ -198,18 +215,21 @@ function updateParticles(world, dt) {
 }
 
 /* ---- damage, explosions ---- */
-function hurtMob(game, e, dmg, fx, fz, cause, by) {
+/* o (from enchantments): kb (how much more it is knocked back), fire (seconds set on fire), loot (Looting) */
+function hurtMob(game, e, dmg, fx, fz, cause, by, o) {
   if (e.dead || e.removed) return;
   const d = MOB_DEFS[e.type];
-  if (e.proxy) { MP.sendHit(e, dmg, fx, fz); e.hurt = 0.45; sfx(d.sound + 'Hurt', e.x, e.y + 0.5, e.z); return; }
+  if (e.proxy) { MP.sendHit(e, dmg, fx, fz, o); e.hurt = 0.45; sfx(d.sound + 'Hurt', e.x, e.y + 0.5, e.z); return; }
   e.hurt = 0.45;
   let dx = e.x - fx, dz = e.z - fz;
-  const l = Math.hypot(dx, dz) || 1;
+  const l = Math.hypot(dx, dz) || 1, kb = 1 + ((o && o.kb) || 0);
   dx /= l; dz /= l;
-  e.vx = dx * 7; e.vz = dz * 7; e.vy = 5;
+  if (!(o && o.nokb)) { e.vx = dx * 7 * kb; e.vz = dz * 7 * kb; e.vy = 5 + (kb - 1) * 1.5; }   // (poison and potions don't push)
+  if (o && o.fire > 0 && !d.fireproof) e.fireT = Math.max(e.fireT || 0, o.fire);
+  if (cause === 'player') e.playerHitT = e.age;
   if (!d.hostile) { e.panic = d.villager ? 2.5 : 4; e.yaw = Math.atan2(-dx, -dz); }
   if (d.villager) { sfx('villagerHurt', e.x, e.y + 1.5, e.z); return; }   // villagers are never harmed
-  if (d.neutral && cause === 'player' && game.settings.difficulty > 0) {   // on Peaceful they just take the hit
+  if (d.neutral && cause === 'player' && difficulty() > 0) {   // on Peaceful they just take the hit
     const who = by || 'me';
     for (const o of game.entities) {
       if (o.type !== e.type || o.dead || o.removed || Math.hypot(o.x - e.x, o.z - e.z) > 16 || (!d.group && o !== e)) continue;
@@ -223,10 +243,11 @@ function hurtMob(game, e, dmg, fx, fz, cause, by) {
   if (e.hp <= 0) {
     e.dead = 0.001;
     const killer = by ? MP.remotes.get(by) : null;
+    if (cause === 'player' || (e.playerHitT !== undefined && e.age - e.playerHitT < 5)) dropXp(game, e.x, e.y + 0.4, e.z, mobXp(e));   // defeated by a player: experience
     if ((killer ? killer.mode : game.mode) === 'survival' || cause === 'explosion') {
-      const loot = [];
+      const loot = [], looting = (o && o.loot) || 0;
       for (const [id, a, b] of d.drops) {
-        const n = randInt(a, b);
+        const n = randInt(a, b + (b > 0 ? randInt(0, looting) : 0));
         if (n > 0) loot.push([id === 'wool' ? B.WOOL + (e.wool || 0) : id, n]);
       }
       if (e.carry) loot.push([e.carry, 1]);   // what an enderman was carrying
@@ -259,7 +280,7 @@ function explode(game, x, y, z, power) {
     const imp = 1 - d / reach, l = d || 1;
     const dmg = Math.floor(((imp * imp + imp) / 2) * 2.4 * power + 1);
     e.vx += ((ex - x) / l) * imp * 14; e.vy += Math.max(3, ((ey - y) / l) * imp * 10); e.vz += ((ez - z) / l) * imp * 14;
-    if (isPlayer) game.player.damage(dmg, 'explosion');
+    if (isPlayer) game.player.damage(dmg, 'explosion', null, x, z);
     else if (e.mob) hurtMob(game, e, dmg, x, z, 'explosion');
   };
   for (const e of game.entities) if (!e.removed && (e.mob || e.type === 'item')) hit(e, false);
@@ -285,15 +306,20 @@ function updateEntities(game, dt) {
     if (e.proxy && !e.local) { updateProxy(e, dt); continue; }   // the host's creatures, TNT and sand: only glide to where the host says
     e.age += dt;
     if (e.type === 'item') {
-      physicsStep(world, e, dt, 20);
-      if (e.inWater) e.vy += 30 * dt;
+      if (e.reel > 0 && pl.alive) {   // a catch on a fishing line: it flies in to whoever reeled it in
+        e.reel -= dt;
+        const dx = pl.x - e.x, dy = pl.y + 1.1 - e.y, dz = pl.z - e.z, d = Math.hypot(dx, dy, dz) || 1, k = Math.min(1, dt * 6);
+        e.vx += (dx / d * 9 - e.vx) * k; e.vy += (dy / d * 9 - e.vy) * k + Math.min(1, e.reel) * 8 * dt; e.vz += (dz / d * 9 - e.vz) * k;
+        moveEntity(world, e, e.vx * dt, e.vy * dt, e.vz * dt);
+      } else physicsStep(world, e, dt, 20);
+      if (e.inWater && !(e.reel > 0)) e.vy += 30 * dt;
       if (e.onGround) { const f = Math.pow(0.02, dt); e.vx *= f; e.vz *= f; }
       e.pickup -= dt;
       if (e.age > 300) e.removed = true;
       if (pl.alive && e.pickup <= 0) {
         const dx = pl.x - e.x, dy = (pl.y + 0.8) - e.y, dz = pl.z - e.z, d = Math.hypot(dx, dy, dz);
         if (d < 1.6) {
-          const left = game.giveItem(e.id, e.count);
+          const left = game.giveItem(e.id, e.count, e);
           if (left < e.count) sfx('pop', e.x, e.y, e.z);
           if (left <= 0) e.removed = true; else e.count = left;
         }
@@ -321,6 +347,8 @@ function updateEntities(game, dt) {
       continue;
     }
     if (e.type === 'proj') { updateProjectile(game, e, dt); continue; }
+    if (e.type === 'bobber') { updateBobber(game, e, dt); continue; }
+    if (e.type === 'xp') { updateXpOrb(game, e, dt); continue; }
     if (e.vehicle) { updateVehicle(game, e, dt); continue; }
     if (e.mob) updateMob(game, e, dt);
   }
@@ -341,6 +369,7 @@ function mobTarget(game, e) {
   const consider = (p, remote, mode) => {
     if (!p.alive || mode !== 'survival') return;
     const dx = p.x - e.x, dz = p.z - e.z, dist = Math.hypot(dx, dz);
+    if (isInvisible(p) && dist > 2.5) return;   // can't be seen unless right next to it
     if (dist < bd && Math.abs(p.y - e.y) < 10) { bd = dist; best = { p, remote, dist, dx, dz }; }
   };
   consider(pl, false, game.mode);
@@ -383,8 +412,8 @@ function hopMob(game, e, d, dt, tg) {
     if (tg.dist < reach && tp.y < e.y + e.h + 0.2 && tp.y + 1.8 > e.y) {
       e.attackCd = 1;
       const dmg = e.size === 2 ? 4 : 2, kx = (tg.dx / (tg.dist || 1)) * 5, kz = (tg.dz / (tg.dist || 1)) * 5;
-      if (tg.remote) MP.hurtRemote(tp, dmg, e.type, kx, 3, kz);
-      else { tp.damage(dmg, e.type, e); tp.vx += kx; tp.vz += kz; tp.vy = Math.max(tp.vy, 3); }
+      if (tg.remote) MP.hurtRemote(tp, dmg, e.type, kx, 3, kz, e);
+      else { tp.damage(dmg, e.type, e, e.x, e.z); tp.vx += kx; tp.vz += kz; tp.vy = Math.max(tp.vy, 3); }
     }
   }
   const pd = nearestPlayerDist(game, e);
@@ -414,6 +443,10 @@ function updateMob(game, e, dt) {
   }
   let mx = 0, mz = 0, speed = d.speed;
   if (e.partyT > 0) e.partyT -= dt;
+  mobFire(game, e, dt);
+  tickMobEffects(game, e, dt);
+  if (e.dead) return;
+  speed *= mobSpeedFx(e);
   if (e.frozen > 0) {   // Ice TNT: stuck in place for a while
     e.frozen -= dt;
     e.vx *= 0.5; e.vz *= 0.5;
@@ -424,6 +457,7 @@ function updateMob(game, e, dt) {
   }
   if (e.angryT > 0) e.angryT -= dt;
   if (d.ender) { enderTick(game, e, dt); if (e.removed || e.dead) return; }
+  if (d.fish) { updateFish(game, e, d, dt); return; }
   if (d.flyer) { updateGhast(game, e, d, dt); return; }
   const tg = d.hostile ? mobTarget(game, e) : d.neutral && e.angryT > 0 ? angryTarget(game, e) : null, chase = !!tg;
   if (d.hopper) { hopMob(game, e, d, dt, tg); return; }
@@ -441,8 +475,8 @@ function updateMob(game, e, dt) {
       e.attackCd = 1;
       e.armSwing = 0.3;
       const kx = (dxp / (dist || 1)) * 6, kz = (dzp / (dist || 1)) * 6;
-      if (tg.remote) MP.hurtRemote(tp, d.dmg, e.type, kx, 4, kz);
-      else { tp.damage(d.dmg, e.type, e); tp.vx += kx; tp.vz += kz; tp.vy = Math.max(tp.vy, 4); }
+      if (tg.remote) MP.hurtRemote(tp, d.dmg, e.type, kx, 4, kz, e);
+      else { tp.damage(d.dmg, e.type, e, e.x, e.z); tp.vx += kx; tp.vz += kz; tp.vy = Math.max(tp.vy, 4); }
     }
   } else if (d.villager) {
     const st = villagerSteer(game, e, dt);
@@ -508,9 +542,9 @@ function updateMob(game, e, dt) {
 function spawnTick(game) {
   const world = game.world;
   if (MP.role === 'guest') { world.spawnQueue.length = 0; return; }
-  if (game.settings.difficulty === 0) for (const e of game.entities) if (e.mob) { if (MOB_DEFS[e.type].hostile) e.removed = true; else if (e.angryT) e.angryT = 0; }   // Peaceful: no monsters, and nothing stays angry
+  if (difficulty() === 0) for (const e of game.entities) if (e.mob) { if (MOB_DEFS[e.type].hostile) e.removed = true; else if (e.angryT) e.angryT = 0; }   // Peaceful: no monsters, and nothing stays angry
   let passive = 0, hostile = 0;
-  for (const e of game.entities) if (e.mob && !e.dead) { const d = MOB_DEFS[e.type]; if (d.hostile || d.ender) hostile++; else if (!d.villager) passive++; }
+  for (const e of game.entities) if (e.mob && !e.dead) { const d = MOB_DEFS[e.type]; if (d.hostile || d.ender) hostile++; else if (!d.villager && !d.fish) passive++; }
   while (world.spawnQueue.length) {
     const sp = world.spawnQueue.shift(), [type, x, y, z, count] = sp;
     if (type === 'villager') { spawnVillagers(game, sp); continue; }
@@ -521,9 +555,10 @@ function spawnTick(game) {
     }
   }
   if (world.map === 'nether') { netherSpawnTick(game); return; }
+  if (game.settings.animals) fishSpawnTick(game);
   const players = allPlayers(game).filter(p => p.alive && (p === game.player ? game.mode : p.mode) === 'survival');
-  if (!players.length || game.settings.difficulty === 0) return;
-  const cap = (game.settings.difficulty === 1 ? 6 : 12) * Math.min(2, players.length);
+  if (!players.length || difficulty() === 0) return;
+  const cap = (difficulty() === 1 ? 6 : 12) * Math.min(2, players.length);
   if (hostile >= cap) return;
   const pl = players[randInt(0, players.length - 1)];
   const s = game.sky;
@@ -553,10 +588,10 @@ function spawnTick(game) {
 function netherSpawnTick(game) {
   const world = game.world, players = allPlayers(game).filter(p => p.alive && (p === game.player || p.lastState));
   if (!players.length) return;
-  if (game.settings.difficulty > 0) ghastSpawnTick(game, players);
+  if (difficulty() > 0) ghastSpawnTick(game, players);
   let pig = 0, mag = 0;
   for (const e of game.entities) if (e.mob && !e.dead) { if (e.type === 'piglin') pig++; else if (e.type === 'magma') mag++; }
-  const n = Math.min(2, players.length), wantMagma = game.settings.difficulty > 0 && mag < 4 * n && Math.random() < 0.35;
+  const n = Math.min(2, players.length), wantMagma = difficulty() > 0 && mag < 4 * n && Math.random() < 0.35;
   if (!wantMagma && pig >= 10 * n) return;
   const pl = players[randInt(0, players.length - 1)];
   for (let a = 0; a < 6; a++) {
@@ -599,6 +634,7 @@ function mobPose(e, t) {
     const shake = angry && !REDUCED_MOTION ? Math.sin(t * 40) * 0.05 : 0, b = a * 0.5;
     return { head: [head[0] + shake, head[1], shake], jaw: [head[0] + (angry ? 0.35 : 0), head[1], 0], rarm: [hold || -b - sw, 0, 0.05], larm: [hold || b, 0, -0.05], rleg: [b, 0, 0], lleg: [-b, 0, 0] };
   }
+  if (MOB_DEFS[e.type] && MOB_DEFS[e.type].fish) { const w = Math.sin(e.walk * 3) * (e.onGround ? 0.8 : 0.45); return { tail: [0, w, 0], fin2: [0, -w, 0] }; }
   if (e.type === 'ghast') {
     const p = {};
     for (let i = 0; i < 9; i++) p['t' + i] = [Math.sin(t * 2.2 + i * 1.3) * 0.25, 0, Math.cos(t * 1.7 + i) * 0.12];
@@ -618,6 +654,7 @@ function drawEntities(game, s, t, cam) {
     const bw = Math.max(1, e.w + 0.6), low = e.type === 'ghast' ? 2.4 : 0;
     if (!boxInFrustum(R.planes, dx - bw, dy - low, dz - bw, dx + bw, dy + Math.max(2.2, e.h + 0.4), dz + bw)) continue;
     if (e.vehicle) { drawVehicle(game, e, dx, dy, dz, s); continue; }
+    if (mobInvisible(e)) continue;
     const def = MOB_DEFS[e.type], model = MODELS[e.type === 'villager' ? 'villager_' + (e.prof || 'farmer') : e.type === 'ghast' && e.firing > 0 ? 'ghast_fire' : def.model];
     gl.uniform1f(P.u.uBright, brightAt(world, e.x, e.y + e.h * 0.7, e.z, s));
     let tint = e.hurt > 0 || e.dead ? [0.8, 0.1, 0.1, 0.45] : e.frozen > 0 ? [0.6, 0.85, 1, 0.5] : [0, 0, 0, 0];
@@ -637,7 +674,9 @@ function drawEntities(game, s, t, cam) {
     if (e.type === 'magma') {
       const k = e.squash > 0 ? -e.squash * 1.4 : e.onGround ? 0 : clamp((e.vy || 0) / 14, -0.25, 0.4), z = (e.size || 1) * 1.2;
       M4.scale(_eb, _eb, sc * z * (1 - k * 0.5), sc * z * (1 + k), sc * z * (1 - k * 0.5));
-    } else M4.scale(_eb, _eb, sc, sc, sc);
+    } else if (e.type === 'pufferfish') { const z = 1 + (e.puff || 0) * 0.9; M4.scale(_eb, _eb, sc * z, sc * z, sc * z); }
+    else M4.scale(_eb, _eb, sc, sc, sc);
+    if (def.fish && e.pitch) M4.rotX(_eb, _eb, e.pitch);
     drawModel(model, _eb, mobPose(e, t), e.color);
   }
   if (game.view > 0 && game.player.alive) drawPlayerModel(game, s, t, cam);
@@ -666,6 +705,7 @@ function drawEntities(game, s, t, cam) {
     gl.uniform1f(P.u.uBright, brightAt(world, e.x, e.y + 0.3, e.z, s));
     M4.identity(_eb);
     if (e.type === 'proj') { gl.uniform4f(P.u.uTint, 0, 0, 0, 0); drawProjectile(e, dx, dy, dz); continue; }
+    if (e.type === 'xp') { drawXpOrb(e, dx, dy, dz, _eb); continue; }
     if (e.type === 'tnt') { drawTNT(e, dx, dy, dz, _eb); continue; }
     if (e.type === 'item') {
       const cube = isCubeItem(e.id), bob = Math.sin(e.age * 2.5 + e.spin) * 0.06 + 0.08;
@@ -673,9 +713,10 @@ function drawEntities(game, s, t, cam) {
       M4.rotY(_eb, _eb, e.age * 1.6 + e.spin);
       const sc = cube ? 0.25 / 16 : 0.42 / 16;
       M4.scale(_eb, _eb, sc, sc, sc);
-      gl.uniform4f(P.u.uTint, 0, 0, 0, 0);
+      glintOn(isEnchanted(e));
       const mesh = itemMesh(e.id);
       drawMesh(mesh, _eb);
+      if (e.tag) glintOn(false);
       if (e.count > 1 && cube) { M4.translate(_eb, _eb, 3, 3, 3); drawMesh(mesh, _eb); }
     } else if (e.type === 'falling') {
       M4.translate(_eb, _eb, dx, dy, dz);

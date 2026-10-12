@@ -1,6 +1,6 @@
 /* ===================== Interface ===================== */
-const ui = { dirty: true, cursor: null, screen: 'scr-title', inv: null, hoverRef: null, hbEls: [], hearts: -1, food: -1, air: -1, nameT: 0, toastT: 0, back: 'scr-title', px: 0, py: 0 };
-const SCREENS = ['scr-title', 'scr-worlds', 'scr-loading', 'scr-pause', 'scr-settings', 'scr-help', 'scr-death', 'scr-inv', 'scr-mp', 'scr-join', 'scr-char', 'scr-msg'];
+const ui = { dirty: true, cursor: null, screen: 'scr-title', inv: null, hoverRef: null, hbEls: [], hearts: -1, food: -1, air: -1, armor: -1, xp: -1, nameT: 0, toastT: 0, back: 'scr-title', px: 0, py: 0 };
+const SCREENS = ['scr-title', 'scr-worlds', 'scr-loading', 'scr-pause', 'scr-settings', 'scr-help', 'scr-death', 'scr-inv', 'scr-mp', 'scr-join', 'scr-char', 'scr-msg', 'scr-book', 'scr-sign', 'scr-maker', 'scr-board'];
 const SPLASHES = ['Now with Sky Islands!', 'Made for Declan!', '100% blocks!', 'Punch a tree!', 'Watch out for creepers!', 'Blonde hair, blue eyes!',
   'Build a castle!', 'Diamonds hide deep down!', 'Sleep tight!', 'Never dig straight down!', 'Pigs say oink!', 'Build it big!', 'Also try bridges!', 'Torches keep monsters away!',
   'Now with villagers!', 'Hrmm!', 'Trade for emeralds!', 'Play together!', 'Now with the Nether!', 'Mind the lava!', 'Light the portal!'];
@@ -8,6 +8,11 @@ const MAPS = {
   valley: { name: 'Sunny Valley', desc: 'Rolling hills, forests, lakes and beaches, deep caves full of ore, and snowy mountain peaks.' },
   sky: { name: 'Sky Islands', desc: 'Floating islands above a sea of clouds. Build bridges between them, and mind the edge!' },
 };
+/* the saved worlds: each has its own save, and the land it is made of (Hardcore is a Sunny Valley you only get one life in) */
+const SLOTS = { valley: { map: 'valley' }, sky: { map: 'sky' }, hardcore: { map: 'valley', hardcore: true } };
+const HC_LAST_KEY = 'declancraft:v1:hardcore-last';
+/* Hardcore is always at least Normal */
+const difficulty = () => game.hardcore ? Math.max(2, game.settings.difficulty) : game.settings.difficulty;
 
 function uiScale() {
   const w = window.innerWidth, hgt = window.innerHeight;
@@ -23,7 +28,7 @@ function showScreen(id) {
   if (first && !IS_TOUCH && id !== 'scr-inv') setTimeout(() => { try { first.focus({ preventScroll: true }); } catch (e) { /* ignore */ } }, 30);
 }
 function paintStack(node, st) {
-  const key = st ? st.id + ':' + st.count + ':' + (st.dmg || 0) : '';
+  const key = st ? st.id + ':' + st.count + ':' + (st.dmg || 0) + (st.tag ? ':' + JSON.stringify(st.tag).length : '') : '';
   if (node._k === key) return;
   node._k = key;
   node.textContent = '';
@@ -31,6 +36,11 @@ function paintStack(node, st) {
   const ic = document.createElement('div');
   ic.className = 'ic'; ic.style.backgroundImage = 'url(' + ICONS[st.id] + ')';
   node.appendChild(ic);
+  if (isEnchanted(st)) {   // enchanted: a purple shimmer over the picture
+    const g = document.createElement('div');
+    g.className = 'glint'; g.style.webkitMaskImage = g.style.maskImage = 'url(' + ICONS[st.id] + ')';
+    node.appendChild(g);
+  }
   if (st.count > 1) { const ct = document.createElement('span'); ct.className = 'ct'; ct.textContent = st.count; node.appendChild(ct); }
   const tool = toolOf(st.id);
   if (tool && st.dmg) {
@@ -52,7 +62,7 @@ function buildHotbar() {
 }
 function selectSlot(i) {
   const pl = game.player;
-  if (pl.sel !== i) { pl.sel = i; ui.dirty = true; const s = pl.inv[i]; showItemName(s ? itemName(s.id) : ''); }
+  if (pl.sel !== i) { pl.sel = i; ui.dirty = true; showItemName(stackName(pl.inv[i])); }
 }
 function showItemName(name) { const n = el('item-name'); n.textContent = name; n.style.opacity = name ? 1 : 0; ui.nameT = 2; }
 function toast(msg, secs) { const t = el('toast'); t.textContent = msg; t.style.opacity = 1; ui.toastT = secs || 2.5; }
@@ -82,12 +92,28 @@ function renderHUD(dt) {
   }
   const surv = game.mode === 'survival';
   el('stats').style.visibility = surv ? 'visible' : 'hidden';
+  el('xpbar').style.visibility = surv ? 'visible' : 'hidden';
   if (surv) {
     const hp = Math.ceil(pl.health);
-    if (hp !== ui.hearts) { ui.hearts = hp; iconRow(el('hearts'), hp, HUD_ICONS.heart, HUD_ICONS.heartHalf, HUD_ICONS.heartEmpty, 'Health ' + hp / 2 + ' of 10'); }
+    if (hp !== ui.hearts) { ui.hearts = hp; const hc = game.hardcore ? 'hc' : ''; iconRow(el('hearts'), hp, HUD_ICONS[hc ? 'hcHeart' : 'heart'], HUD_ICONS[hc ? 'hcHeartHalf' : 'heartHalf'], HUD_ICONS.heartEmpty, 'Health ' + hp / 2 + ' of 10' + (hc ? ' (Hardcore)' : '')); }
     el('hearts').classList.toggle('shake', hp <= 4 && Math.floor(nowS() * 8) % 2 === 0);
+    const ap = armorPoints(pl.inv);
+    if (ap !== ui.armor) {
+      ui.armor = ap;
+      const a = el('armor');
+      if (ap) iconRow(a, ap, HUD_ICONS.armor, HUD_ICONS.armorHalf, HUD_ICONS.armorEmpty, 'Armor ' + ap / 2 + ' of 10');
+      else { a.textContent = ''; a.setAttribute('aria-label', 'No armor'); }
+    }
     const fd = Math.ceil(pl.food);
     if (fd !== ui.food) { ui.food = fd; iconRow(el('hunger'), fd, HUD_ICONS.food, HUD_ICONS.foodHalf, HUD_ICONS.foodEmpty, 'Hunger ' + fd / 2 + ' of 10'); }
+    const xk = (pl.xpLevel || 0) * 1000 + Math.floor((pl.xpProg || 0) * 100);
+    if (xk !== ui.xp) {
+      ui.xp = xk;
+      const bar = el('xpbar');
+      bar.firstChild.style.width = Math.round((pl.xpProg || 0) * 100) + '%';
+      bar.lastChild.textContent = pl.xpLevel ? String(pl.xpLevel) : '';
+      bar.setAttribute('aria-label', 'Level ' + (pl.xpLevel || 0));
+    }
     const air = pl.headInWater || pl.air < 10 ? pl.air : -1;
     if (air !== ui.air) {
       ui.air = air;
@@ -95,13 +121,14 @@ function renderHUD(dt) {
       for (let i = 0; i < air; i++) { const img = document.createElement('img'); img.alt = ''; img.src = HUD_ICONS.bubble; a.appendChild(img); }
     }
   }
+  renderEffects();
   if (ui.nameT > 0) { ui.nameT -= dt; if (ui.nameT <= 0) el('item-name').style.opacity = 0; }
   if (ui.toastT > 0) { ui.toastT -= dt; if (ui.toastT <= 0) el('toast').style.opacity = 0; }
 }
 
 /* ---------- inventory screens ---------- */
 function slotEl(ref, cls) {
-  const s = h('div', { class: 'slot' + (cls ? ' ' + cls : ''), tabindex: '0', role: 'button' });
+  const s = h('div', { class: 'slot' + (cls ? ' ' + cls : ''), tabindex: '0', role: 'button', 'aria-label': ref.label });
   s._ref = ref;
   s.addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); ui.px = e.clientX; ui.py = e.clientY; clickSlot(ref, e.button === 2 ? 1 : 0, e.shiftKey); moveCursorEl(); });
   s.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); clickSlot(ref, 0, e.shiftKey); } });
@@ -120,8 +147,13 @@ function refStack(ref) {
 function showTip(ref, x, y) {
   const st = refStack(ref), tip = el('tip');
   if (!st) { tip.hidden = true; return; }
-  let html = itemName(st.id);
+  let html = stackName(st).replace(/[<>&]/g, '');
+  if (st.id === I.WRITTEN_BOOK && st.tag && st.tag.book) html += '<small>by ' + st.tag.book.author.replace(/[<>&]/g, '') + '</small>';
   const tool = toolOf(st.id);
+  if (st.tag && st.tag.ench) for (const q of st.tag.ench) if (ENCH[q[0]]) html += '<small class="en">' + enchText(q[0], q[1]) + '</small>';
+  const arm = armorOf(st.id);
+  if (arm) html += '<small>+' + arm.def + ' armor</small>';
+  if (st.id === I.SHIELD) html += '<small>Hold Place to block</small>';
   if (tool) html += '<small>Durability ' + (tool.dur - (st.dmg || 0)) + ' / ' + tool.dur + '</small>';
   if (ref.kind === 'book') html += '<small>' + recipeText(ref.r) + '</small>';
   const f = st.id >= 256 && ITEMS[st.id].food;
@@ -144,6 +176,8 @@ function moveCursorEl() {
   c.style.left = ui.px + 'px'; c.style.top = ui.py + 'px';
 }
 function canAccept(ref, id) { return !ref.accept || ref.accept(id); }
+/* cooking and smelting give experience as the things are taken out */
+function smeltXp(pl, id, n) { const rate = SMELT_XP[id] || 0; if (n > 0 && rate) { const xp = n * rate; addXp(pl, Math.floor(xp) + (Math.random() < xp % 1 ? 1 : 0)); } }
 function clickSlot(ref, button, shift) {
   const inv = ui.inv, pl = game.player;
   if (!inv) return;
@@ -160,21 +194,23 @@ function clickSlot(ref, button, shift) {
   } else if (ref.kind === 'furnaceOut') {
     const s = ref.arr[ref.i];
     if (!s) return;
+    const before = s.count;
     if (shift) { const left = pl.give(s.id, s.count); if (left) s.count = left; else ref.arr[ref.i] = null; }
     else if (!ui.cursor) { ui.cursor = s; ref.arr[ref.i] = null; }
-    else if (ui.cursor.id === s.id && ui.cursor.count + s.count <= maxStack(s.id)) { ui.cursor.count += s.count; ref.arr[ref.i] = null; }
+    else if (stacksWith(ui.cursor, s) && ui.cursor.count + s.count <= maxStack(s.id)) { ui.cursor.count += s.count; ref.arr[ref.i] = null; }
+    smeltXp(pl, s.id, before - (ref.arr[ref.i] ? ref.arr[ref.i].count : 0));
   } else {
     const s = ref.arr[ref.i], cur = ui.cursor;
     if (shift && s) { quickMove(ref); }
     else if (button === 0) {
       if (!cur) { if (s) { ui.cursor = s; ref.arr[ref.i] = null; } }
       else if (!s) { if (canAccept(ref, cur.id)) { ref.arr[ref.i] = cur; ui.cursor = null; } }
-      else if (s.id === cur.id && !toolOf(s.id)) { const k = Math.min(maxStack(s.id) - s.count, cur.count); s.count += k; cur.count -= k; if (cur.count <= 0) ui.cursor = null; }
+      else if (stacksWith(s, cur)) { const k = Math.min(maxStack(s.id) - s.count, cur.count); s.count += k; cur.count -= k; if (cur.count <= 0) ui.cursor = null; }
       else if (canAccept(ref, cur.id)) { ref.arr[ref.i] = cur; ui.cursor = s; }
     } else {
-      if (!cur) { if (s) { const k = Math.ceil(s.count / 2); ui.cursor = { id: s.id, count: k, dmg: s.dmg }; s.count -= k; if (s.count <= 0) ref.arr[ref.i] = null; } }
-      else if (!s) { if (canAccept(ref, cur.id)) { ref.arr[ref.i] = { id: cur.id, count: 1, dmg: cur.dmg }; cur.count--; if (cur.count <= 0) ui.cursor = null; } }
-      else if (s.id === cur.id && s.count < maxStack(s.id) && !toolOf(s.id)) { s.count++; cur.count--; if (cur.count <= 0) ui.cursor = null; }
+      if (!cur) { if (s) { const k = Math.ceil(s.count / 2); ui.cursor = cloneStack(s, k); s.count -= k; if (s.count <= 0) ref.arr[ref.i] = null; } }
+      else if (!s) { if (canAccept(ref, cur.id)) { ref.arr[ref.i] = cloneStack(cur, 1); cur.count--; if (cur.count <= 0) ui.cursor = null; } }
+      else if (stacksWith(s, cur) && s.count < maxStack(s.id)) { s.count++; cur.count--; if (cur.count <= 0) ui.cursor = null; }
       else if (canAccept(ref, cur.id)) { ref.arr[ref.i] = cur; ui.cursor = s; }
     }
     sfx('click');
@@ -190,16 +226,23 @@ function moveInto(st, arr, from, to, accept) {
   for (const pass of [0, 1]) for (let i = from; i < to && st.count > 0; i++) {
     const s = arr[i];
     if (accept && !accept(st.id, i)) continue;
-    if (pass === 0 && s && s.id === st.id && s.count < maxStack(s.id) && !toolOf(s.id)) { const k = Math.min(maxStack(s.id) - s.count, st.count); s.count += k; st.count -= k; }
-    if (pass === 1 && !s) { arr[i] = { id: st.id, count: st.count, dmg: st.dmg }; st.count = 0; }
+    if (pass === 0 && s && stacksWith(s, st) && s.count < maxStack(s.id)) { const k = Math.min(maxStack(s.id) - s.count, st.count); s.count += k; st.count -= k; }
+    if (pass === 1 && !s) { arr[i] = cloneStack(st); st.count = 0; }
   }
 }
 function quickMove(ref) {
   const inv = ui.inv, pl = game.player, st = ref.arr[ref.i];
   if (!st) return;
-  if (ref.arr === pl.inv) {
+  if (ref.arr === pl.inv && ref.i >= 36) {   // armor or the off-hand: back into the bag (in Creative, the hotbar: the bag isn't shown)
+    if (inv.kind === 'creative') { moveInto(st, pl.inv, 0, 9); moveInto(st, pl.inv, 9, 36); } else { moveInto(st, pl.inv, 9, 36); moveInto(st, pl.inv, 0, 9); }
+  } else if (ref.arr === pl.inv) {
+    const a = armorOf(st.id);
+    const wearing = inv.kind === 'inv' || inv.kind === 'creative';
+    if (wearing && a && !pl.inv[ARMOR_INV + a.slot]) { pl.inv[ARMOR_INV + a.slot] = st; ref.arr[ref.i] = null; sfx('armorEquip'); return; }
+    if (wearing && st.id === I.SHIELD && !pl.inv[OFFHAND]) { pl.inv[OFFHAND] = st; ref.arr[ref.i] = null; return; }
     if (inv.kind === 'chest') moveInto(st, inv.tile.slots, 0, 27);
     else if (inv.kind === 'dispenser') moveInto(st, inv.tile.slots, 0, 9);
+    else if (inv.kind === 'brew') { if (potionOf(st.id)) moveInto(st, inv.tile.slots, 0, 3, id => !!potionOf(id)); else if (BREW[st.id] !== undefined || st.id === I.GUNPOWDER) moveInto(st, inv.tile.slots, 3, 4); }
     else if (inv.kind === 'furnace') {
       if (SMELT[st.id] !== undefined) moveInto(st, inv.tile.slots, 0, 1);
       else if (fuelValue(st.id) > 0) moveInto(st, inv.tile.slots, 1, 2);
@@ -221,7 +264,7 @@ function takeCraft(shift) {
   do {
     if (!inv.out) break;
     const out = inv.out;
-    if (shift) { if (pl.give(out.out, out.count) > 0) break; }
+    if (shift) { if (pl.room(out.out) < out.count) break; pl.give(out.out, out.count); }   // (only what fits)
     else {
       if (ui.cursor && (ui.cursor.id !== out.out || ui.cursor.count + out.count > maxStack(out.out))) break;
       if (ui.cursor) ui.cursor.count += out.count; else ui.cursor = { id: out.out, count: out.count };
@@ -259,8 +302,8 @@ function returnGrid() {
   for (let i = 0; i < inv.grid.length; i++) {
     const s = inv.grid[i];
     if (!s) continue;
-    const left = pl.give(s.id, s.count);
-    if (left > 0) dropItem(game, pl.x, pl.y + 1.2, pl.z, s.id, left, true);
+    const left = pl.give(s.id, s.count, s);
+    if (left > 0) dropItem(game, pl.x, pl.y + 1.2, pl.z, s.id, left, true, s);
     inv.grid[i] = null;
   }
 }
@@ -329,12 +372,21 @@ function buildInv() {
     wrap.addEventListener('pointerdown', e => { if (ui.cursor && e.target === wrap) { ui.cursor = null; moveCursorEl(); } });
     panel.appendChild(wrap);
     panel.appendChild(h('p', { class: 'hint', text: 'Click an item to pick it up, then click a hotbar slot. Click the item list while holding something to throw it away.' }));
-    invGrid(panel, game.player.inv, 0, 9, 9);
+    const pl = game.player, wear = h('div', { class: 'grid creative-wear', style: '--cols:9', role: 'group', 'aria-label': 'Armor and shield' });   // what you are wearing, and the shield slot
+    for (let k = 0; k < 4; k++) wear.appendChild(slotEl({ arr: pl.inv, i: ARMOR_INV + k, kind: 'normal', accept: id => { const a = armorOf(id); return !!a && a.slot === k; }, label: ['Helmet', 'Chestplate', 'Leggings', 'Boots'][k] }, 'armor-slot sil' + k));
+    wear.appendChild(slotEl({ arr: pl.inv, i: OFFHAND, kind: 'normal', accept: id => id === I.SHIELD, label: 'Shield' }, 'armor-slot sil4'));
+    panel.appendChild(wear);
+    invGrid(panel, pl.inv, 0, 9, 9);
   } else {
     if (inv.kind === 'inv' || inv.kind === 'craft') {
       const top = h('div', { class: 'inv-top' });
-      if (inv.kind === 'inv') top.appendChild(h('div', { class: 'char-box' }, h('canvas', { id: 'inv-char', 'aria-label': playerName() })));
-      else top.appendChild(h('h3', { text: 'Crafting' }));
+      if (inv.kind === 'inv') {   // armor down the side of your character, and the off-hand (shield) slot
+        const pl = game.player, col = h('div', { class: 'armor-col' });
+        for (let k = 0; k < 4; k++) col.appendChild(slotEl({ arr: pl.inv, i: ARMOR_INV + k, kind: 'normal', accept: id => { const a = armorOf(id); return !!a && a.slot === k; }, label: ['Helmet', 'Chestplate', 'Leggings', 'Boots'][k] }, 'armor-slot sil' + k));
+        top.appendChild(col);
+        top.appendChild(h('div', { class: 'char-box' }, h('canvas', { id: 'inv-char', 'aria-label': playerName() })));
+        top.appendChild(slotEl({ arr: pl.inv, i: OFFHAND, kind: 'normal', accept: id => id === I.SHIELD, label: 'Shield' }, 'armor-slot sil4 off'));
+      } else top.appendChild(h('h3', { text: 'Crafting' }));
       const craft = h('div', { class: 'craft' });
       invGrid(craft, inv.grid, 0, inv.n * inv.n, inv.n, { kind: 'normal' });
       craft.appendChild(h('div', { class: 'arrow' }));
@@ -363,6 +415,8 @@ function buildInv() {
       panel.appendChild(g);
       panel.appendChild(h('p', { class: 'hint', text: 'Put a lever or button next to it. Each time it is switched on, it shoots one thing: arrows fly, TNT is lit, eggs hatch.' }));
     } else if (inv.kind === 'trade') { const tp = h('div', { class: 'panel trade-panel' }); buildTrade(tp); root.appendChild(tp); }
+    else if (inv.kind === 'ench') buildEnchant(panel);
+    else if (inv.kind === 'brew') buildBrew(panel);
     panel.appendChild(h('h3', { text: 'Inventory' }));
     playerSection(panel);
     if (inv.grid) {
@@ -374,6 +428,7 @@ function buildInv() {
     }
   }
   root.appendChild(panel);
+  if (inv.kind === 'brew' && inv.book) buildBrewBook(root);
   if (inv.grid && inv.book) {
     const book = h('div', { class: 'panel book' });
     book.appendChild(h('h3', { text: inv.n === 3 ? 'Recipes' : 'Recipes (use a crafting table for bigger ones)' }));
@@ -390,6 +445,7 @@ function buildInv() {
 function refreshInv() {
   const inv = ui.inv;
   if (!inv) return;
+  if (inv.kind === 'ench') renderEnchOpts();
   for (const s of inv.els) {
     const ref = s._ref;
     if (ref.kind === 'creative' || ref.kind === 'book') { if (!s._k) paintStack(s, refStack(ref)); continue; }
@@ -399,6 +455,7 @@ function refreshInv() {
 }
 function updateFurnaceUI() {
   const inv = ui.inv;
+  if (inv && inv.kind === 'brew') { updateBrewUI(); refreshInv(); return; }
   if (!inv || inv.kind !== 'furnace') return;
   const t = inv.tile, fl = el('fur-flame'), ar = el('fur-arrow');
   if (fl) fl.style.height = (t.burnMax ? clamp(t.burn / t.burnMax, 0, 1) * 100 : 0) + '%';
@@ -409,9 +466,10 @@ function closeInv() {
   const inv = ui.inv, pl = game.player;
   if (!inv) return;
   returnGrid();
+  if (inv.kind === 'ench') returnEnchant(inv);
   if (ui.cursor) {
-    const left = pl.give(ui.cursor.id, ui.cursor.count);
-    if (left > 0 && game.mode === 'survival') dropItem(game, pl.x, pl.y + 1.2, pl.z, ui.cursor.id, left, true);
+    const left = pl.give(ui.cursor.id, ui.cursor.count, ui.cursor);
+    if (left > 0 && game.mode === 'survival') dropItem(game, pl.x, pl.y + 1.2, pl.z, ui.cursor.id, left, true, ui.cursor);
     ui.cursor = null;
   }
   ui.inv = null; ui.hoverRef = null;
@@ -421,6 +479,7 @@ function closeInv() {
   game.uiOpen = false;
   ui.dirty = true;
   if (inv.kind === 'chest' || inv.kind === 'dispenser') sfx('chest');
+  if (ui.screen === 'scr-inv') ui.fx = '';
   if (inv.kind === 'trade') { inv.villager.tradeT = 0; if (inv.villager.proxy) MP.send({ t: 'trade', e: inv.villager.nid, end: 1 }); }
   if (inv.tile && inv.tile.remote) MP.closeTile(inv.tile);
 }
@@ -498,18 +557,21 @@ function buildWorldCards() {
   const wrap = el('world-cards');
   wrap.textContent = '';
   el('worlds-h').textContent = ui.hostMode ? 'Choose a World to Share' : 'Choose a World';
-  for (const id of ['valley', 'sky']) {
-    const info = MAPS[id], save = loadSaveMeta(id);
-    const card = h('article', { class: 'card' });
+  for (const id of ['valley', 'sky', 'hardcore']) {
+    const hc = !!SLOTS[id].hardcore, info = hc ? { name: 'Hardcore', desc: 'Sunny Valley, but you only get one life! If you die, the world is gone and you start a new one.' } : MAPS[id], save = loadSaveMeta(id);
+    const card = h('article', { class: 'card' + (hc ? ' hardcore' : '') });
     const cv = h('canvas', { 'aria-hidden': 'true' });
-    drawThumb(cv, id);
+    drawThumb(cv, SLOTS[id].map);
     card.appendChild(cv);
     card.appendChild(h('h3', { text: info.name }));
     card.appendChild(h('p', { text: info.desc }));
-    card.appendChild(h('p', { class: 'status', text: save ? 'Saved world - ' + (save.mode === 'creative' ? 'Creative' : 'Survival') + ', day ' + (save.day || 1) + (save.nether ? ', in the Nether' : '') : 'New world' }));
+    let last = null;
+    if (hc) { try { last = JSON.parse(store.get(HC_LAST_KEY) || 'null'); } catch (e) { last = null; } }
+    card.appendChild(h('p', { class: 'status', text: save ? 'Saved world - ' + (hc ? 'Hardcore' : save.mode === 'creative' ? 'Creative' : 'Survival') + ', day ' + (save.day || 1) + (save.nether ? ', in the Nether' : '')
+      : 'New world' + (last && last.days ? '. Last time you lasted ' + last.days + (last.days === 1 ? ' day' : ' days') + '.' : '') }));
     const actions = h('div', { class: 'actions' });
     let mode = save ? save.mode : 'survival';
-    if (!save) {
+    if (!save && !hc) {
       const modes = h('div', { class: 'modes', role: 'group', 'aria-label': 'Game mode' });
       const b1 = h('button', { type: 'button', class: 'btn', 'aria-pressed': 'true' }, 'Survival');
       const b2 = h('button', { type: 'button', class: 'btn', 'aria-pressed': 'false' }, 'Creative');
@@ -526,13 +588,14 @@ function buildWorldCards() {
       fresh.addEventListener('click', () => {
         sfx('click');
         const conf = h('div', { class: 'confirm' });
-        conf.appendChild(h('p', { text: 'This replaces your saved ' + info.name + ' world. Pick a mode for the new one:' }));
+        conf.appendChild(h('p', { text: 'This replaces your saved ' + info.name + ' world.' + (hc ? '' : ' Pick a mode for the new one:') }));
         const row = h('div', { class: 'modes' });
-        const s1 = h('button', { type: 'button', class: 'btn danger' }, 'Survival');
+        const s1 = h('button', { type: 'button', class: 'btn danger' }, hc ? 'New Hardcore World' : 'Survival');
         const s2 = h('button', { type: 'button', class: 'btn danger' }, 'Creative');
         s1.addEventListener('click', () => game.startWorld(id, 'survival', true));
         s2.addEventListener('click', () => game.startWorld(id, 'creative', true));
-        row.append(s1, s2);
+        row.append(s1);
+        if (!hc) row.append(s2);
         const cancel = h('button', { type: 'button', class: 'btn' }, 'Keep my world');
         cancel.addEventListener('click', () => { conf.remove(); fresh.hidden = false; });
         conf.append(row, cancel);
@@ -583,7 +646,7 @@ function buildSettings() {
       b.addEventListener('click', () => { S[d.key] = !S[d.key]; upd(); sfx('click'); game.applySettings(); });
       box.appendChild(b);
     } else {
-      box.appendChild(h('span', { class: 'lbl', id: id + '-l', text: d.label }));
+      box.appendChild(h('span', { class: 'lbl', id: id + '-l', text: d.label + (d.key === 'difficulty' && game.hardcore ? ' (Hardcore is always Normal)' : '') }));
       const seg = h('div', { class: 'seg', role: 'group', 'aria-labelledby': id + '-l' });
       d.options.forEach((o, i) => {
         const b = h('button', { type: 'button', class: 'btn', 'aria-pressed': S[d.key] === i ? 'true' : 'false' }, o);
@@ -630,7 +693,7 @@ function buildHelp() {
     '<li>Cook meat and smelt ore in a furnace.</li>' +
     '<li>Zombies burn in sunlight. Creepers hiss before they explode.</li>' +
     '<li>Right-click TNT to light it, then run!</li>' +
-    '<li>Commands: /time set day, /gamemode creative, /give diamond 5, /summon pig, /summon enderman, /summon car, /locate village, /spawnpoint, /help.</li>' +
+    '<li>Commands: /time set day, /gamemode creative, /give diamond 5, /summon pig, /summon enderman, /summon boat, /locate village, /spawnpoint, /help.</li>' +
     '<li>Your world saves by itself in this browser.</li></ul></section>' +
     '<section><h3>The Nether</h3><ul>' +
     '<li>Build a frame of obsidian 4 wide and 5 tall (the corners can be left out), then use flint and steel on the inside to light it.</li>' +
@@ -666,6 +729,37 @@ function buildHelp() {
     '<li>Minecart (5 iron): put it on a rail and tap it to get in. Push forward to roll along. Press Sneak to get out.</li>' +
     '<li>Car (glass, 3 iron and 2 coal): put it on the ground and tap it to get in. The joystick (or W A S D) drives and steers. Tap the screen to honk. Press Sneak to get out.</li>' +
     '<li>Hit a minecart or car a few times to pick it back up.</li></ul></section>' +
+    '<section><h3>Making characters</h3><ul>' +
+    '<li>Tap Playing as... on the title screen. Mommy, Daddy, Cooper, Lily, Michael and Luca are there already: tap one to play as them.</li>' +
+    '<li>Make a character to make your own. Pick the face (an evil grin, big ears, a big head...), hair (pigtails too), glasses, clothes, shoes and hat. Surprise me! picks everything for you.</li>' +
+    '<li>Give your character a name and Save. Tap Change to change one again.</li></ul></section>' +
+    '<section><h3>Armor and shields</h3><ul>' +
+    '<li>Make a helmet, chestplate, leggings and boots from leather, gold, iron or diamonds. Tap Place while holding one to put it on, or put it in the slots beside your character in the inventory.</li>' +
+    '<li>Shield (six planks and an iron ingot): put it in the slot beside your armor, then hold Place to hide behind it.</li></ul></section>' +
+    '<section><h3>Experience and enchanting</h3><ul>' +
+    '<li>Green orbs come from monsters, ores, cooking, fishing and trading. They fill the experience bar.</li>' +
+    '<li>Enchanting table (a book, two diamonds and four obsidian): put in a tool, weapon or armor and some lapis lazuli (found deep underground), then pick an enchantment. Enchanted things shine.</li>' +
+    '<li>Bookshelves around the table, with a gap of one block, make the enchantments stronger.</li></ul></section>' +
+    '<section><h3>Books and signs</h3><ul>' +
+    '<li>Sugar cane grows by water. Make paper from it, and books from paper and leather.</li>' +
+    '<li>A book and quill (a book, a feather and coal) can be written in. Sign it and anyone can read it. Librarians sell story books.</li>' +
+    '<li>Signs (six planks and a stick) go on the ground or on a wall. Tap one to change what it says.</li></ul></section>' +
+    '<section><h3>Potions</h3><ul>' +
+    '<li>Fill glass bottles at some water. Put them in a brewing stand with one ingredient: sugar for Swiftness, an apple for Healing, a feather for Leaping, glowstone for Night Vision, glass for Invisibility, a pufferfish for Water Breathing, rotten flesh for Poison, and more (tap Potion recipes).</li>' +
+    '<li>Add gunpowder to make splash potions to throw.</li></ul></section>' +
+    '<section><h3>Fish and fishing</h3><ul>' +
+    '<li>Fishing rod (three sticks and two string): tap to cast into water. When the float dips under with a splash, tap again quickly!</li>' +
+    '<li>You might catch a fish, treasure, or an old boot. Pufferfish puff up and sting, so watch out.</li></ul></section>' +
+    '<section><h3>Boats and the submarine</h3><ul>' +
+    '<li>Boat (five planks): tap water to put it on, tap it to get in, and row with the joystick. You can fish from a boat.</li>' +
+    '<li>Submarine (glass, iron and coal): push forward to go where you look, even under water. You can breathe inside it. Tap for a sonar ping!</li>' +
+    '<li>Press Sneak to get out.</li></ul></section>' +
+    '<section><h3>TVs and coloring boards</h3><ul>' +
+    '<li>TV (iron, glass and coal): tap it to turn it on. You can not pick what is on!</li>' +
+    '<li>Coloring board (eight sticks round a piece of paper): tap it to color in a picture. Fill colors a whole part at once.</li></ul></section>' +
+    '<section><h3>Hardcore</h3><ul>' +
+    '<li>In the Hardcore world you only get one life. If you die, the world is gone and you start a new one.</li>' +
+    '<li>No Creative and no cheats in Hardcore. Good luck!</li></ul></section>' +
     '<section><h3>Villagers and trading</h3><ul>' +
     '<li>Villages have a well, houses and gardens. A new Sunny Valley world starts next to one. Type /locate village to find one.</li>' +
     '<li>Tap a villager (or right-click) to trade. Each job trades different things.</li>' +

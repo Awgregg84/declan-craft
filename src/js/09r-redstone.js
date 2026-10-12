@@ -119,21 +119,21 @@ function dispense(game, x, y, z, t) {
     MP.tileChanged(t);
     return;
   }
-  const e = dropForNearest(game, fx, fy - 0.15, fz, id, 1, st.dmg);
+  const e = dropForNearest(game, fx, fy - 0.15, fz, id, 1, st);
   if (e) { e.vx = dx * 5 + spread(); e.vy = dy * 5 + 1.5; e.vz = dz * 5 + spread(); }
   take(); sfx('dispense', fx, fy, fz); MP.sfx('dispense', fx, fy, fz);
 }
 /* playing together, things only exist on one iPad: something that comes out of a machine goes to whoever is
    nearest (a guest gets it on their screen, right there) */
-function dropForNearest(game, x, y, z, id, n, dmg) {
+function dropForNearest(game, x, y, z, id, n, ex) {
   const pl = game.player;
   let best = null, bd = pl.alive ? Math.hypot(pl.x - x, pl.y - y, pl.z - z) : 1e9;
   if (MP.role === 'host') for (const r of MP.remotes.values()) { if (!r.alive || !r.lastState) continue; const d = Math.hypot(r.tx - x, r.ty - y, r.tz - z); if (d < bd) { bd = d; best = r; } }
-  if (best) { MP.sendDrops(best, [[id, n, dmg || 0]], x, y, z); return null; }
-  const e = dropItem(game, x, y, z, id, n, true);
-  if (e && dmg) e.dmg = dmg;
-  return e;
+  if (best) { MP.sendDrops(best, [dropEntry(id, n, ex)], x, y, z); return null; }
+  return dropItem(game, x, y, z, id, n, true, ex);
 }
+/* one thing sent to a guest to drop for them: [id, count, wear, tag] */
+const dropEntry = (id, n, ex) => [id, n, (ex && ex.dmg) || 0, (ex && ex.tag) || 0];
 /* a player flips a lever or presses a button (on a guest the host takes it from there) */
 function useSwitch(game, x, y, z, id) {
   const w = game.world, d = w.getData(x, y, z);

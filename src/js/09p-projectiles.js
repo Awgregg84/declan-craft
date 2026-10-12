@@ -7,6 +7,8 @@ const PROJ = {
   fireball: { grav: 0, drag: 1, r: 0.4 },    // a ghast's: blows up what it hits (and can be hit back)
   charge: { grav: 0, drag: 1, r: 0.2 },      // a fire charge: burns what it hits
   pearl: { grav: 20, drag: 0.99, r: 0.12 },  // an ender pearl: takes its thrower where it lands
+  xpb: { grav: 20, drag: 0.99, r: 0.12 },    // a Bottle o' Enchanting: breaks into experience
+  potion: { grav: 20, drag: 0.99, r: 0.12 }, // a splash potion: splashes everyone near where it breaks
 };
 const PROJ_KINDS = Object.keys(PROJ);
 const isPlayerOwner = o => o === 'me' || (typeof o === 'string' && o !== 'disp' && o !== 'mob');
@@ -17,19 +19,23 @@ function shootProjectile(game, kind, x, y, z, vx, vy, vz, o) {
   e.owner = (o && o.owner) || null; e.ownerNid = (o && o.ownerNid) || 0;
   e.dmg = (o && o.dmg) || 0; e.crit = !!(o && o.crit); e.pickup = !!(o && o.pickup); e.tok = (o && o.tok) || '';
   e.ghost = !!(o && o.ghost);
+  e.kb = (o && o.kb) || 0; e.fire = (o && o.fire) || 0;   // Punch and Flame
+  e.pk = (o && o.pk) || 0;   // which potion
   game.entities.push(e);
   return e;
 }
 /* a player's shot: here at once; on a guest, the host is asked to make the real one */
 function playerShoot(game, kind, vel, o) {
-  const pl = game.player, [dx, dy, dz] = pl.lookDir(), [ex, ey, ez] = pl.eyePos();
+  const pl = game.player, [ex, ey, ez] = pl.eyePos();
+  let [dx, dy, dz] = pl.lookDir();
+  if (o.yawOff) { const c = Math.cos(o.yawOff), s = Math.sin(o.yawOff); [dx, dz] = [dx * c + dz * s, -dx * s + dz * c]; }   // (Multishot's side arrows)
   const x = ex + dx * 0.5, y = ey - 0.12 + dy * 0.5, z = ez + dz * 0.5;
   let vx = dx * vel, vy = dy * vel, vz = dz * vel;
   if (kind === 'pearl') vy += 2;
   if (MP.role === 'guest') {
     const tok = randomId(6);
-    MP.send({ t: 'shoot', k: kind, p: [r2(x), r2(y), r2(z)], v: [r2(vx), r2(vy), r2(vz)], d: o.dmg || 0, c: o.crit ? 1 : 0, tok, s: o.snd });
-    shootProjectile(game, kind, x, y, z, vx, vy, vz, { owner: 'me', ghost: true, tok, crit: o.crit });
+    MP.send({ t: 'shoot', k: kind, p: [r2(x), r2(y), r2(z)], v: [r2(vx), r2(vy), r2(vz)], d: o.dmg || 0, c: o.crit ? 1 : 0, tok, s: o.snd, kb: o.kb || 0, fl: o.fire ? 1 : 0, np: o.pickup === false ? 1 : 0, pk: o.pk || 0 });
+    shootProjectile(game, kind, x, y, z, vx, vy, vz, { owner: 'me', ghost: true, tok, crit: o.crit, fire: o.fire, pk: o.pk });
     return;
   }
   shootProjectile(game, kind, x, y, z, vx, vy, vz, Object.assign({ owner: 'me' }, o));
@@ -58,7 +64,7 @@ function projTarget(game, e, x, y, z, nx, ny, nz, maxT) {
 }
 function hurtPlayerBy(game, p, who, dmg, cause, kx, ky, kz) {
   if (who === 'remote') { if (p.mode === 'survival') MP.hurtRemote(p, dmg, cause, kx, ky, kz); return; }
-  p.damage(dmg, cause);
+  p.damage(dmg, cause, null, p.x - kx, p.z - kz);   // (it came from the way it pushes)
   p.vx += kx; p.vz += kz; p.vy = Math.max(p.vy, ky);
 }
 function updateProjectile(game, e, dt) {
@@ -95,6 +101,10 @@ function projTrail(e, dt) {
     if (Math.random() < dt * 12) smokeParticles(e.x, e.y, e.z, 1, 0.15, false);
   } else if (e.kind === 'pearl') {
     if (Math.random() < dt * 25) PARTICLES.push({ x: e.x, y: e.y, z: e.z, vx: randRange(-0.3, 0.3), vy: randRange(-0.3, 0.3), vz: randRange(-0.3, 0.3), life: 0.5, tile: TILE.ender_dot, u: 0, v: 0, us: 16, size: 0.05, grav: 0, bright: 1 });
+  } else if (e.kind === 'xpb') {
+    if (Math.random() < dt * 25) PARTICLES.push({ x: e.x, y: e.y, z: e.z, vx: randRange(-0.3, 0.3), vy: randRange(-0.3, 0.3), vz: randRange(-0.3, 0.3), life: 0.5, tile: TILE.xp_orb, u: 0, v: 0, us: 16, size: 0.04, grav: 0, bright: 1 });
+  } else if (e.fire && Math.random() < dt * 30) {
+    PARTICLES.push({ x: e.x, y: e.y, z: e.z, vx: 0, vy: 0.5, vz: 0, life: 0.3, tile: TILE.flame, u: 0, v: 0, us: 16, size: 0.07, grav: -0.5, bright: 1 });
   } else if (e.crit && Math.random() < dt * 40) {
     PARTICLES.push({ x: e.x, y: e.y, z: e.z, vx: randRange(-0.4, 0.4), vy: randRange(-0.4, 0.4), vz: randRange(-0.4, 0.4), life: 0.35, tile: TILE.spark, u: 0, v: 0, us: 16, size: 0.05, grav: 0, bright: 1 });
   }
@@ -107,6 +117,8 @@ function projHit(game, e, x, y, z, nx, ny, nz, ent, blk) {
     return;
   }
   if (k === 'pearl') { e.removed = true; pearlLand(game, e, x - nx * 0.4, y - ny * 0.4, z - nz * 0.4, blk); return; }
+  if (k === 'xpb') { e.removed = true; xpBottleBreak(game, x - nx * 0.3, y - ny * 0.3, z - nz * 0.3); return; }
+  if (k === 'potion') { e.removed = true; splashPotion(game, x - nx * 0.3, y - ny * 0.3, z - nz * 0.3, clamp(e.pk | 0, 0, POTIONS.length - 1)); return; }
   if (k === 'fireball') {
     e.removed = true;
     if (ent && !ent.player) hurtMob(game, ent.o, ent.o.type === 'ghast' && e.deflected ? 1000 : 4, x - nx, z - nz, cause, by);
@@ -128,7 +140,7 @@ function projHit(game, e, x, y, z, nx, ny, nz, ent, blk) {
     if (!ent.player && ent.o.type === 'enderman') { e.passed = ent.o.nid; enderTeleport(game, ent.o, 'dodge'); return; }   // endermen dodge arrows; it flies on
     e.removed = true;
     const sp = Math.hypot(e.vx, e.vy, e.vz), dmg = Math.max(1, Math.round(e.dmg * Math.min(1, sp / 30 + 0.2)));
-    if (!ent.player) hurtMob(game, ent.o, dmg, ent.o.x - nx, ent.o.z - nz, cause, by);
+    if (!ent.player) hurtMob(game, ent.o, dmg, ent.o.x - nx, ent.o.z - nz, cause, by, e.kb || e.fire ? { kb: e.kb * 0.8, fire: e.fire } : undefined);
     else hurtPlayerBy(game, ent.o, ent.player, dmg, 'arrow', nx * 4, 2.5, nz * 4);
     sfx('arrowHit', x, y, z);
     return;
@@ -137,7 +149,7 @@ function projHit(game, e, x, y, z, nx, ny, nz, ent, blk) {
   e.x = x - nx * 0.1; e.y = y - ny * 0.1; e.z = z - nz * 0.1;
   e.sx = blk.x; e.sy = blk.y; e.sz = blk.z;
   sfx('arrowHit', x, y, z, 0.7);
-  if (BLOCKS[blk.id] && BLOCKS[blk.id].tnt && e.crit && isPlayerOwner(e.owner)) { }   // (fire arrows would light TNT; these don't)
+  if (BLOCKS[blk.id] && BLOCKS[blk.id].tnt && e.fire) { e.removed = true; igniteTNT(game, blk.x, blk.y, blk.z); }   // a flaming arrow lights TNT
 }
 /* walk over an arrow you shot (in Survival) to pick it back up */
 function pickUpArrow(game, e) {
@@ -205,11 +217,12 @@ function drawProjectile(e, dx, dy, dz) {
     drawMesh(fireballMesh(), _pj);
     return;
   }
-  if (e.kind === 'pearl') {
+  if (e.kind === 'pearl' || e.kind === 'xpb' || e.kind === 'potion') {
     M4.rotY(_pj, _pj, R.cam.yaw);
+    if (e.kind === 'potion') M4.rotZ(_pj, _pj, e.age * 8);
     M4.scale(_pj, _pj, 0.3 / 16, 0.3 / 16, 0.3 / 16);
     M4.translate(_pj, _pj, 0, -8, 0);
-    drawMesh(tileMesh('ender_pearl'), _pj);
+    drawMesh(tileMesh(e.kind === 'pearl' ? 'ender_pearl' : e.kind === 'xpb' ? 'xp_bottle' : 'splash_' + clamp(e.pk | 0, 0, POTIONS.length - 1)), _pj);
     return;
   }
   // arrows point along their flight (the picture has the tip up and to the right)

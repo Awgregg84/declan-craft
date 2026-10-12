@@ -278,7 +278,18 @@ function genModule(B, P) {
         const lx = (er() * 16) | 0, lz = (er() * 16) | 0, ey = 5 + ((er() * 44) | 0), keep = er();
         if (keep < ((cols[lz * 16 + lx] & 255) > 80 ? 0.8 : 0.2) && blocks[idx(lx, ey, lz)] === B.STONE) blocks[idx(lx, ey, lz)] = B.EMERALD_ORE;
       }
+      oreVeins(blocks, mulberry32(hash3(seed + 57, cx, cz)), B.STONE, [[B.LAPIS_ORE, 2, 5, 32, 6]]);   // lapis lazuli, deep (its own stream too)
       for (let lz = 0; lz < 16; lz++) for (let lx = 0; lx < 16; lx++) { const cv = cols[lz * 16 + lx]; decorate(blocks, r, lx, lz, cv & 255, cv >> 8); }
+      // sugar cane on the shore, right next to the water (its own random stream, so older worlds keep the rest)
+      const cr = mulberry32(hash3(seed + 71, cx, cz));
+      for (let k = 0; k < 24; k++) {
+        const lx = 1 + ((cr() * 14) | 0), lz = 1 + ((cr() * 14) | 0), tall = 1 + ((cr() * 3) | 0), roll = cr(), h = cols[lz * 16 + lx] & 255;
+        if (h !== SEA || roll > 0.55 || h + 3 >= WH) continue;
+        const top = blocks[idx(lx, h, lz)];
+        if (top !== B.GRASS && top !== B.SAND && top !== B.DIRT) continue;
+        if (blocks[idx(lx + 1, h, lz)] !== B.WATER && blocks[idx(lx - 1, h, lz)] !== B.WATER && blocks[idx(lx, h, lz + 1)] !== B.WATER && blocks[idx(lx, h, lz - 1)] !== B.WATER) continue;
+        for (let t = 1; t <= tall; t++) { if (blocks[idx(lx, h + t, lz)] !== B.AIR) break; blocks[idx(lx, h + t, lz)] = B.SUGAR_CANE; }
+      }
       // trees from this chunk and its neighbours (so canopies cross borders cleanly)
       for (let ncz = cz - 1; ncz <= cz + 1; ncz++) for (let ncx = cx - 1; ncx <= cx + 1; ncx++) {
         const tr = mulberry32(hash3(seed + 7, ncx, ncz));
@@ -408,7 +419,13 @@ function genModule(B, P) {
       for (let i = profs.length - 1; i > 0; i--) { const j = (r() * (i + 1)) | 0; const t = profs[i]; profs[i] = profs[j]; profs[j] = t; }
       const n = Math.max(2, Math.min(6, houses.length + 1));
       if (houses.some(hs => hs.kind === 'smith') && profs.indexOf('toolsmith') >= n) { profs.splice(profs.indexOf('toolsmith'), 1); profs.unshift('toolsmith'); }
-      return { id: 'v' + gx + '_' + gz, x: vx, z: vz, y: vy, houses, gardens, paths, profs: profs.slice(0, n), bbox: [vx - 18, vz - 18, vx + 18, vz + 18] };
+      const people = profs.slice(0, n);
+      if (houses.some(hs => hs.kind === 'medium')) people.push('librarian');   // a house with bookshelves has a librarian
+      if (houses.some(hs => hs.kind === 'smith')) people.push('armorer');
+      let wet = false;   // a village by the water has a fisherman
+      for (let a = 0; a < 12 && !wet; a++) wet = (column(Math.round(vx + Math.cos(a * Math.PI / 6) * 20), Math.round(vz + Math.sin(a * Math.PI / 6) * 20)) & 255) < SEA;
+      if (wet || gardens.length >= 2) people.push('fisherman');
+      return { id: 'v' + gx + '_' + gz, x: vx, z: vz, y: vy, houses, gardens, paths, profs: people, bbox: [vx - 18, vz - 18, vx + 18, vz + 18] };
     }
     function buildVillage(blocks, data, cx, cz, v, cols) {
       const x0 = cx * 16, z0 = cz * 16;
@@ -479,7 +496,11 @@ function genModule(B, P) {
       if (kind === 'smith') { P(c1[0], y + 1, c1[1], B.FURNACE); P(c2[0], y + 1, c2[1], B.FURNACE); P(f1[0], y + 1, f1[1], B.CRAFTING_TABLE); }
       else {
         P(c1[0], y + 1, c1[1], B.BED); P(c2[0], y + 1, c2[1], B.CRAFTING_TABLE);
-        if (kind === 'medium') { P(f1[0], y + 1, f1[1], B.BOOKSHELF); P(f1[0], y + 2, f1[1], B.BOOKSHELF); }
+        if (kind === 'medium') {
+          P(f1[0], y + 1, f1[1], B.BOOKSHELF); P(f1[0], y + 2, f1[1], B.BOOKSHELF);
+          const f2 = [dx - nx - sx * ((hs.w >> 1) - 1) * (ns ? 1 : 0), dz - nz - sz * ((hs.d >> 1) - 1) * (ns ? 0 : 1)];
+          P(f2[0], y + 1, f2[1], B.CHEST, (DOOR_F[door] ^ 2) | 8);   // a chest with books and things in it, facing into the room (8: not opened yet)
+        }
       }
     }
     function buildGarden(P, g, hAt) {
@@ -603,6 +624,7 @@ function genModule(B, P) {
         const lx = (er() * 16) | 0, lz = (er() * 16) | 0, ey = 20 + ((er() * 90) | 0);
         if (er() < 0.35 && blocks[idx(lx, ey, lz)] === B.STONE) blocks[idx(lx, ey, lz)] = B.EMERALD_ORE;
       }
+      oreVeins(blocks, mulberry32(hash3(seed + 57, cx, cz)), B.STONE, [[B.LAPIS_ORE, 2, 20, 110, 6]]);
       for (let lz = 0; lz < 16; lz++) for (let lx = 0; lx < 16; lx++) {
         const t = tops[lz * 16 + lx];
         if (t > 0) decorate(blocks, r, lx, lz, t, bios[lz * 16 + lx]);
@@ -778,7 +800,11 @@ function genModule(B, P) {
     const g = getGen(map, seed);
     const res = g.generate(cx, cz, vb && vb.length ? new Set(vb) : null);
     const blocks = res.blocks;
-    if (edits) for (let k = 0; k < edits.length; k += 2) blocks[edits[k]] = edits[k + 1] & 255;
+    if (edits && edits.length) {
+      for (let k = 0; k < edits.length; k += 2) blocks[edits[k]] = edits[k + 1] & 255;
+      // sugar cane is newer than some saved worlds: where the ground under it has since been dug away, it isn't there
+      for (let i = 256; i < blocks.length; i++) if (blocks[i] === B.SUGAR_CANE) { const u = blocks[i - 256]; if (u !== B.SUGAR_CANE && u !== B.SAND && u !== B.DIRT && u !== B.GRASS) blocks[i] = B.AIR; }
+    }
     const light = computeLight(blocks);
     return { blocks, light, spawns: res.spawns, data: res.data || null };
   }

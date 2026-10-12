@@ -171,7 +171,17 @@ const PAL = {
   stone: [C('#8f8f8f'), C('#b3b3b3'), C('#5f5f5f'), C('#2c2c2c')],
   iron: [C('#dcdcdc'), C('#ffffff'), C('#9a9a9a'), C('#444444')],
   diamond: [C('#4fe3df'), C('#bafff9'), C('#1f9fa6'), C('#0e4a50')],
+  gold: [C('#f2cf3a'), C('#fff39a'), C('#b88a10'), C('#5a3f05')],
+  leather: [C('#8a5a32'), C('#ad7a4a'), C('#5e3a1e'), C('#2a1808')],
 };
+/* a 16x16 mask drawn with rows of '#' */
+const rowsMask = rows => mask((x, y) => (rows[Math.floor(y)] || '')[Math.floor(x)] === '#');
+const ARMOR_SHAPES = [
+  ['', '', '', '....########', '...##########', '..############', '..############', '..####....####', '..###......###', '..###......###', '..##........##'],
+  ['', '', '...###....###', '..#####..#####', '..############', '..############', '...##########', '....########', '....########', '....########', '....########', '....########', '....########'],
+  ['', '', '...##########', '...##########', '...##########', '...####..####', '...###....###', '...###....###', '...###....###', '...###....###', '...###....###', '...###....###'],
+  ['', '', '', '', '', '...###....###', '...###....###', '...###....###', '...###....###', '..####....####', '..####....####'],
+];
 
 /* ---------- block tiles ---------- */
 function buildTiles() {
@@ -579,7 +589,9 @@ function buildTiles() {
       if (Math.abs(d - 4.5) < 0.75 || Math.abs(d - 12) < 0.75) p.px(x, y, (d < 4.5 || (d > 8 && d < 12)) ? C('#8a8a8a') : C('#c8c8c8'));
     }
   });
+  buildNewBlockTiles();
   buildItemTiles();
+  buildNewItemTiles();
 }
 
 /* ---------- item sprites ---------- */
@@ -654,7 +666,7 @@ function buildItemTiles() {
   addTile('nether_brick', p => ingot(p, [C('#5a2226'), C('#843e40'), C('#381216'), C('#180608')]));
   const EGG_PAL = { pig: ['#f0a5a2', '#db635f'], cow: ['#443626', '#a1a1a1'], sheep: ['#e7e7e7', '#ffb5b5'], chicken: ['#a1a1a1', '#ff3030'],
     zombie: ['#00afaf', '#799c65'], creeper: ['#0da70b', '#1a1a1a'], villager: ['#563c33', '#bd8b72'], piglin: ['#ea9393', '#4c7129'], magma: ['#340000', '#fcfc00'],
-    enderman: ['#161616', '#000000'], ghast: ['#f9f9f9', '#bcbcbc'] };
+    enderman: ['#161616', '#000000'], ghast: ['#f9f9f9', '#bcbcbc'], cod: ['#c1a76a', '#e5c48b'], salmon: ['#a00f10', '#0e8474'], tropical: ['#ef6915', '#fff9ef'], pufferfish: ['#f6b201', '#37c3f2'] };
   for (const m of EGG_MOBS) {
     addTile('egg_' + m, p => {
       const base = C(EGG_PAL[m][0]), spot = C(EGG_PAL[m][1]);
@@ -723,6 +735,20 @@ function buildItemTiles() {
     p.px(14, 8, C('#fff3a0')); p.px(1, 8, C('#ff3030'));
     for (const cx of [4, 12]) shadeMask(p, mask(circle(cx, 12, 2.2)), [C('#2a2a2a'), C('#4a4a4a'), C('#141414'), C('#050505')], true);
     p.px(4, 12, C('#b0b0b0')); p.px(12, 12, C('#b0b0b0'));
+  });
+  // armor pieces and the shield
+  ARMOR_MATS.forEach((mat, m) => ARMOR_SHAPES.forEach((rows, k) => addTile('armor_' + mat + '_' + k, p => {
+    shadeMask(p, rowsMask(rows), PAL[mat], true);
+    if (k === 1) for (let y = 7; y < 12; y++) p.px(7, y, PAL[mat][2]);   // the chestplate's middle seam
+    if (k === 2) for (let x = 3; x < 13; x++) p.px(x, 3, PAL[mat][2]);    // a belt
+    if (m === 3 && k === 0) { p.px(5, 4, C('#ffffff')); p.px(6, 4, C('#ffffff')); }
+  })));
+  addTile('shield', p => {
+    shadeMask(p, mask(poly([[3, 1.5], [13, 1.5], [13, 9], [8, 14.8], [3, 9]])), [C('#9a7444'), C('#c49a62'), C('#6a4a26'), C('#2a1a0a')], true);
+    for (let y = 2; y < 9; y++) { p.px(3, y, C('#c8c8c8')); p.px(12, y, C('#9a9a9a')); }
+    for (let x = 3; x < 13; x++) p.px(x, 2, C('#e0e0e0'));
+    for (let y = 4; y < 12; y++) p.px(8, y, C('#c0302a'));
+    for (let x = 5; x < 12; x++) p.px(x, 6, C('#c0302a'));
   });
   for (let m = 0; m < 4; m++) {
     const mat = TOOL_MATS[m], pal = PAL[mat];
@@ -1037,6 +1063,9 @@ function buildSkins() {
     shepherd: { robe: C('#e8dcc0'), robeDk: C('#c8b898'), belt: C('#7a4a22'), hair: C('#6a4a2a') },
     mason: { robe: C('#7c7c7c'), robeDk: C('#5a5a5a'), apron: C('#cfcfcf'), hair: C('#2a2a2a') },
     cleric: { robe: C('#6a2a8a'), robeDk: C('#4a1a64'), trim: C('#e0b830'), hat: 'hood' },
+    librarian: { robe: C('#ece4d0'), robeDk: C('#c8bca0'), trim: C('#b02a2a'), hat: 'band', hair: C('#8a8a8a') },
+    armorer: { robe: C('#3a3a42'), robeDk: C('#24242a'), apron: C('#5a5a5a'), belt: C('#8a6a3c'), hat: 'cap' },
+    fisherman: { robe: C('#3a7a78'), robeDk: C('#285a58'), hat: 'straw', belt: C('#5a3a1a') },
   };
   for (const prof in VILLAGER_LOOKS) addSkin('villager_' + prof, S => paintVillager(S, VILLAGER_LOOKS[prof]));
   // --- Endermen: tall and black, purple eyes; the jaw drops when one is angry ---
@@ -1107,11 +1136,47 @@ function buildSkins() {
     paintBox(S, 8, 56, 2, 2, 1, () => C('#1a1a1a'));   // steering wheel
     paintBox(S, 14, 56, 9, 1, 1, (f, x) => f === 'back' && (x <= 1 || x >= 7) ? C('#ff3030') : C('#2a2a2a'));   // back bumper, tail lights
   });
+  // --- armor worn by players: one picture per material holding the helmet, chestplate, leggings and boots ---
+  const ARMOR_COL = { leather: ['#8a5a32', '#ad7a4a', '#5e3a1e'], gold: ['#f2cf3a', '#fff39a', '#b88a10'], iron: ['#d0d0d0', '#f4f4f4', '#8a8a8a'], diamond: ['#4fe3df', '#bafff9', '#1f9fa6'] };
+  ARMOR_MATS.forEach(mat => addSkin('armor_' + mat, S => {
+    const [base, hi, lo] = ARMOR_COL[mat].map(C);
+    const px = (x, y, fw, fh) => (x === 0 || y === 0) ? hi : (x === fw - 1 || y === fh - 1) ? lo : S.jit(base, 6);
+    paintBox(S, 0, 0, 8, 8, 8, (f, x, y, fw, fh) => {   // helmet: the top, a brim over the eyes, more at the sides and back
+      if (f === 'top') return px(x, y, fw, fh);
+      if (f === 'bottom') return null;
+      if (f === 'front') return y < 2 || (y < 5 && (x === 0 || x === 7)) ? px(x, y, fw, 5) : null;
+      if (f === 'back') return y < 6 ? px(x, y, fw, 6) : null;
+      return y < 5 ? px(x, y, fw, 5) : null;
+    });
+    paintBox(S, 16, 16, 8, 12, 4, (f, x, y, fw, fh) => f === 'bottom' || y >= 10 ? null : f === 'top' ? px(x, y, fw, fh) : (f === 'front' && x === 3 && y > 1 && y < 9) ? lo : px(x, y, fw, 10));   // chestplate
+    paintBox(S, 40, 16, 4, 12, 4, (f, x, y, fw, fh) => f === 'bottom' || y >= 5 ? null : f === 'top' ? px(x, y, fw, fh) : px(x, y, fw, 5));   // shoulder pads
+    paintBox(S, 0, 16, 4, 12, 4, (f, x, y, fw, fh) => f === 'top' || f === 'bottom' || y >= 9 ? null : px(x, y, fw, 9));   // leggings' legs
+    paintBox(S, 16, 32, 8, 12, 4, (f, x, y, fw, fh) => f === 'top' || f === 'bottom' || y < 9 ? null : px(x, y - 9, fw, 3));   // and waist
+    paintBox(S, 0, 32, 4, 12, 4, (f, x, y, fw, fh) => f === 'top' ? null : f === 'bottom' ? S.jit(lo, 4) : y < 8 ? null : px(x, y - 8, fw, 4));   // boots
+  }));
+  // --- a wooden shield with an iron rim and boss ---
+  addSkin('shield', S => {
+    const wood = x => x % 4 === 3 ? C('#6a4a26') : S.jit(C('#9a7444'), 7);
+    paintBox(S, 0, 0, 12, 22, 1, (f, x, y, fw, fh) => {
+      const rim = x === 0 || y === 0 || x === fw - 1 || y === fh - 1;
+      if (f === 'front') {
+        if (rim) return C(y === 0 || x === 0 ? '#e4e4e4' : '#a4a4a4');
+        if (Math.hypot(x - 5.5, y - 10.5) < 2.3) return C(Math.hypot(x - 5, y - 10) < 1 ? '#f0f0f0' : '#b4b4b4');
+        if (x === 5 || x === 6 || y === 10 || y === 11) return C('#c0302a');
+        return wood(x);
+      }
+      if (f === 'back') return rim ? C('#8a8a8a') : mulc(wood(x), 0.8);
+      return C('#9a9a9a');
+    });
+    paintBox(S, 30, 0, 2, 6, 6, () => S.jit(C('#5a3a1e'), 6));   // the handle
+  });
+  buildNewSkins();
   addSkin('item_glint', S => { /* reserved */ });
 }
 /* a player's face as a small picture, for menus */
-function faceIcon(skin, size) {
-  const d = SKIN_DATA[SKIN[skin]], cv = document.createElement('canvas');
+function faceIcon(skin, size) { return faceIconData(SKIN_DATA[SKIN[skin]] || SKIN_DATA[SKIN.declan], size); }
+function faceIconData(d, size) {
+  const cv = document.createElement('canvas');
   cv.width = cv.height = size || 64;
   const ctx = cv.getContext('2d'), s = cv.width / 8;
   const at = (u, v) => { const i = (v * 64 + u) * 4; return [d[i], d[i + 1], d[i + 2], d[i + 3]]; };
@@ -1149,18 +1214,19 @@ function buildIcons() {
   for (const id of all) {
     const cv = document.createElement('canvas'); cv.width = cv.height = S;
     const ctx = cv.getContext('2d'); ctx.imageSmoothingEnabled = false;
-    if (id < 256 && (RENDER[id] === R_CUBE || RENDER[id] === R_LIQUID || RENDER[id] === R_CACTUS || RENDER[id] === R_BED)) {
+    if (id < 256 && (RENDER[id] === R_CUBE || RENDER[id] === R_LIQUID || RENDER[id] === R_CACTUS || RENDER[id] === R_BED || RENDER[id] === R_LOW)) {
       const ft = blockFaceTiles(id);
-      const sideH = RENDER[id] === R_BED ? 0.6 : 1;
-      const draw = (name, a, b, c, d, e, f, dark) => {
+      const sideH = RENDER[id] === R_BED ? 0.6 : RENDER[id] === R_LOW ? BLOCKS[id].low / 16 : 1;
+      const vt = RENDER[id] === R_LOW ? 16 - BLOCKS[id].low : 0;   // (a low block's sides show the bottom rows of their pictures, as in the world)
+      const draw = (name, a, b, c, d, e, f, dark, sy) => {
         ctx.setTransform(a, b, c, d, e, f);
-        ctx.drawImage(tileSrc(name), 0, 0, 16, 16);
+        ctx.drawImage(tileSrc(name), 0, sy || 0, 16, 16 - (sy || 0), 0, 0, 16, 16);
         if (dark) { ctx.fillStyle = 'rgba(0,0,0,' + dark + ')'; ctx.fillRect(0, 0, 16, 16); }
       };
       const yo = (1 - sideH) * 16 * s;
       draw(ft.top, s, s / 2, -s, s / 2, 16 * s, yo, 0);
-      draw(ft.front, s, s / 2, 0, s * sideH, 0, 8 * s + yo, 0.18);
-      draw(ft.side, s, -s / 2, 0, s * sideH, 16 * s, 16 * s + yo, 0.38);
+      draw(ft.front, s, s / 2, 0, s * sideH, 0, 8 * s + yo, 0.18, vt);
+      draw(ft.side, s, -s / 2, 0, s * sideH, 16 * s, 16 * s + yo, 0.38, vt);
       ctx.setTransform(1, 0, 0, 1, 0, 0);
     } else {
       const name = id < 256 ? blockFaceTiles(id).side : ITEMS[id].tex;
@@ -1168,6 +1234,16 @@ function buildIcons() {
     }
     ICONS[id] = cv.toDataURL();
   }
+}
+/* faint outlines for the empty armor and shield slots */
+function buildSlotOutlines() {
+  ['armor_iron_0', 'armor_iron_1', 'armor_iron_2', 'armor_iron_3', 'shield', 'lapis', 'glass_bottle'].forEach((name, k) => {
+    const cv = document.createElement('canvas'); cv.width = cv.height = 16;
+    const ctx = cv.getContext('2d'), img = new ImageData(new Uint8ClampedArray(TILE_DATA[TILE[name]]), 16, 16);
+    for (let i = 0; i < img.data.length; i += 4) if (img.data[i + 3]) { img.data[i] = img.data[i + 1] = img.data[i + 2] = 40; img.data[i + 3] = 255; }
+    ctx.putImageData(img, 0, 0);
+    document.documentElement.style.setProperty('--sil' + k, 'url(' + cv.toDataURL() + ')');
+  });
 }
 function pixelIcon(rows, pal, scale) {
   const w = rows[0].length, hgt = rows.length, sc = scale || 4;
@@ -1183,11 +1259,20 @@ function buildHudIcons() {
   HUD_ICONS.heart = pixelIcon(heart, pal);
   HUD_ICONS.heartHalf = pixelIcon(heart.map(r => r.split('').map((c, x) => (x > 4 && c !== 'K' && c !== '.') ? 'E' : c).join('')), pal);
   HUD_ICONS.heartEmpty = pixelIcon(heart.map(r => r.replace(/[RW]/g, 'E')), pal);
+  // Hardcore hearts: darker, with little eyes
+  const hcHeart = ['.KK...KK.', 'KDDK.KDDK', 'KDWDDDDDK', 'KDKDDDKDK', '.KDDDDDK.', '..KDDDK..', '...KDK...', '....K....'];
+  HUD_ICONS.hcHeart = pixelIcon(hcHeart, pal);
+  HUD_ICONS.hcHeartHalf = pixelIcon(hcHeart.map(r => r.split('').map((c, x) => (x > 4 && c !== 'K' && c !== '.') ? 'E' : c).join('')), pal);
   const food = ['....KK..', '...KBBK.', '..KBBBK.', '.KMMBK..', 'KMMMK...', 'KMMK....', '.KK.....'];
   const fpal = { K: '#2a1a0a', B: '#f0e6d0', M: '#b5652a', E: '#3a2a1a' };
   HUD_ICONS.food = pixelIcon(food, fpal);
   HUD_ICONS.foodHalf = pixelIcon(food.map(r => r.split('').map((c, x) => (x < 4 && c === 'M') ? 'E' : c).join('')), fpal);
   HUD_ICONS.foodEmpty = pixelIcon(food.map(r => r.replace(/[MB]/g, 'E')), fpal);
+  const armor = ['.KK...KK.', 'KAAK.KAAK', 'KAWAKAAAK', '.KAAAAAK.', '.KAAAAAK.', '.KAAAAAK.', '.KAAAAAK.', '..KKKKK..'];
+  const apal = { K: '#2a2a2a', A: '#c8c8c8', W: '#ffffff', E: '#4a4a4a' };
+  HUD_ICONS.armor = pixelIcon(armor, apal);
+  HUD_ICONS.armorHalf = pixelIcon(armor.map(r => r.split('').map((c, x) => (x > 4 && c !== 'K' && c !== '.') ? 'E' : c).join('')), apal);
+  HUD_ICONS.armorEmpty = pixelIcon(armor.map(r => r.replace(/[AW]/g, 'E')), apal);
   HUD_ICONS.bubble = pixelIcon(['..KKK..', '.KWBBK.', 'KWBBBBK', 'KBBBBBK', 'KBBBBBK', '.KBBBK.', '..KKK..'], { K: '#1a3a8a', W: '#ffffff', B: '#6ab0ff' });
 }
 

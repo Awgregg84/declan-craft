@@ -41,7 +41,7 @@ function facingFromYaw(yaw) {
   if (Math.abs(s) > Math.abs(c)) return s > 0 ? 3 : 1;
   return c > 0 ? 0 : 2;
 }
-function breakTime(id, held) {
+function breakTime(id, held, st) {
   const d = BLOCKS[id];
   if (!d || d.hardness < 0) return -1;
   if (d.hardness === 0) return 0.05;
@@ -49,6 +49,8 @@ function breakTime(id, held) {
   const right = tool && tool.kind === d.tool;
   const can = d.tier === 0 || (right && tool.tier >= d.tier);
   let speed = right ? tool.speed : 1;
+  const eff = right && st ? enchLvl(st, 'efficiency') : 0;
+  if (eff) speed += eff * eff + 1;   // Efficiency
   if (tool && tool.kind === 'sword' && (id === B.OAK_LEAVES || id === B.BIRCH_LEAVES || id === B.SPRUCE_LEAVES)) speed = 1.5;
   return (d.hardness * (can ? 1.5 : 5)) / speed;
 }
@@ -61,7 +63,7 @@ class Player {
     this.onGround = false; this.flying = false; this.sneaking = false; this.sprinting = false;
     this.inWater = false; this.inLava = false; this.headInWater = false;
     this.health = 20; this.food = 20; this.air = 10; this.alive = true;
-    this.inv = new Array(36).fill(null); this.sel = 0;
+    this.inv = new Array(INV_SIZE).fill(null); this.sel = 0;   // (36-39 armor, 40 the off-hand)
     this.spawn = null; this.fallDist = 0; this.invuln = 0;
     this.regenT = 0; this.foodT = 0; this.airT = 0; this.hazardT = 0; this.starveT = 0;
     this.walk = 0; this.walkAmt = 0; this.bodyYaw = 0; this.swingP = 1; this.equip = 1; this.lastHeld = -2;
@@ -72,13 +74,21 @@ class Player {
     this.drawT = 0; this.loadT = 0; this.shotCd = 0;   // pulling a bow back; loading a crossbow
     this.riding = null; this.sneakHeld = false;      // the minecart or car you are in
     this.chill = 0; this.partyT = 0;                 // slowed by Ice TNT; bounced by Party TNT (no fall damage)
+    this.blocking = false; this.blockT = 0; this.blockJolt = 0;   // a raised shield
+    this.xp = 0; this.xpLevel = 0; this.xpProg = 0; this.enchSeed = (Math.random() * 2147483647) | 0;   // experience, and what the enchanting table offers
   }
   held() { return this.inv[this.sel]; }
   heldId() { const s = this.inv[this.sel]; return s ? s.id : 0; }
   swing() { if (this.swingP >= 0.5 || this.swingP === 1) { this.swingP = 0; this.swings = (this.swings || 0) + 1; } }
-  damage(amount, cause, src) {
+  /* fx, fz: where the hit came from (a raised shield stops it if that is in front) */
+  damage(amount, cause, src, fx, fz) {
     if (!this.alive || game.mode === 'creative' || amount <= 0) return;
     if (this.invuln > 0 && cause !== 'void') return;
+    if ((cause === 'lava' || cause === 'fire') && hasEffect(this, 'fire_resistance')) return;
+    if (this.blocking && SHIELD_CAUSES.has(cause) && fx !== undefined && shieldFacing(this, fx, fz)) { shieldBlock(this, amount, src); return; }
+    if (ARMOR_CAUSES.has(cause)) { const pts = armorPoints(this.inv); if (pts) { wearArmor(this, amount); amount *= 1 - armorCut(pts); } }
+    amount *= 1 - armorEnchCut(this, cause);   // Protection and Feather Falling
+    if (src && src.mob && !src.dead) thornsBack(this, src);
     this.health -= amount;
     this.invuln = 0.5;
     game.hurtFlash = 0.45;
@@ -87,7 +97,7 @@ class Player {
     sfx('hurt');
     if (this.health <= 0) { this.health = 0; this.alive = false; game.onDeath(cause, src); }
   }
-  addFoodExhaust(v) { if (game.mode === 'survival' && game.settings.difficulty > 0) this.foodT += v; }
+  addFoodExhaust(v) { if (game.mode === 'survival' && difficulty() > 0) this.foodT += v; }
 
   update(dt) {
     const inp = game.input, world = game.world, creative = game.mode === 'creative';
@@ -106,8 +116,10 @@ class Player {
     if ((inp.sprint || inp.joySprint) && fz > 0.5 && !this.sneaking && (this.food > 6 || creative)) this.sprinting = true;
     if (fz <= 0.2 || this.sneaking || (this.collidedH && !this.flying)) this.sprinting = false;
     let speed = this.flying ? (this.sprinting ? 21.6 : 10.9) : this.sneaking ? 1.3 : this.sprinting ? 5.6 : 4.317;
-    if ((this.inWater || this.inLava) && !this.flying) speed *= this.inLava ? 0.35 : 0.55;
+    if ((this.inWater || this.inLava) && !this.flying) speed *= this.inLava ? 0.35 : 0.55 + enchLvl(this.inv[ARMOR_INV + 3], 'depth_strider') * 0.15;
     if (this.eatT > 0 || this.drawT > 0 || this.loadT > 0) speed *= 0.4;
+    if (this.blocking) speed *= 0.35;
+    if (!this.flying) { if (hasEffect(this, 'swiftness')) speed *= 1.4; if (hasEffect(this, 'slowness')) speed *= 0.6; }
     if (this.chill > 0) speed *= 0.45;
     if (this.onGround && !this.flying) { const under = BLOCKS[game.world.getBlock(Math.floor(this.x), Math.floor(this.y - 0.1), Math.floor(this.z))]; if (under && under.slow) speed *= under.slow; }   // soul sand
     const sy = Math.sin(this.yaw), cy = Math.cos(this.yaw);
@@ -129,7 +141,7 @@ class Player {
       if (inp.jump) {
         if (this.inWater || this.inLava) this.vy = Math.min(this.vy + 26 * dt, 3.4);
         else if (this.onGround && this.jumpCd <= 0) {
-          this.vy = 8.7; this.jumpCd = 0.12;
+          this.vy = hasEffect(this, 'leaping') ? 11.2 : 8.7; this.jumpCd = 0.12;
           if (this.sprinting) { this.vx += -sy * 1.4; this.vz += -cy * 1.4; }
           this.addFoodExhaust(this.sprinting ? 0.8 : 0.2);
         }
@@ -143,7 +155,8 @@ class Player {
       }
       physicsStep(world, this, dt, 30);
       if (this.landed) {
-        if (this.fallDist > 3.5 && !creative && !(this.partyT > 0)) this.damage(Math.floor(this.fallDist - 3), 'fall');
+        const safe = hasEffect(this, 'leaping') ? 5.5 : 3.5;   // (leaping: a softer landing too)
+        if (this.fallDist > safe && !creative && !(this.partyT > 0)) this.damage(Math.floor(this.fallDist - safe + 0.5), 'fall');
         if (this.fallDist > 1.2) sfx('step_' + SOUND_OF(world.getBlock(Math.floor(this.x), Math.floor(this.y - 0.2), Math.floor(this.z))), this.x, this.y, this.z, 0.6);
         this.fallDist = 0;
       }
@@ -188,6 +201,7 @@ class Player {
       else this.damage(1000, 'void');
       return;
     }
+    tickEffects(this, dt);
     if (creative) { this.health = 20; this.food = 20; this.air = 10; return; }
     this.hazardT -= dt;
     if (this.inLava && this.hazardT <= 0) { this.hazardT = 0.5; this.damage(4, 'lava'); }
@@ -200,11 +214,11 @@ class Player {
         }
       }
     }
-    if (this.headInWater) {
+    if (this.headInWater && !hasEffect(this, 'water_breathing') && !inSubmarine(this)) {
       this.airT += dt;
-      if (this.airT > 1.5) { this.airT = 0; if (this.air > 0) this.air--; else this.damage(2, 'drown'); }
+      if (this.airT > 1.5 * (1 + enchLvl(this.inv[ARMOR_INV], 'respiration'))) { this.airT = 0; if (this.air > 0) this.air--; else this.damage(2, 'drown'); }
     } else { this.airT = 0; if (this.air < 10) { this.regAirT = (this.regAirT || 0) + dt; if (this.regAirT > 0.2) { this.regAirT = 0; this.air++; } } }
-    const diff = game.settings.difficulty;
+    const diff = difficulty();
     const moving = Math.hypot(this.vx, this.vz) > 0.5;
     if (diff > 0) {
       this.foodT += dt * (this.sprinting ? 3 : moving ? 1 : 0.6);
@@ -242,9 +256,21 @@ class Player {
     if (this.shotCd > 0) this.shotCd -= dt;
     if (this.breakCd > 0) this.breakCd -= dt;
     if (this.attackCd > 0) this.attackCd -= dt;
-    if (!this.alive || game.uiOpen) { this.mining = null; this.eatT = 0; return; }
+    if (this.blockJolt > 0) this.blockJolt -= dt;
+    if (!this.alive || game.uiOpen) { this.mining = null; this.eatT = 0; this.blocking = false; this.blockT = 0; return; }
     this.pickTarget();
     const held = this.held(), hid = held ? held.id : 0;
+    // a raised shield: held in the hand, or in the off-hand slot while the hand has nothing else to do
+    const shield = shieldHand(this), tgtUse = this.target && !this.sneaking && this.isInteractive(this.target.id);
+    const tEnt0 = this.targetEnt, entUse = tEnt0 && (tEnt0.type === 'villager' || (tEnt0.vehicle && !this.riding));
+    if (inp.use && shield && !this.riding && !tgtUse && !entUse && (shield === 'main' || offhandFree(this, hid))) {
+      this.blockT += dt;
+      this.blocking = this.blockT >= 0.15;
+      this.mining = null; this.eatT = 0;
+      inp.minePressed = false; inp.usePressed = false;
+      return;
+    }
+    this.blockT = 0; this.blocking = false;
     // attack / mine
     if (inp.mine) {
       if (this.targetEnt) {
@@ -252,13 +278,16 @@ class Player {
         if (inp.minePressed || this.attackCd <= 0) {
           if (this.attackCd <= 0) {
             const tool = toolOf(hid), te = this.targetEnt;
-            const dmg = tool ? tool.dmg : 1;
+            const dmg = (tool ? tool.dmg : 1) + enchLvl(held, 'sharpness') + (hasEffect(this, 'strength') ? 3 : 0);
             if (te.vehicle) { if (te.proxy) MP.sendHit(te, 1, this.x, this.z); else hitVehicle(game, te, game.mode, 'me'); }
             else if (te.type === 'proj') { if (te.proxy) MP.sendHit(te, 0, this.x, this.z); else deflectFireball(game, te, this.lookDir(), 'me'); }
-            else hurtMob(game, te, this.sprinting ? dmg + 1 : dmg, this.x, this.z, 'player');
+            else {
+              const kb = enchLvl(held, 'knockback'), fire = enchLvl(held, 'fire_aspect'), loot = enchLvl(held, 'looting');
+              hurtMob(game, te, this.sprinting ? dmg + 1 : dmg, this.x, this.z, 'player', undefined, kb || fire || loot ? { kb: kb * 0.8, fire: fire * 4, loot } : undefined);
+            }
             this.attackCd = 0.4;
             this.swing();
-            if (tool && tool.kind !== 'lighter' && !tool.ranged && te.mob && !creative) this.damageTool(tool.kind === 'sword' ? 1 : 2);
+            if (wearsOnHit(tool) && te.mob && !creative) this.damageTool(tool.kind === 'sword' ? 1 : 2);
             this.addFoodExhaust(0.5);
           }
         }
@@ -268,7 +297,7 @@ class Player {
           if (this.breakCd <= 0 && !(toolOf(hid) && toolOf(hid).kind === 'sword')) { this.breakBlock(t.x, t.y, t.z, false); this.breakCd = 0.22; this.swing(); }
         } else {
           if (!this.mining || this.mining.x !== t.x || this.mining.y !== t.y || this.mining.z !== t.z || this.mining.id !== t.id) this.mining = { x: t.x, y: t.y, z: t.z, id: t.id, p: 0 };
-          const bt = breakTime(t.id, hid);
+          const bt = breakTime(t.id, hid, held);
           if (bt >= 0 && this.breakCd <= 0) {
             this.mining.p += dt / Math.max(bt, 0.05);
             if (this.swingP >= 0.6) this.swing();
@@ -289,8 +318,12 @@ class Player {
     }
     // get into a minecart or car; in the car, a tap honks the horn
     if (inp.use && inp.usePressed && tEnt && tEnt.vehicle && !this.riding) { this.swing(); mountVehicle(game, tEnt); inp.use = false; inp.usePressed = false; return; }
-    if (this.riding && this.riding.type === 'car' && inp.use) {
-      if (inp.usePressed && this.useCd <= 0) { this.useCd = 0.5; sfx('honk', this.x, this.y + 1, this.z); if (game.net) MP.localFx('sfx', this.x, this.y + 1, this.z, SFX_NET.indexOf('honk')); }
+    if (this.riding && (this.riding.type === 'car' || this.riding.type === 'submarine') && inp.use) {   // (in a submarine: a sonar ping)
+      if (inp.usePressed && this.useCd <= 0) {
+        this.useCd = 0.5;
+        if (this.riding.type === 'submarine') sonarPing(game, this);
+        else { sfx('honk', this.x, this.y + 1, this.z); if (game.net) MP.localFx('sfx', this.x, this.y + 1, this.z, SFX_NET.indexOf('honk')); }
+      }
       inp.usePressed = false;
       return;
     }
@@ -299,27 +332,62 @@ class Player {
     const rtool = toolOf(hid);
     if (rtool && rtool.ranged && !(interactive && inp.usePressed && !this.drawT && !this.loadT)) { this.useRanged(inp, hid, rtool, dt, creative); inp.usePressed = false; return; }
     // throw an ender pearl; a fire charge lights a portal frame, or flies off as a little fireball
-    if ((hid === I.ENDER_PEARL || hid === I.FIRE_CHARGE) && inp.use && inp.usePressed && this.useCd <= 0 && !interactive) {
+    if ((hid === I.ENDER_PEARL || hid === I.FIRE_CHARGE || hid === I.XP_BOTTLE) && inp.use && inp.usePressed && this.useCd <= 0 && !interactive) {
       this.useCd = 0.6; inp.usePressed = false;
       const t = this.target;
       if (hid === I.FIRE_CHARGE && t && t.face >= 0 && lightPortalAt(game, t.x + DX[t.face], t.y + DY[t.face], t.z + DZ[t.face])) sfx('portalLight', t.x + 0.5, t.y + 1, t.z + 0.5);
-      else if (hid === I.ENDER_PEARL) { playerShoot(game, 'pearl', 24, {}); sfx('pearlThrow', this.x, this.y + 1.5, this.z); if (MP.role === 'host') MP.sfx('pearlThrow', this.x, this.y + 1.5, this.z); }
+      else if (hid === I.ENDER_PEARL || hid === I.XP_BOTTLE) { playerShoot(game, hid === I.ENDER_PEARL ? 'pearl' : 'xpb', hid === I.ENDER_PEARL ? 24 : 16, {}); sfx('pearlThrow', this.x, this.y + 1.5, this.z); if (MP.role === 'host') MP.sfx('pearlThrow', this.x, this.y + 1.5, this.z); }
       else { playerShoot(game, 'charge', 18, {}); sfx('ghastShoot', this.x, this.y + 1.5, this.z, 0.6); if (MP.role === 'host') MP.sfx('ghastShoot', this.x, this.y + 1.5, this.z); }
       this.swing();
       if (!creative) this.consumeHeld(1);
       return;
     }
+    // put a boat or a submarine on the water you are pointing at (on land, it goes on top of a block, below)
+    if ((hid === I.BOAT || hid === I.SUBMARINE) && inp.use && inp.usePressed && this.useCd <= 0 && !interactive && !this.riding) {
+      const type = hid === I.BOAT ? 'boat' : 'submarine', spot = waterSpot(this, type);
+      if (spot && placeBoat(game, this, type, spot, creative)) { this.useCd = 0.3; inp.usePressed = false; return; }
+    }
+    // cast a fishing rod, or reel it in
+    if (hid === I.FISHING_ROD && inp.use && inp.usePressed && this.useCd <= 0 && !interactive) { this.swing(); useRod(game, this, creative); this.useCd = 0.3; inp.usePressed = false; return; }
+    // throw a splash potion; fill a glass bottle at some water
+    const pot = potionOf(hid);
+    if (pot && pot.splash && inp.use && inp.usePressed && this.useCd <= 0 && !interactive) {
+      this.useCd = 0.5; inp.usePressed = false;
+      playerShoot(game, 'potion', 14, { pk: pot.k });
+      sfx('pearlThrow', this.x, this.y + 1.5, this.z); if (MP.role === 'host') MP.sfx('pearlThrow', this.x, this.y + 1.5, this.z);
+      this.swing();
+      if (!creative) this.consumeHeld(1);
+      return;
+    }
+    if (hid === I.GLASS_BOTTLE && inp.use && inp.usePressed && this.useCd <= 0 && !interactive && waterInReach(this)) {
+      this.useCd = 0.3; inp.usePressed = false;
+      if (!creative) this.consumeHeld(1);
+      const left = this.give(potionId(0, false), 1);
+      if (left) dropItem(game, this.x, this.y + 1, this.z, potionId(0, false), 1, true);
+      sfx('bottleFill', this.x, this.y + 1, this.z); this.swing();
+      return;
+    }
+    // read a book, or write in one
+    if ((hid === I.WRITABLE_BOOK || hid === I.WRITTEN_BOOK) && inp.use && inp.usePressed && !interactive) { this.swing(); openBook(this.sel); inp.usePressed = false; return; }
+    // put on armor
+    if (inp.use && inp.usePressed && armorOf(hid) && !interactive && this.useCd <= 0) { equipArmor(this); this.swing(); this.useCd = 0.3; inp.usePressed = false; return; }
     // use / place / eat
-    const food = hid >= 256 && ITEMS[hid].food;
-    if (inp.use && food && (this.food < 20 || creative) && !(this.target && !this.sneaking && this.isInteractive(this.target.id))) {
+    const food = hid >= 256 && ITEMS[hid].food, drink = pot && !pot.splash;
+    if (inp.use && (drink || (food && (this.food < 20 || creative))) && !(this.target && !this.sneaking && this.isInteractive(this.target.id))) {
       this.eatT += dt;
       this.eatSndT -= dt;
-      if (this.eatSndT <= 0) { this.eatSndT = 0.22; sfx('eat'); }
+      if (this.eatSndT <= 0) { this.eatSndT = drink ? 0.3 : 0.22; sfx(drink ? 'drink' : 'eat'); }
       if (this.eatT >= 1.6) {
         this.eatT = 0;
-        this.food = Math.min(20, this.food + ITEMS[hid].food);
-        if (!creative) this.consumeHeld(1);
-        sfx('burp');
+        if (drink) {
+          potionOnPlayer(this, pot.k, 1);
+          if (!creative) { const s = this.inv[this.sel]; if (s.count > 1) { s.count--; this.give(I.GLASS_BOTTLE, 1); } else this.inv[this.sel] = { id: I.GLASS_BOTTLE, count: 1 }; game.ui.dirty = true; }
+        } else {
+          this.food = Math.min(20, this.food + ITEMS[hid].food);
+          if (ITEMS[hid].poison) giveEffect(this, 'poison', ITEMS[hid].poison);   // a pufferfish!
+          if (!creative) this.consumeHeld(1);
+          sfx('burp');
+        }
       }
     } else this.eatT = 0;
     if (inp.use && this.useCd <= 0 && !food) {
@@ -330,13 +398,13 @@ class Player {
   }
   isInteractive(id) {
     return id === B.DOOR || id === B.CRAFTING_TABLE || id === B.FURNACE || id === B.FURNACE_LIT || id === B.CHEST || id === B.BED || !!(BLOCKS[id] && BLOCKS[id].tnt) ||
-      id === B.LEVER || id === B.BUTTON || id === B.DISPENSER;
+      id === B.LEVER || id === B.BUTTON || id === B.DISPENSER || id === B.ENCH_TABLE || id === B.SIGN || id === B.BREWING_STAND || id === B.TV || id === B.BOARD;
   }
   /* bows: hold to pull back and let go to shoot (a quick tap is a quick shot); crossbows: tap to load, tap to fire */
   useRanged(inp, hid, tool, dt, creative) {
     const s = this.inv[this.sel];
     if (tool.kind === 'bow') {
-      if (inp.useOnce && !this.drawT) { if (this.shotCd <= 0) { if (this.hasArrow(creative)) this.shootArrow(0.7, false, 'bow'); else this.noArrows(); } return; }
+      if (inp.useOnce && !this.drawT) { if (this.shotCd <= 0) { if (this.hasArrow(creative)) this.shootArrow(0.7, false, 'bow', s); else this.noArrows(); } return; }
       if (inp.use) {
         if (!this.drawT) { if (!this.hasArrow(creative)) { if (inp.usePressed) this.noArrows(); return; } sfx('bowDraw', this.x, this.y + 1.5, this.z); }
         this.drawT += dt;
@@ -345,18 +413,18 @@ class Player {
       if (this.drawT > 0) {
         const t = Math.min(1, this.drawT), power = (t * t + 2 * t) / 3;
         this.drawT = 0;
-        if (power >= 0.12 && this.hasArrow(creative)) this.shootArrow(power, power >= 1, 'bow');
+        if (power >= 0.12 && this.hasArrow(creative)) this.shootArrow(power, power >= 1, 'bow', s);
       }
       return;
     }
     if (hid === I.CROSSBOW_LOADED) {
-      if (inp.usePressed && this.shotCd <= 0) { this.shootArrow(1, true, 'crossbow'); s.id = I.CROSSBOW; game.ui.dirty = true; }
+      if (inp.usePressed && this.shotCd <= 0) { this.shootArrow(1, true, 'crossbow', s); s.id = I.CROSSBOW; game.ui.dirty = true; }
       return;
     }
     if (inp.use || this.loadT > 0) {   // a tap starts loading, and it finishes by itself
       if (!this.loadT) { if (!this.hasArrow(creative)) { if (inp.usePressed) this.noArrows(); return; } sfx('crossbowLoad', this.x, this.y + 1.5, this.z); }
       this.loadT += dt;
-      if (this.loadT >= 1.25) {
+      if (this.loadT >= 1.25 - 0.25 * enchLvl(s, 'quick_charge')) {
         this.loadT = 0;
         if (!this.hasArrow(creative)) { this.noArrows(); return; }   // (the arrows were put away while it was loading)
         if (!creative) this.takeArrow();
@@ -372,11 +440,15 @@ class Player {
     game.ui.dirty = true;
   }
   noArrows() { if (!this.arrowTipT || game.t - this.arrowTipT > 6) { this.arrowTipT = game.t; toast('You need arrows. Craft them from flint, a stick and a feather.', 3); } }
-  shootArrow(power, crit, kind) {
-    const creative = game.mode === 'creative', xbow = kind === 'crossbow';
-    const vel = xbow ? 50 : 12 + 36 * power, dmg = xbow ? 9 : Math.round(2 + 4 * power) + (crit ? 2 : 0);
-    playerShoot(game, 'arrow', vel, { dmg, crit, pickup: !creative, snd: xbow ? 'crossbowShoot' : 'bowShoot' });
-    if (!creative) { if (!xbow) this.takeArrow(); this.damageTool(1); }
+  /* st: the bow or crossbow, for its enchantments */
+  shootArrow(power, crit, kind, st) {
+    const creative = game.mode === 'creative', xbow = kind === 'crossbow', inf = !xbow && enchLvl(st, 'infinity') > 0;
+    const vel = xbow ? 50 : 12 + 36 * power, pw = enchLvl(st, 'power');
+    const dmg = xbow ? 9 : Math.round((2 + 4 * power) * (pw ? 1 + 0.25 * (pw + 1) : 1)) + (crit ? 2 : 0);
+    const o = { dmg, crit, pickup: !creative && !inf, snd: xbow ? 'crossbowShoot' : 'bowShoot', kb: enchLvl(st, 'punch'), fire: enchLvl(st, 'flame') ? 5 : 0 };
+    playerShoot(game, 'arrow', vel, o);
+    if (xbow && enchLvl(st, 'multishot')) for (const off of [-0.18, 0.18]) playerShoot(game, 'arrow', vel, Object.assign({}, o, { yawOff: off, pickup: false }));
+    if (!creative) { if (!xbow && !inf) this.takeArrow(); this.damageTool(1); }
     const snd = xbow ? 'crossbowShoot' : 'bowShoot';
     sfx(snd, this.x, this.y + 1.5, this.z);
     if (MP.role === 'host') MP.sfx(snd, this.x, this.y + 1.5, this.z);
@@ -396,6 +468,11 @@ class Player {
         this.swing(); return true;
       }
       if (t.id === B.LEVER || t.id === B.BUTTON) { useSwitch(game, t.x, t.y, t.z, t.id); this.swing(); return true; }
+      if (t.id === B.ENCH_TABLE) { this.swing(); openEnchant(t.x, t.y, t.z); return true; }
+      if (t.id === B.BREWING_STAND) { this.swing(); const tile = MP.useTile(t.x, t.y, t.z, 'brew'); if (tile) game.openScreen('brew', tile); return true; }
+      if (t.id === B.SIGN) { this.swing(); openSign(t.x, t.y, t.z); return true; }
+      if (t.id === B.TV) { this.swing(); useTV(game, t.x, t.y, t.z); return true; }
+      if (t.id === B.BOARD) { this.swing(); openBoard(t.x, t.y, t.z); return true; }
       if (t.id === B.DISPENSER) { this.swing(); const tile = MP.useTile(t.x, t.y, t.z, 'dispenser'); if (tile) { sfx('chest', t.x + 0.5, t.y + 0.5, t.z + 0.5); game.openScreen('dispenser', tile); } return true; }
       if (t.id === B.DOOR) {
         const d = world.getData(t.x, t.y, t.z), ly = (d & 8) ? t.y - 1 : t.y, ld = world.getData(t.x, ly, t.z) ^ 4;
@@ -442,7 +519,8 @@ class Player {
       if (!creative) this.consumeHeld(1);
       return true;
     }
-    if ((hid === I.MINECART || hid === I.CAR) && t.face >= 0) {
+    if ((hid === I.MINECART || hid === I.CAR || hid === I.BOAT || hid === I.SUBMARINE) && t.face >= 0) {
+      const type = hid === I.CAR ? 'car' : hid === I.BOAT ? 'boat' : hid === I.SUBMARINE ? 'submarine' : 'minecart';
       let vx = t.x + 0.5, vy = t.y + 1, vz = t.z + 0.5;
       if (hid === I.MINECART) {
         if (t.id !== B.RAIL) { if (!this.toldRails) { this.toldRails = true; toast('Minecarts go on rails. Put some rails down first.', 3); } return false; }
@@ -450,18 +528,32 @@ class Player {
       } else {
         if (t.face !== 2 && !BLOCKS[t.id].replaceable) return false;   // on top of a block
         if (BLOCKS[t.id].replaceable) vy = t.y;
-        if (!boxFree(world, vx, vy, vz, VEHICLES.car.w, VEHICLES.car.h)) return false;
+        if (!boxFree(world, vx, vy, vz, VEHICLES[type].w, Math.min(VEHICLES[type].h, 1))) return false;
       }
-      const type = hid === I.CAR ? 'car' : 'minecart';
       if (MP.role === 'guest') MP.send({ t: 'veh+', k: type, at: [r2(vx), r2(vy), r2(vz)], yaw: r2(this.yaw) });
       else spawnVehicle(game, type, vx, vy, vz, this.yaw);
-      sfx('place_metal', vx, vy, vz); this.swing();
+      sfx(type === 'boat' ? 'place_wood' : 'place_metal', vx, vy, vz); this.swing();
       if (!creative) this.consumeHeld(1);
       return true;
     }
     if (!hid || hid >= 256) return false;
     let px = t.x + DX[t.face], py = t.y + DY[t.face], pz = t.z + DZ[t.face];
     if (t.face < 0) return false;
+    if (hid === B.SIGN || hid === B.BOARD) {   // on top of a block: standing, turned toward you; on a side: hung on the wall
+      if (t.face === 3) return false;
+      if (BLOCKS[t.id].replaceable && !LIQUID[t.id]) { px = t.x; py = t.y; pz = t.z; }
+      const cur = world.getBlock(px, py, pz);
+      if (py < 0 || py >= WH || cur === B.UNLOADED || !(cur === B.AIR || BLOCKS[cur].replaceable)) return false;
+      const data = t.face === 2 ? Math.round(this.yaw / (Math.PI / 8)) & 15 : 16 + FRONT_FACE.indexOf(t.face);
+      if (!world.canStay(px, py, pz, hid, data)) return false;
+      world.setBlock(px, py, pz, hid, data, true);
+      sfx('place_wood', px + 0.5, py + 0.5, pz + 0.5);
+      if (game.net) MP.localFx('place', px, py, pz, hid);
+      this.swing();
+      if (!creative) this.consumeHeld(1);
+      if (hid === B.SIGN) openSign(px, py, pz); else openBoard(px, py, pz);
+      return true;
+    }
     if (BLOCKS[t.id].replaceable && t.id !== hid && !LIQUID[t.id]) { px = t.x; py = t.y; pz = t.z; }
     if (py < 0 || py >= WH) return false;
     const cur = world.getBlock(px, py, pz);
@@ -501,9 +593,9 @@ class Player {
   breakBlock(x, y, z, drops) {
     const world = game.world, id = world.getBlock(x, y, z);
     if (!id || id === B.UNLOADED) return;
-    if (MP.role === 'host' && (id === B.CHEST || id === B.FURNACE || id === B.FURNACE_LIT || id === B.DISPENSER)) {
+    if (MP.role === 'host' && (id === B.CHEST || id === B.FURNACE || id === B.FURNACE_LIT || id === B.DISPENSER || id === B.BREWING_STAND)) {
       const t = world.tiles.get(tileKey(x, y, z)), by = t && MP.tileUser(t, 'host');
-      if (by) { toast(by + ' is using this ' + (id === B.CHEST ? 'chest' : id === B.DISPENSER ? 'dispenser' : 'furnace') + '.', 2.5); return; }
+      if (by) { toast(by + ' is using this ' + (id === B.CHEST ? 'chest' : id === B.DISPENSER ? 'dispenser' : id === B.BREWING_STAND ? 'brewing stand' : 'furnace') + '.', 2.5); return; }
     }
     const hid = this.heldId();
     let repl = B.AIR;
@@ -513,9 +605,12 @@ class Player {
     blockParticles(x, y, z, id, 14, true);
     if (game.net) MP.localFx('break', x, y, z, id);
     if (drops) {
-      for (const [did, n] of blockDrops(id, hid)) dropItem(game, x + 0.5, y + 0.4, z + 0.5, did, n);
+      const st = this.held(), got = blockDrops(id, hid, st);
+      for (const [did, n] of got) dropItem(game, x + 0.5, y + 0.4, z + 0.5, did, n);
+      const xp = BLOCKS[id].xp;   // ores give experience (not when Silk Touch keeps the ore whole)
+      if (xp && got.length && got[0][0] !== id) dropXp(game, x + 0.5, y + 0.5, z + 0.5, randInt(xp[0], xp[1]));
       const tool = toolOf(hid);
-      if (tool && tool.kind !== 'lighter' && !tool.ranged && BLOCKS[id].hardness > 0) this.damageTool(tool.kind === 'sword' ? 2 : 1);
+      if (wearsOnHit(tool) && BLOCKS[id].hardness > 0) this.damageTool(tool.kind === 'sword' ? 2 : 1);
       this.addFoodExhaust(0.1);
     }
     if (game.stats) game.stats.mined = (game.stats.mined || 0) + 1;
@@ -530,18 +625,27 @@ class Player {
   damageTool(n) {
     const s = this.inv[this.sel], tool = s && toolOf(s.id);
     if (!tool) return;
+    if (unbroken(s)) return;   // Unbreaking
     s.dmg = (s.dmg || 0) + n;
     if (s.dmg >= tool.dur) { this.inv[this.sel] = null; sfx('toolBreak'); }
     game.ui.dirty = true;
   }
-  give(id, count) {
+  /* ex: the stack it came from, for its wear and tag (enchantments, a book's pages) */
+  /* how many more of id fit in the bag and hotbar (stacked as give would) */
+  room(id) {
     const max = maxStack(id);
+    let n = 0;
+    for (let i = 0; i < 36; i++) { const s = this.inv[i]; if (!s) n += max; else if (s.id === id && !s.tag && !toolOf(id)) n += Math.max(0, max - s.count); }
+    return n;
+  }
+  give(id, count, ex) {
+    const max = maxStack(id), plain = !(ex && (ex.dmg || ex.tag));
     let left = count;
     for (const pass of [0, 1]) {
       for (let i = 0; i < 36 && left > 0; i++) {
         const s = this.inv[i];
-        if (pass === 0 && s && s.id === id && s.count < max && !toolOf(id)) { const k = Math.min(max - s.count, left); s.count += k; left -= k; }
-        if (pass === 1 && !s) { const k = Math.min(max, left); this.inv[i] = { id, count: k }; left -= k; }
+        if (pass === 0 && plain && s && s.id === id && !s.tag && s.count < max && !toolOf(id)) { const k = Math.min(max - s.count, left); s.count += k; left -= k; }
+        if (pass === 1 && !s) { const k = Math.min(max, left); this.inv[i] = plain ? { id, count: k } : cloneStack(Object.assign({}, ex, { id }), k); left -= k; }
       }
     }
     if (left !== count) game.ui.dirty = true;
@@ -552,8 +656,8 @@ class Player {
     if (!s) return;
     const n = all ? s.count : 1;
     const [dx, dy, dz] = this.lookDir();
-    const e = dropItem(game, this.x + dx * 0.3, this.y + this.eye - 0.3, this.z + dz * 0.3, s.id, n, true);
-    if (e) { e.vx = dx * 5; e.vy = dy * 5 + 2; e.vz = dz * 5; if (s.dmg) e.dmg = s.dmg; }
+    const e = dropItem(game, this.x + dx * 0.3, this.y + this.eye - 0.3, this.z + dz * 0.3, s.id, n, true, s);
+    if (e) { e.vx = dx * 5; e.vy = dy * 5 + 2; e.vz = dz * 5; }
     s.count -= n;
     if (s.count <= 0) this.inv[this.sel] = null;
     this.swing();
@@ -587,7 +691,9 @@ function drawFirstPerson(pl, s, world) {
     M4.scale(_hm, _hm, 1 / 16, 1 / 16, 1 / 16);
     M4.translate(_hm, _hm, 6, -22, 0);
     drawPart(playerModelFor(PROFILE.skin).parts.rarm, _hm);
-  } else {
+    const ch = pl.inv[ARMOR_INV + 1], ca = ch && armorOf(ch.id);
+    if (ca) drawPart(MODELS['armor_' + ARMOR_MATS[ca.mat] + '_1'].parts.rarm, _hm);   // a chestplate's sleeve
+  } else if (held.id !== I.SHIELD) {
     entityBegin(texTiles, R.handProj);
     gl.uniform2f(P.u.uFog, 100, 200); gl.uniform1f(P.u.uBright, bright);
     M4.identity(_hm);
@@ -607,7 +713,24 @@ function drawFirstPerson(pl, s, world) {
       M4.scale(_hm, _hm, 0.5 / 16, 0.5 / 16, 0.5 / 16);
       M4.translate(_hm, _hm, 0, -3, 0);
     }
+    if (held.id === I.FISHING_ROD) { const m = _hm, x = 5.6, y = 13.6; R.rodTip = [m[0] * x + m[4] * y + m[12], m[1] * x + m[5] * y + m[13], m[2] * x + m[6] * y + m[14]]; }   // where the line comes from
+    if (isEnchanted(held)) glintOn(true);
     drawMesh(heldMesh(pl, held.id), _hm);
+    if (isEnchanted(held)) glintOn(false);
+  }
+  // a shield: low at the side, or up in front when it is raised
+  const sh = shieldHand(pl);
+  if (sh) {
+    entityBegin(texSkins, R.handProj);
+    gl.uniform2f(P.u.uFog, 100, 200); gl.uniform1f(P.u.uBright, bright);
+    const side = sh === 'main' ? 1 : -1, up = pl.blocking ? 1 : clamp(pl.blockT / 0.15, 0, 1) * 0.6, jolt = pl.blockJolt > 0 ? pl.blockJolt * 0.3 : 0;
+    M4.identity(_hm);
+    M4.translate(_hm, _hm, side * (0.66 - up * 0.3) + bx, -0.62 + by + up * 0.26 - (sh === 'main' ? eq * 0.5 : 0) - f1 * 0.05 * side, -0.9 + up * 0.04 + jolt);
+    M4.rotY(_hm, _hm, side * (0.35 - up * 0.3));
+    M4.rotX(_hm, _hm, -0.08 + up * 0.08);
+    M4.scale(_hm, _hm, 0.028, 0.028, 0.028);
+    gl.enable(gl.CULL_FACE);
+    drawModel(MODELS.shield, _hm, null);
   }
 }
 /* the first time something new is in your hand, a word on how to use it */
@@ -616,6 +739,10 @@ const HELD_TIPS = {
   [I.CROSSBOW]: ['Tap once to load the crossbow, then tap again to shoot.', 'Right-click once to load the crossbow, then again to shoot.'],
   [I.ENDER_PEARL]: ['Tap to throw the ender pearl. You land where it lands!', 'Right-click to throw the ender pearl. You land where it lands!'],
   [I.FIRE_CHARGE]: ['Tap to throw a fireball, or tap an obsidian frame to light a portal.', 'Right-click to throw a fireball, or right-click an obsidian frame to light a portal.'],
+  [I.FISHING_ROD]: ['Tap to cast into water. When the float dips under with a splash, tap again quickly to reel in!', 'Right-click to cast into water. When the float dips under with a splash, right-click again quickly to reel in!'],
+  [I.BOAT]: ['Tap some water to put the boat on it, then tap the boat to get in.', 'Right-click some water to put the boat on it, then right-click the boat to get in.'],
+  [I.SUBMARINE]: ['Tap some water to put the submarine in it, then tap it to get in.', 'Right-click some water to put the submarine in it, then right-click it to get in.'],
+  [I.SHIELD]: ['Hold Place to hide behind the shield. Put it in the slot beside your armor to use it with a sword.', 'Hold the right mouse button to hide behind the shield. Put it in the slot beside your armor to use it with a sword.'],
 };
 function heldTip(id) {
   const t = HELD_TIPS[id];
@@ -628,6 +755,7 @@ function heldTip(id) {
 /* what an item looks like in the hand: a bow shows how far it is pulled back */
 function heldMesh(pl, id) {
   if (id === I.BOW && pl.drawT > 0) return tileMesh('bow_pull_' + (pl.drawT < 0.65 ? 0 : pl.drawT < 0.9 ? 1 : 2));
+  if (id === I.FISHING_ROD && ((pl.bobber && !pl.bobber.removed) || pl.bobberAt)) return tileMesh('fishing_rod_cast');
   return itemMesh(id);
 }
 const _pmB = M4.create(), _pmH = M4.create();
@@ -638,7 +766,7 @@ function playerPose(pl, t) {
   const idle = Math.sin(t * 1.6) * 0.04;
   const sneak = pl.sneaking ? 0.35 : 0;
   const holding = pl.heldId ? pl.heldId() : pl.held;
-  const ride = pl.riding ? (typeof pl.riding === 'string' ? pl.riding : pl.riding.type === 'car' ? 'car' : 'cart') : null;
+  const ride = rideKind(pl.riding);
   const pose = {
     head: [-pl.pitch, ride ? clamp(hy, -1.3, 1.3) : hy, 0],
     body: [sneak, 0, 0],
@@ -646,11 +774,14 @@ function playerPose(pl, t) {
     larm: [a - idle, 0, -0.05 - idle],
     rleg: [a, 0, 0], lleg: [-a, 0, 0],
   };
-  if (ride) {   // sitting, legs out in front; hands on the wheel in the car
+  if (ride) {   // sitting, legs out in front; hands on the wheel in the car (or the controls in a submarine); rowing a boat
     pose.rleg = [-1.4, 0.15, 0]; pose.lleg = [-1.4, -0.15, 0];
-    if (ride === 'car') { pose.rarm = [-0.95, 0.25, 0]; pose.larm = [-0.95, -0.25, 0]; }
+    if (ride === 'car' || ride === 'sub') { pose.rarm = [-0.95, 0.25, 0]; pose.larm = [-0.95, -0.25, 0]; }
+    else if (ride === 'boat') { const p = (pl.riding && pl.riding.wheel) || 0, sw = Math.sin(p) * 0.3; pose.rarm = [-1.05 + Math.cos(p) * 0.3, 0.25 + sw, 0]; pose.larm = [-1.05 + Math.cos(p) * 0.3, -0.25 - sw, 0]; }
   }
   if (pl.drawT > 0 || pl.loadT > 0 || pl.aiming) { const up = -1.45 - pl.pitch; pose.rarm = [up, -0.1, 0]; pose.larm = [up, 0.5, 0]; }   // aiming a bow or crossbow
+  const sh = shieldOf(pl);
+  if (sh && pl.blocking) { if (sh === 'main') pose.rarm = [-0.95, -0.45, 0]; else pose.larm = [-0.95, 0.45, 0]; }   // holding a shield up
   return pose;
 }
 function drawPlayerModel(game, s, t, cam) { drawHumanoid(game.player, playerModelFor(PROFILE.skin), game.player.heldId(), s, t, cam); }
@@ -662,9 +793,19 @@ function drawHumanoid(pl, model, heldId, s, t, cam) {
   M4.translate(_pmB, _pmB, pl.x - cam.x, pl.y - cam.y, pl.z - cam.z);
   M4.rotY(_pmB, _pmB, pl.bodyYaw + Math.PI);
   M4.scale(_pmB, _pmB, sc, sc, sc);
-  const pose = playerPose(pl, t);
-  drawModel(model, _pmB, pose);
-  const held = heldId ? { id: heldId } : null;
+  const pose = playerPose(pl, t), invis = isInvisible(pl);
+  pose._hs = headScaleFor(model.skin);
+  if (invis && pl.inv) {   // invisible: you can just see yourself; other players see only what you wear and hold
+    gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA); gl.uniform1f(P.u.uAlpha, 0.25);
+    drawModel(model, _pmB, pose);
+    gl.uniform1f(P.u.uAlpha, 1); gl.disable(gl.BLEND);
+  } else if (!invis) drawModel(model, _pmB, pose);
+  const glint = wornGlint(pl);
+  if (!(pl.invuln > 0.25)) drawArmor(wornArmor(pl), _pmB, pose, t, glint);
+  else drawArmor(wornArmor(pl), _pmB, pose, t, 0);
+  const sh = shieldOf(pl);
+  if (sh) drawShield(_pmB, pose, sh, pl.blocking);
+  const held = heldId && heldId !== I.SHIELD ? { id: heldId } : null;
   if (held) {
     entityBegin(texTiles);
     gl.uniform1f(P.u.uBright, brightAt(game.world, pl.x, pl.y + 1.2, pl.z, s));
@@ -675,7 +816,10 @@ function drawHumanoid(pl, model, heldId, s, t, cam) {
     M4.translate(_pmH, _pmH, 0, -11, 1.5);
     if (isCubeItem(held.id)) { M4.rotY(_pmH, _pmH, 0.6); M4.scale(_pmH, _pmH, 0.38, 0.38, 0.38); M4.translate(_pmH, _pmH, 0, -8, 0); }
     else { M4.rotX(_pmH, _pmH, -1.2); M4.rotY(_pmH, _pmH, -Math.PI / 2); M4.scale(_pmH, _pmH, 0.6, 0.6, 0.6); M4.translate(_pmH, _pmH, 0, -3, 0); }
-    drawMesh(pl.drawT !== undefined ? heldMesh(pl, held.id) : itemMesh(held.id), _pmH);
+    if (held.id === I.FISHING_ROD) { const m = _pmH, x = 5.6, y = 13.6; pl.rodTipW = [m[0] * x + m[4] * y + m[12] + cam.x, m[1] * x + m[5] * y + m[13] + cam.y, m[2] * x + m[6] * y + m[14] + cam.z, game.t]; }   // where the line comes from
+    if (glint & 16) glintOn(true);
+    drawMesh(heldMesh(pl, held.id), _pmH);
+    if (glint & 16) glintOn(false);
     entityBegin(texSkins);
   }
 }

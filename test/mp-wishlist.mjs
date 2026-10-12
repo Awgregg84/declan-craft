@@ -22,13 +22,14 @@ const HOST = { skin: 'declan', name: 'Declan', pid: 'hostpid0001' }, GUEST = { s
   const url = 'http://localhost:' + server.address().port + '/';
   async function open(profile, label) {
     const ctx = await browser.newContext({ viewport: { width: 800, height: 520 } });
+    await ctx.route(/fonts\.(googleapis|gstatic)\.com/, r => r.abort());   // (the web font can stall the page loading from a test machine; it isn't needed here)
     await ctx.addInitScript(([port, prof]) => {
       window.DC_NET = { host: '127.0.0.1', port, secure: false, path: '/', key: 'peerjs', iceServers: [], mqtt: [] };
       if (!localStorage.getItem('declancraft:v1:profile')) localStorage.setItem('declancraft:v1:profile', JSON.stringify(prof));
     }, [PEER_PORT, profile]);
     const p = await ctx.newPage();
     p.errs = []; p.on('pageerror', e => p.errs.push(label + ': ' + e.message));
-    await p.goto(url);
+    await p.goto(url, { waitUntil: 'domcontentloaded', timeout: 90000 });   // (slow when the machine is busy)
     await p.waitForFunction(() => typeof BOOT !== 'undefined' && BOOT.ok, null, { timeout: 60000 });
     await p.evaluate(() => {
       window.__seen = new Set();   // kinds of things the host has sent (-3 arrows, -5 minecarts, -6 cars ...)
@@ -199,7 +200,7 @@ const HOST = { skin: 'declan', name: 'Declan', pid: 'hostpid0001' }, GUEST = { s
   await G.evaluate(() => { game.input.fwd = true; });
   await waitFor(G, () => { const v = game.player.riding; return v && Math.hypot(v.vx, v.vz) > 5; }, 6000);
   await G.evaluate(() => game.pause());
-  await sleep(2500);
+  await waitFor(G, () => { const v = game.player.riding; return !v || Math.hypot(v.vx, v.vz) < 1; }, 12000);   // (a few seconds of game time: longer on a slow machine; driving on would never get there)
   const coast = await G.evaluate(() => { const v = game.player.riding; return { v: Math.hypot(v.vx, v.vz), paused: game.paused }; });
   await G.evaluate(() => { game.resume(); game.input.fwd = false; });
   check('when she pauses while driving, the car stops instead of driving on', coast.paused && coast.v < 1, coast);

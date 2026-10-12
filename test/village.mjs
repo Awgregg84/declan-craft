@@ -91,4 +91,4 @@ let fails = 0; const check = (name, ok, info) => { if (!ok) fails++; console.log
   await browser.close(); server.close();
   console.log(fails ? fails + ' FAILED' : 'ALL PASS');
 })().catch(e => { console.error('HARNESS', e); process.exit(1); });
-const VILLAGER_PROFS_T = ['farmer', 'butcher', 'toolsmith', 'shepherd', 'mason', 'cleric'];
+const VILLAGER_PROFS_T = ['farmer', 'butcher', 'toolsmith', 'shepherd', 'mason', 'cleric', 'librarian', 'armorer', 'fisherman'];

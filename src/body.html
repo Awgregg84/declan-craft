@@ -12,18 +12,23 @@
     <pre id="debug" hidden></pre>
     <div id="nametags" aria-hidden="true"></div>
     <div id="room-badge" hidden></div>
+    <div id="effects" aria-live="polite"></div>
     <div id="net-wait" role="status" hidden></div>
     <div id="chat-log" aria-live="polite"></div>
     <div id="toast" role="status"></div>
     <div id="bottom">
       <div id="item-name" aria-live="polite"></div>
       <div id="stats">
-        <div id="hearts" class="row" aria-label="Health"></div>
+        <div class="row-left">
+          <div id="armor" class="row" aria-label="No armor"></div>
+          <div id="hearts" class="row" aria-label="Health"></div>
+        </div>
         <div class="row-right">
           <div id="air" class="row" aria-label="Air"></div>
           <div id="hunger" class="row flip" aria-label="Hunger"></div>
         </div>
       </div>
+      <div id="xpbar" aria-label="Level 0"><i></i><span></span></div>
       <div id="hotbar" role="toolbar" aria-label="Hotbar"></div>
     </div>
     <div id="touch" hidden>
@@ -120,10 +125,11 @@
   </section>
 
   <section id="scr-death" class="screen death" aria-label="You died" hidden>
-    <h2 class="scr-h big-h">You died!</h2>
+    <h2 class="scr-h big-h" id="death-h">You died!</h2>
     <p class="death-msg" id="death-msg"></p>
     <div class="menu">
       <button type="button" class="btn big" id="btn-respawn">Respawn</button>
+      <button type="button" class="btn big" id="btn-hc-new" hidden>New Hardcore World</button>
       <button type="button" class="btn big" id="btn-death-title">Title Screen</button>
     </div>
   </section>
@@ -163,6 +169,79 @@
     </label>
     <p class="tip" id="char-note"></p>
     <button type="button" class="btn big" id="btn-char-done">Done</button>
+  </section>
+
+  <section id="scr-maker" class="screen dirt" aria-label="Make a character" hidden>
+    <h2 class="scr-h">Make a Character</h2>
+    <div class="maker">
+      <div class="maker-side">
+        <canvas id="maker-view" class="maker-view" width="200" height="280" role="img" aria-label="Your character. Drag to turn it round."></canvas>
+        <button type="button" class="btn maker-turn" id="btn-maker-turn">Turn around</button>
+        <label class="field maker-field"><span>Name</span>
+          <input id="maker-name" type="text" maxlength="16" autocomplete="off" autocorrect="off" spellcheck="false" placeholder="Like Mommy or Luca">
+        </label>
+      </div>
+      <div class="maker-main">
+        <div class="maker-tabs" id="maker-tabs" role="tablist" aria-label="What to change"></div>
+        <div class="maker-opts" id="maker-opts"></div>
+      </div>
+    </div>
+    <div class="maker-btns">
+      <button type="button" class="btn" id="btn-maker-random">Surprise me!</button>
+      <button type="button" class="btn danger" id="btn-maker-delete" hidden>Delete</button>
+      <button type="button" class="btn" id="btn-maker-cancel">Cancel</button>
+      <button type="button" class="btn maker-save" id="btn-maker-save">Save</button>
+    </div>
+  </section>
+
+  <section id="scr-board" class="screen dim" aria-label="Coloring board" hidden>
+    <div class="board-ui">
+      <div class="board-top">
+        <button type="button" class="btn" id="btn-board-prev" aria-label="Previous picture">&lt;</button>
+        <span class="board-pic" id="board-pic-name"></span>
+        <button type="button" class="btn" id="btn-board-next" aria-label="Next picture">&gt;</button>
+      </div>
+      <p class="tip small" id="board-new-note" hidden>Tap again for a new picture. Your colors will go.</p>
+      <canvas id="board-canvas" class="board-canvas" width="384" height="384" aria-label="The picture to color. Tap or drag to color it in."></canvas>
+      <div class="board-palette" id="board-palette" role="group" aria-label="Colors"></div>
+      <div class="board-tools" role="group" aria-label="Tools">
+        <button type="button" class="btn" id="btn-board-brush" aria-pressed="true">Brush</button>
+        <button type="button" class="btn" id="btn-board-fill" aria-pressed="false">Fill</button>
+        <button type="button" class="btn" id="btn-board-eraser" aria-pressed="false">Rubber</button>
+        <button type="button" class="btn" id="btn-board-clear">Clear</button>
+        <button type="button" class="btn board-done" id="btn-board-done">Done</button>
+      </div>
+    </div>
+  </section>
+
+  <section id="scr-book" class="screen dim" aria-label="Book" hidden>
+    <div class="book-ui">
+      <h2 class="book-h" id="book-title"></h2>
+      <p class="book-by" id="book-by"></p>
+      <div id="book-page" class="book-page" role="document"></div>
+      <textarea id="book-edit" class="book-page" maxlength="256" aria-label="Page" spellcheck="true" hidden></textarea>
+      <div class="book-nav">
+        <button type="button" class="btn" id="btn-book-prev">&lt; Back</button>
+        <span id="book-num"></span>
+        <button type="button" class="btn" id="btn-book-next">Next &gt;</button>
+      </div>
+      <div class="book-sign" id="book-sign-row" hidden>
+        <label class="field"><span>Give your book a title</span><input id="book-title-in" type="text" maxlength="32" autocomplete="off" placeholder="My Book"></label>
+        <div class="btn-row"><button type="button" class="btn" id="btn-book-sign-ok">Sign and Close</button><button type="button" class="btn" id="btn-book-sign-cancel">Cancel</button></div>
+      </div>
+      <div class="btn-row"><button type="button" class="btn" id="btn-book-sign">Sign</button><button type="button" class="btn" id="btn-book-done">Done</button></div>
+    </div>
+  </section>
+
+  <section id="scr-sign" class="screen dim" aria-label="Write on the sign" hidden>
+    <h2 class="scr-h">Write on the sign</h2>
+    <div class="sign-board">
+      <input class="sign-line" type="text" maxlength="15" autocomplete="off" aria-label="Line 1">
+      <input class="sign-line" type="text" maxlength="15" autocomplete="off" aria-label="Line 2">
+      <input class="sign-line" type="text" maxlength="15" autocomplete="off" aria-label="Line 3">
+      <input class="sign-line" type="text" maxlength="15" autocomplete="off" aria-label="Line 4">
+    </div>
+    <button type="button" class="btn big" id="btn-sign-done">Done</button>
   </section>
 
   <section id="scr-msg" class="screen dirt" aria-label="Message" hidden>

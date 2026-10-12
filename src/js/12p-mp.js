@@ -2,7 +2,7 @@
    The host's iPad runs the world: creatures, falling sand, water, furnaces, time of day.
    Guests build the same terrain from the seed, send their own moves and block changes,
    and show the host's creatures. A guest's things are saved inside the host's world. */
-const MP_PROTO = 2;   // 2: bows, new TNT, endermen, ghasts, dispensers, minecarts and cars
+const MP_PROTO = 3;   // 2: bows, new TNT, endermen, ghasts, dispensers, minecarts and cars; 3: armor, enchanting, books, signs, potions, fish, boats, made characters, TVs, boards, Hardcore
 const MP_MAX_GUESTS = 3;
 const r2 = v => Math.round(v * 100) / 100;
 const okXYZ = a => Array.isArray(a) && a.length === 3 && a.every(v => typeof v === 'number' && isFinite(v));
@@ -17,8 +17,10 @@ function serviceTrouble(why, fails) {
 function lerpAngle(a, b, k) { const d = ((b - a + Math.PI) % TAU + TAU) % TAU - Math.PI; return a + d * k; }
 
 class RemotePlayer {
-  constructor(id, name, skin) {
-    this.id = id; this.name = name || 'Player'; this.skin = PLAYER_SKINS.includes(skin) ? skin : 'declan';
+  constructor(id, name, skin, look) {
+    this.id = id; this.name = name || 'Player';
+    this.look = cleanLook(look);   // a character they made: painted into one of the spare skins here
+    this.skin = this.look ? remoteLookSkin(this.look, this) : PLAYER_SKINS.includes(skin) ? skin : 'declan';
     this.x = 0; this.y = 0; this.z = 0; this.tx = 0; this.ty = 0; this.tz = 0; this.has = false;
     this.yaw = 0; this.pitch = 0; this.bodyYaw = 0; this.tyaw = 0; this.tpitch = 0; this.tbody = 0;
     this.walk = 0; this.walkAmt = 0; this.sneaking = false; this.flying = false; this.alive = true; this.mode = 'survival';
@@ -28,23 +30,41 @@ class RemotePlayer {
   heldId() { return this.held; }
   lookDir() { const cp = Math.cos(this.pitch); return [-Math.sin(this.yaw) * cp, Math.sin(this.pitch), -Math.cos(this.yaw) * cp]; }
 }
+/* a player's state, ten times a second: [x, y, z, yaw, pitch, body yaw, flags, held item, swings, armor ids, ...] */
+const STATE_LEN = 13;
 function encodeState(p) {
-  const rd = p.riding, aim = p.drawT > 0 || p.loadT > 0 || p.heldId() === I.CROSSBOW_LOADED;
+  const rd = p.riding, aim = p.drawT > 0 || p.loadT > 0 || p.heldId() === I.CROSSBOW_LOADED, sh = shieldHand(p);
   const f = (p.sneaking ? 1 : 0) | (p.flying ? 2 : 0) | (p.alive ? 4 : 0) | (game.mode === 'creative' ? 8 : 0) | (game.sleeping > 0 ? 16 : 0) |
-    (rd ? 32 : 0) | (rd && rd.type === 'car' ? 64 : 0) | (aim ? 128 : 0);
-  return [r2(p.x), r2(p.y), r2(p.z), r2(p.yaw), r2(p.pitch), r2(p.bodyYaw), f, p.heldId(), p.swings || 0];
+    (rd ? 32 : 0) | (rd && rd.type === 'car' ? 64 : 0) | (aim ? 128 : 0) | (sh === 'off' ? 256 : 0) | (p.blocking ? 512 : 0) |
+    (rd && rd.type === 'boat' ? 1024 : 0) | (rd && rd.type === 'submarine' ? 2048 : 0);
+  const b = p.bobber && !p.bobber.removed ? [r2(p.bobber.x), r2(p.bobber.y), r2(p.bobber.z)] : 0;
+  return [r2(p.x), r2(p.y), r2(p.z), r2(p.yaw), r2(p.pitch), r2(p.bodyYaw), f, p.heldId(), p.swings || 0, wornArmor(p), wornGlint(p), effectBits(p), b];
 }
 function applyState(r, a) {
   if (!Array.isArray(a) || a.length < 9 || !a.slice(0, 6).every(v => typeof v === 'number' && isFinite(v))) return;
-  r.lastState = a.slice(0, 9);
+  r.lastState = a.slice(0, STATE_LEN);
   r.tx = a[0]; r.ty = a[1]; r.tz = a[2]; r.tyaw = a[3]; r.tpitch = clamp(a[4], -1.6, 1.6); r.tbody = a[5];
   const f = a[6] | 0;
+  const was = r.alive;
   r.sneaking = !!(f & 1); r.flying = !!(f & 2); r.alive = !!(f & 4); r.mode = (f & 8) ? 'creative' : 'survival';
-  r.riding = (f & 32) ? ((f & 64) ? 'car' : 'cart') : null; r.aiming = !!(f & 128);
+  if (was && !r.alive) markOut(r);
+  r.riding = (f & 32) ? ((f & 64) ? 'car' : (f & 1024) ? 'boat' : (f & 2048) ? 'sub' : 'cart') : null; r.aiming = !!(f & 128);
   const held = a[7] | 0;
   r.held = held > 0 && itemDef(held) ? held : 0;
+  r.shield = r.held === I.SHIELD ? 'main' : (f & 256) ? 'off' : null; r.blocking = !!(f & 512) && !!r.shield;
+  r.armor = [0, 1, 2, 3].map(k => { const id = Array.isArray(a[9]) ? a[9][k] | 0 : 0, ar = armorOf(id); return ar && ar.slot === k ? id : 0; });
+  r.glint = (a[10] | 0) & 31;
+  r.fxBits = (a[11] | 0) & ((1 << EFFECTS.length) - 1);
+  r.bobberAt = okXYZ(a[12]) && r.held === I.FISHING_ROD && Math.hypot(a[12][0] - a[0], a[12][2] - a[2]) < 40 ? a[12] : null;   // their fishing bobber
   if ((a[8] | 0) !== r.swings) { r.swings = a[8] | 0; r.swingP = 0; }
   if (!r.has) { r.x = r.tx; r.y = r.ty; r.z = r.tz; r.yaw = r.tyaw; r.pitch = r.tpitch; r.bodyYaw = r.tbody; r.has = true; }
+}
+/* host: a guest used up their one life in this Hardcore world, so they can't come back into it */
+function markOut(r) {
+  if (!game.hardcore || MP.role !== 'host' || game.hcOut.includes(r.id)) return;
+  game.hcOut.push(r.id);
+  chat(r.name + ' is out! (Hardcore: one life)', '#ff5555');
+  game.save();
 }
 function updateRemote(r, dt) {
   const k = Math.min(1, dt * 12), ox = r.x, oz = r.z;
@@ -59,19 +79,22 @@ function updateRemote(r, dt) {
 }
 function encodeEnt(e) {
   if (e.mob) {
-    const flags = (e.hurt > 0 ? 1 : 0) | (e.dead ? 2 : 0) | (e.armSwing > 0 ? 4 : 0) | (e.onGround ? 8 : 0) | (e.frozen > 0 ? 16 : 0);
+    const flags = (e.hurt > 0 ? 1 : 0) | (e.dead ? 2 : 0) | (e.armSwing > 0 ? 4 : 0) | (e.onGround ? 8 : 0) | (e.frozen > 0 ? 16 : 0) | (e.fireT > 0 ? 32 : 0) |
+      (mobInvisible(e) ? 64 : 0) | (e.effects && e.effects.poison > 0 ? 128 : 0);
     const extra = e.type === 'sheep' ? (e.wool | 0) : e.type === 'villager' ? VILLAGER_PROFS.indexOf(e.prof) * 100000 + ((e.vseed | 0) % 100000)
       : e.type === 'magma' ? (e.size || 1) : e.type === 'piglin' ? (e.angryT > 0 ? 1 : 0)
-      : e.type === 'enderman' ? (e.carry | 0) + (e.angryT > 0 ? 1024 : 0) : e.type === 'ghast' ? (e.firing > 0 ? 1 : 0) : 0;
+      : e.type === 'enderman' ? (e.carry | 0) + (e.angryT > 0 ? 1024 : 0) : e.type === 'ghast' ? (e.firing > 0 ? 1 : 0)
+      : e.type === 'tropical' ? (e.variant | 0) : e.type === 'pufferfish' ? Math.round((e.puff || 0) * 10) : 0;
     return [e.nid, MOB_TYPES.indexOf(e.type), r2(e.x), r2(e.y), r2(e.z), r2(e.bodyYaw), r2(e.headYaw), r2(e.pitch), r2(e.walkAmt), flags, r2(e.fuse || 0), extra];
   }
   if (e.type === 'tnt') return [e.nid, -1, r2(e.x), r2(e.y), r2(e.z), r2(e.fuse), TNT_KINDS.indexOf(e.kind), e.small ? 1 : 0];
   if (e.type === 'falling') return [e.nid, -2, r2(e.x), r2(e.y), r2(e.z), e.id];
   if (e.type === 'proj') return [e.nid, -3, r2(e.x), r2(e.y), r2(e.z), r2(e.vx), r2(e.vy), r2(e.vz), PROJ_KINDS.indexOf(e.kind), (e.stuck ? 1 : 0) | (e.crit ? 2 : 0), e.tok || ''];
-  if (e.vehicle) return [e.nid, e.type === 'car' ? -6 : -5, r2(e.x), r2(e.y), r2(e.z), r2(e.yaw), r2(e.slope || 0), e.rider ? 1 : 0, vehicleState(e)[5], e.hurt > 0 ? 1 : 0];
+  if (e.vehicle) return [e.nid, VEHICLES[e.type].code, r2(e.x), r2(e.y), r2(e.z), r2(e.yaw), r2(e.slope || 0), e.rider ? 1 : 0, vehicleState(e)[5], e.hurt > 0 ? 1 : 0];
+  if (e.type === 'xp') return [e.nid, -7, r2(e.x), r2(e.y), r2(e.z), e.value];
   return null;
 }
-const ENT_CODE = { '-1': 'tnt', '-2': 'falling', '-3': 'proj', '-5': 'minecart', '-6': 'car' };
+const ENT_CODE = { '-1': 'tnt', '-2': 'falling', '-3': 'proj', '-5': 'minecart', '-6': 'car', '-7': 'xp', '-8': 'boat', '-9': 'submarine' };
 /* guest: creatures from the host glide to their latest positions */
 function updateProxy(e, dt) {
   e.age += dt;
@@ -80,7 +103,7 @@ function updateProxy(e, dt) {
     return;
   }
   const k = Math.min(1, dt * 10);
-  if (e.vehicle) { e.yaw = lerpAngle(e.yaw, e.yawT || 0, k); e.slope = lerp(e.slope || 0, e.slopeT || 0, k); e.wheel += (e.speed || 0) * dt / (e.type === 'car' ? 0.19 : 0.1); if (e.hurt > 0) e.hurt -= dt; }
+  if (e.vehicle) { e.yaw = lerpAngle(e.yaw, e.yawT || 0, k); e.slope = lerp(e.slope || 0, e.slopeT || 0, k); e.wheel += (e.speed || 0) * dt / VEHICLES[e.type].wheel; if (e.hurt > 0) e.hurt -= dt; }
   if (e.tx !== undefined) {
     const ox = e.x, oy = e.y, oz = e.z;
     if (Math.abs(e.tx - e.x) + Math.abs(e.ty - e.y) + Math.abs(e.tz - e.z) > 10) { e.x = e.tx; e.y = e.ty; e.z = e.tz; }
@@ -89,7 +112,9 @@ function updateProxy(e, dt) {
       e.walk += (Math.hypot(e.x - ox, e.z - oz) / Math.max(dt, 1e-3)) * dt * 2.6;
       e.walkAmt = lerp(e.walkAmt, e.walkT || 0, k);
       e.bodyYaw = lerpAngle(e.bodyYaw, e.bodyT || 0, k); e.headYaw = lerpAngle(e.headYaw, e.headT || 0, k); e.pitch = lerp(e.pitch, e.pitchT || 0, k);
+      if (e.poisoned && !e.invis) effectSwirls(e.x, e.y, e.z, 1 << EFFECTS.indexOf('poison'), dt, 1);
       if (e.type === 'magma') { e.vy = (e.y - oy) / Math.max(dt, 1e-3); if (e.onGround && !e.wasGround) e.squash = 0.25; e.wasGround = e.onGround; }
+      mobFire(game, e, dt);
     }
   }
   if (e.hurt > 0) e.hurt -= dt;
@@ -104,24 +129,50 @@ function cleanStack(s) {
   if (id <= 0 || id === B.UNLOADED || !itemDef(id)) return null;
   const out = { id, count: clamp(s.count | 0, 1, maxStack(id)) };
   if (s.dmg) out.dmg = clamp(s.dmg | 0, 0, 5000);
+  const tag = cleanTag(s.tag);
+  if (tag) { out.tag = tag; out.count = 1; }   // (tagged things never pile up)
   return out;
 }
 function cleanGuestSave(d) {
   if (!d || typeof d !== 'object') return null;
   const num = (v, a, b, def) => (typeof v === 'number' && isFinite(v) ? clamp(v, a, b) : def);
-  const inv = Array.isArray(d.inv) ? d.inv.slice(0, 36).map(cleanStack) : [];
-  while (inv.length < 36) inv.push(null);
+  const inv = Array.isArray(d.inv) ? d.inv.slice(0, INV_SIZE).map(cleanStack) : [];
+  while (inv.length < INV_SIZE) inv.push(null);
   const sp = Array.isArray(d.spawn) && d.spawn.length === 3 && d.spawn.every(v => typeof v === 'number' && isFinite(v)) ? d.spawn.map(v => v | 0) : null;
   return {
     x: num(d.x, -1e6, 1e6, 0), y: num(d.y, -60, 300, 90), z: num(d.z, -1e6, 1e6, 0), yaw: num(d.yaw, -1e3, 1e3, 0), pitch: num(d.pitch, -1.6, 1.6, 0),
     health: num(d.health, 1, 20, 20), food: num(d.food, 0, 20, 20), air: num(d.air, 0, 10, 10), inv, sel: num(d.sel | 0, 0, 8, 0), spawn: sp,
     mode: d.mode === 'creative' ? 'creative' : 'survival', flying: !!d.flying, dim: d.dim === 'nether' ? 'nether' : 'over',
+    xp: num(d.xp, 0, 1e7, 0), enchSeed: num(d.enchSeed, 0, 2147483647, 0) | 0,
+    effects: d.effects && typeof d.effects === 'object' ? Object.fromEntries(EFFECTS.filter(k => +d.effects[k] > 0).map(k => [k, Math.min(600, +d.effects[k])])) : {},
   };
 }
-const FX_KINDS = ['break', 'place', 'door', 'boom', 'sfx', 'party', 'ice', 'tele', 'smoke'];
-const SFX_NET = ['leverClick', 'buttonClick', 'honk', 'bowShoot', 'crossbowShoot', 'pearlThrow', 'dispense', 'dispenseFail', 'ghastShoot', 'endermanPortal'];   // the first three can come from guests
+/* signs (and boards and TVs): what everyone needs to see, from the host's world */
+function dataTiles(w) {
+  const out = {};
+  for (const [k, t] of w.tiles) {
+    if (t.type === 'sign') out[k] = { type: 'sign', lines: t.lines };
+    else if (t.type === 'board') out[k] = { type: 'board', px: t.px, pic: t.pic };
+  }
+  return out;
+}
+function cleanDataTiles(td) {
+  const out = {};
+  if (!td || typeof td !== 'object') return out;
+  let n = 0;
+  for (const k in td) {
+    if (n++ > 5000 || !/^-?\d+,\d+,-?\d+$/.test(k)) continue;
+    const t = td[k];
+    if (t && t.type === 'sign' && Array.isArray(t.lines)) out[k] = { type: 'sign', lines: [0, 1, 2, 3].map(i => cleanText(t.lines[i], SIGN_CHARS)) };
+    else if (t && t.type === 'board' && cleanBoardPx(t.px)) out[k] = { type: 'board', px: t.px, pic: clamp(t.pic | 0, 0, BOARD_PICS.length - 1) };
+  }
+  return out;
+}
+const FX_KINDS = ['break', 'place', 'door', 'boom', 'sfx', 'party', 'ice', 'tele', 'smoke', 'xpb', 'splash'];
+const SFX_NET = ['leverClick', 'buttonClick', 'honk', 'bowShoot', 'crossbowShoot', 'pearlThrow', 'dispense', 'dispenseFail', 'ghastShoot', 'endermanPortal', 'sonar', 'tvOn', 'tvOff'];
+const GUEST_SFX = new Set(['leverClick', 'buttonClick', 'honk', 'sonar', 'tvOn', 'tvOff']);   // the sounds a guest can send
 const LINK_FAIL = "Found the game, but the two iPads couldn't connect to each other. Put both on the same Wi-Fi, then try again.";
-const STALE_T = new Set(['st', 'set', 'open', 'tile', 'close', 'tnt', 'egg', 'portal', 'shoot', 'mount', 'veh', 'dismount', 'veh+']);
+const STALE_T = new Set(['st', 'set', 'open', 'tile', 'close', 'tnt', 'egg', 'portal', 'shoot', 'mount', 'veh', 'dismount', 'veh+', 'sign', 'board']);
 
 const MP = {
   role: null, code: '', token: '', sig: null, roomOpen: false, hostLink: null, hostName: '', we: 0,
@@ -189,7 +240,8 @@ const MP = {
       if (m.t !== 'hello' || l.hello) return;
       if (m.v !== MP_PROTO) { l.send({ t: 'deny', why: 'version' }); setTimeout(() => l.close('deny'), 600); return; }
       if (this.links.size + this.pending.length >= MP_MAX_GUESTS) { l.send({ t: 'deny', why: 'full' }); setTimeout(() => l.close('deny'), 600); return; }
-      l.hello = { name: cleanName(m.name) || 'Player', skin: PLAYER_SKINS.includes(m.skin) ? m.skin : 'declan', pid: String(m.pid || '').replace(/[^a-z0-9]/gi, '').slice(0, 16) || randomId(8) };
+      l.hello = { name: cleanName(m.name) || 'Player', skin: PLAYER_SKINS.includes(m.skin) ? m.skin : 'declan', pid: String(m.pid || '').replace(/[^a-z0-9]/gi, '').slice(0, 16) || randomId(8), look: cleanLook(m.look) };
+      if (game.hardcore && game.hcOut.includes(l.hello.pid)) { l.send({ t: 'deny', why: 'out' }); setTimeout(() => l.close('deny'), 600); return; }   // (their one Hardcore life is used up)
       this.pending.push(l);
       this.showPrompt();
       return;
@@ -198,10 +250,12 @@ const MP = {
     // after going through a portal, messages about the old world are left behind
     if ((m.we | 0) !== this.we && STALE_T.has(m.t)) {
       if ((m.t === 'tile' || m.t === 'close') && (m.we | 0) === this.we - 1) this.staleTile(m, r);   // except a chest's last changes
+      else if ((m.t === 'sign' || m.t === 'board') && (m.we | 0) === this.we - 1) this.staleData(m);   // and a sign's or board's
       return;
     }
     switch (m.t) {
       case 'st': applyState(r, m.s); break;
+      case 'out': markOut(r); break;   // (they died in Hardcore)
       case 'portal': {   // a guest stepped through: everyone travels
         const x = m.x | 0, y = m.y | 0, z = m.z | 0;
         if (game.state !== 'playing' || Math.hypot(x + 0.5 - r.tx, z + 0.5 - r.tz) > 3) break;
@@ -214,12 +268,14 @@ const MP = {
         for (let i = 0; i + 4 < b.length && i < 5000; i += 5) {
           const x = b[i] | 0, y = b[i + 1] | 0, z = b[i + 2] | 0, id = b[i + 3] | 0, d = b[i + 4] | 0;
           if (y < 0 || y >= WH || id < 0 || id > 254 || !BLOCKS[id] || Math.abs(x - r.tx) > 64 || Math.abs(z - r.tz) > 64) continue;
-          const old = w.getBlock(x, y, z), k = tileKey(x, y, z), t = w.tiles.get(k);
-          const keep = t && ((t.type === 'chest' && id === B.CHEST) || (t.type === 'furnace' && (id === B.FURNACE || id === B.FURNACE_LIT)) || (t.type === 'dispenser' && id === B.DISPENSER));
+          const old = w.getBlock(x, y, z), k = tileKey(x, y, z);
+          if (old === B.CHEST && id !== B.CHEST && (w.getData(x, y, z) & 8)) w.getTile(x, y, z, 'chest');   // a village chest no one has opened: fill it now, so its things drop for them
+          const t = w.tiles.get(k);
+          const keep = t && ((t.type === 'chest' && id === B.CHEST) || (t.type === 'furnace' && (id === B.FURNACE || id === B.FURNACE_LIT)) || (t.type === 'dispenser' && id === B.DISPENSER) || (t.type === 'brew' && id === B.BREWING_STAND) || (t.type === 'sign' && id === B.SIGN) || (t.type === 'board' && id === B.BOARD));
           if (t && !keep && this.tileUser(t, r.id)) { this.outBlocks.push(x, y, z, old, w.getData(x, y, z)); continue; }   // in use by someone else: put it back
           if (t && !keep) {   // they broke a chest or furnace: its things drop for them
             w.tiles.delete(k);
-            this.sendDrops(r, t.slots.filter(Boolean).map(s => [s.id, s.count, s.dmg || 0]), x + 0.5, y + 0.5, z + 0.5);
+            if (t.slots) this.sendDrops(r, t.slots.filter(Boolean).map(s => dropEntry(s.id, s.count, s)), x + 0.5, y + 0.5, z + 0.5);
             if (ui.inv && ui.inv.tile === t) game.closeUI();
           }
           w.applyRemote(x, y, z, id, d & 255);
@@ -231,23 +287,24 @@ const MP = {
       case 'hit': {
         const e = game.entities.find(q => q.nid === m.e && !q.removed);
         if (!e || Math.hypot(e.x - r.tx, e.z - r.tz) > 8) break;
-        if (e.mob && !e.dead) hurtMob(game, e, clamp(+m.d || 1, 0, 20), isFinite(+m.x) ? +m.x : r.tx, isFinite(+m.z) ? +m.z : r.tz, 'player', r.id);
+        const o = m.o && typeof m.o === 'object' ? { kb: clamp(+m.o.kb || 0, 0, 2), fire: clamp(+m.o.fire || 0, 0, 8), loot: clamp(m.o.loot | 0, 0, 3) } : undefined;
+        if (e.mob && !e.dead) hurtMob(game, e, clamp(+m.d || 1, 0, 25), isFinite(+m.x) ? +m.x : r.tx, isFinite(+m.z) ? +m.z : r.tz, 'player', r.id, o);
         else if (e.vehicle) hitVehicle(game, e, r.mode, r.id);
         else if (e.type === 'proj' && e.kind === 'fireball') deflectFireball(game, e, r.lookDir(), r.id);
         break;
       }
       case 'tnt': if (tntKindOf(w.getBlock(m.x | 0, m.y | 0, m.z | 0))) igniteTNT(game, m.x | 0, m.y | 0, m.z | 0); break;
       case 'shoot': {   // a guest's arrow, pearl or fire charge: the real one is made here
-        const k = m.k === 'arrow' || m.k === 'pearl' || m.k === 'charge' ? m.k : null;
+        const k = m.k === 'arrow' || m.k === 'pearl' || m.k === 'charge' || m.k === 'xpb' || m.k === 'potion' ? m.k : null;
         // (their position here can be a moment old: a guest falling fast is a few blocks further down by now)
         if (!k || !okXYZ(m.p) || !okXYZ(m.v) || Math.hypot(m.p[0] - r.tx, m.p[2] - r.tz) > 6 || Math.abs(m.p[1] - r.ty - 1.5) > 12 || Math.hypot(m.v[0], m.v[1], m.v[2]) > 70) break;
-        shootProjectile(game, k, m.p[0], m.p[1], m.p[2], m.v[0], m.v[1], m.v[2], { owner: r.id, dmg: k === 'arrow' ? clamp(+m.d || 0, 0, 12) : 0, crit: !!m.c, pickup: k === 'arrow' && r.mode === 'survival', tok: String(m.tok || '').slice(0, 12) });
+        shootProjectile(game, k, m.p[0], m.p[1], m.p[2], m.v[0], m.v[1], m.v[2], { owner: r.id, dmg: k === 'arrow' ? clamp(+m.d || 0, 0, 25) : 0, crit: !!m.c, pickup: k === 'arrow' && r.mode === 'survival' && !m.np, tok: String(m.tok || '').slice(0, 12), kb: clamp(m.kb | 0, 0, 2), fire: m.fl ? 5 : 0, pk: clamp(m.pk | 0, 0, POTIONS.length - 1) });
         const snd = SFX_NET.includes(m.s) ? m.s : k === 'pearl' ? 'pearlThrow' : k === 'charge' ? 'ghastShoot' : 'bowShoot';
         sfx(snd, m.p[0], m.p[1], m.p[2]); this.sfx(snd, m.p[0], m.p[1], m.p[2], r.id);
         break;
       }
-      case 'veh+': {   // a guest put down a minecart or a car
-        const type = m.k === 'car' || m.k === 'minecart' ? m.k : null;
+      case 'veh+': {   // a guest put down a minecart, a car, a boat or a submarine
+        const type = isVehicleType(m.k) ? m.k : null;
         if (!type || !okXYZ(m.at) || Math.hypot(m.at[0] - r.tx, m.at[2] - r.tz) > 8 || Math.abs(m.at[1] - r.ty) > 8) break;
         if (type === 'minecart' && w.getBlock(Math.floor(m.at[0]), Math.floor(m.at[1]), Math.floor(m.at[2])) !== B.RAIL) break;
         spawnVehicle(game, type, m.at[0], m.at[1], m.at[2], isFinite(+m.yaw) ? +m.yaw : 0);
@@ -268,9 +325,24 @@ const MP = {
       }
       case 'egg': if (isMobType(m.m) && isFinite(+m.x) && isFinite(+m.y) && isFinite(+m.z) && Math.hypot(+m.x - r.tx, +m.z - r.tz) < 12 && Math.abs(+m.y - r.ty) < 12) spawnMob(game, m.m, +m.x, +m.y, +m.z, { home: [+m.x, +m.z] }); break;
       case 'trade': { const e = game.entities.find(q => q.nid === m.e && q.type === 'villager'); if (e) e.tradeT = m.end ? 0 : 20; break; }
+      case 'sign': {   // a guest wrote on a sign: keep it, and show everyone else
+        const x = m.x | 0, y = m.y | 0, z = m.z | 0;
+        if (!Array.isArray(m.l) || w.knownBlock(x, y, z) !== B.SIGN || Math.hypot(x + 0.5 - r.tx, z + 0.5 - r.tz) > 12) break;
+        setSignText(w, x, y, z, m.l);
+        this.broadcast({ t: 'sign', x, y, z, l: signLines(w, x, y, z), we: this.we }, r.id);
+        break;
+      }
+      case 'board': {   // a guest colored in a board
+        const x = m.x | 0, y = m.y | 0, z = m.z | 0;
+        if (!cleanBoardPx(m.px) || w.knownBlock(x, y, z) !== B.BOARD || Math.hypot(x + 0.5 - r.tx, z + 0.5 - r.tz) > 12) break;
+        setBoard(w, x, y, z, m.px, m.pic);
+        const t = boardTile(w, x, y, z);
+        this.broadcast({ t: 'board', x, y, z, px: t.px, pic: t.pic, we: this.we }, r.id);
+        break;
+      }
       case 'open': {
         const x = m.x | 0, y = m.y | 0, z = m.z | 0, id = w.getBlock(x, y, z);
-        const kind = id === B.CHEST ? 'chest' : (id === B.FURNACE || id === B.FURNACE_LIT) ? 'furnace' : id === B.DISPENSER ? 'dispenser' : null;
+        const kind = id === B.CHEST ? 'chest' : (id === B.FURNACE || id === B.FURNACE_LIT) ? 'furnace' : id === B.DISPENSER ? 'dispenser' : id === B.BREWING_STAND ? 'brew' : null;
         if (!kind) { l.send({ t: 'busy', x, y, z }); break; }   // not there (or not loaded yet)
         const t = w.getTile(x, y, z, kind), by = this.tileUser(t, r.id);
         if (by) { l.send({ t: 'busy', x, y, z, by }); break; }   // one player at a time, so nothing is lost or copied
@@ -302,7 +374,7 @@ const MP = {
   showPrompt() {
     const l = this.pending[0], box = el('join-prompt');
     if (!l || this.role !== 'host') { box.hidden = true; return; }
-    el('join-face').src = faceIcon(l.hello.skin, 64);
+    el('join-face').src = l.hello.look ? lookFace(l.hello.look, 64) : faceIcon(l.hello.skin, 64);
     el('join-prompt-text').textContent = l.hello.name + ' wants to join your world.';
     box.hidden = false;
     game.releasePointer();   // on a computer, free the mouse so the buttons can be clicked
@@ -319,24 +391,25 @@ const MP = {
   acceptGuest(l) {
     const hi = l.hello, w = game.world, pl = game.player;
     if (this.links.size >= MP_MAX_GUESTS && !this.links.has(hi.pid)) { l.send({ t: 'deny', why: 'full' }); setTimeout(() => l.close('deny'), 600); return; }
+    if (game.hardcore && game.hcOut.includes(hi.pid)) { l.send({ t: 'deny', why: 'out' }); setTimeout(() => l.close('deny'), 600); return; }   // one life in Hardcore
     const old = this.links.get(hi.pid);
     if (old) { old.player = null; this.links.delete(hi.pid); old.close('replaced'); this.removeRemote(hi.pid, true); }
     this.newLinks.delete(l);
-    const r = new RemotePlayer(hi.pid, hi.name, hi.skin);
+    const r = new RemotePlayer(hi.pid, hi.name, hi.skin, hi.look);
     r.link = l; l.player = r;
     this.links.set(hi.pid, l); this.remotes.set(hi.pid, r);
     const saved = this.guestSaves[hi.pid] || null, here = saved && (saved.dim || 'over') === game.dim;
     const at = here ? [saved.x, saved.y, saved.z] : (pl.alive ? [r2(pl.x), r2(pl.y + 0.05), r2(pl.z)] : game.spawnPos());
     const you = saved ? Object.assign({}, saved, { x: at[0], y: at[1], z: at[2] }) : null;
     r.x = r.tx = at[0]; r.y = r.ty = at[1]; r.z = r.tz = at[2]; r.has = true;
-    const players = [{ id: 'host', name: playerName(), skin: PROFILE.skin }];
-    for (const o of this.remotes.values()) if (o !== r) players.push({ id: o.id, name: o.name, skin: o.skin });
+    const players = [{ id: 'host', name: playerName(), skin: PROFILE.skin, look: myLook() }];
+    for (const o of this.remotes.values()) if (o !== r) players.push({ id: o.id, name: o.name, skin: o.look ? 'declan' : o.skin, look: o.look });
     l.send({
-      t: 'welcome', v: MP_PROTO, map: game.mapId, seed: game.seed, vb: game.overVB, mode: game.mode, time: w.time, day: game.day, clock: w.clock,
-      spawn: game.worldSpawn, edits: w.serialize().edits, you, at, host: playerName(), players, dim: game.dim, we: this.we, ns: game.netherSpawn,
+      t: 'welcome', v: MP_PROTO, map: game.mapId, hc: game.hardcore ? 1 : 0, seed: game.seed, vb: game.overVB, mode: game.mode, time: w.time, day: game.day, clock: w.clock,
+      spawn: game.worldSpawn, edits: w.serialize().edits, td: dataTiles(w), you, at, host: playerName(), players, dim: game.dim, we: this.we, ns: game.netherSpawn,
       wait: game.arrival ? 1 : 0,   // we are on the way through a portal: where to step out comes when we get there
     });
-    this.broadcast({ t: 'pj', id: hi.pid, name: hi.name, skin: hi.skin }, hi.pid);
+    this.broadcast({ t: 'pj', id: hi.pid, name: hi.name, skin: hi.skin, look: hi.look }, hi.pid);
     chat(hi.name + ' joined the game', '#ffff55'); sfx('join');
     this.updateUI();
   },
@@ -361,7 +434,7 @@ const MP = {
     this.updateUI();
   },
   sendTile(t, x, y, z, only) {
-    const msg = { t: 'tile', x, y, z, s: t.slots, burn: r2(t.burn || 0), burnMax: r2(t.burnMax || 0), cook: r2(t.cook || 0) };
+    const msg = { t: 'tile', x, y, z, s: t.slots, burn: r2(t.burn || 0), burnMax: r2(t.burnMax || 0), cook: r2(t.cook || 0), bt: r2(t.t || 0) };
     if (only) { const l = this.links.get(only); if (l) l.send(msg); return; }
     if (t.viewers) for (const id of t.viewers) { const l = this.links.get(id); if (l) l.send(msg); }
   },
@@ -370,6 +443,7 @@ const MP = {
     if (!Array.isArray(m.s) || m.s.length !== t.slots.length) return false;
     for (let i = 0; i < t.slots.length; i++) t.slots[i] = cleanStack(m.s[i]);
     if (t.type === 'furnace') { const n = (v, hi) => (isFinite(+v) ? clamp(+v, 0, hi) : 0); t.burn = n(m.burn, 3600); t.burnMax = n(m.burnMax, 3600); t.cook = n(m.cook, SMELT_TIME); }
+    if (t.type === 'brew') t.t = isFinite(+m.bt) ? clamp(+m.bt, 0, BREW_TIME) : 0;
     return true;
   },
   /* host: a chest or furnace a guest had open when we all went through a portal belongs to the world left behind
@@ -379,6 +453,17 @@ const MP = {
     if (!t || !t.viewers || !t.viewers.has(r.id)) return;
     if (m.t === 'close') t.viewers.delete(r.id);
     else this.applyTile(t, m);
+  },
+  /* a guest's words on a sign (or a board's picture) that were on the way when everyone went through a portal */
+  staleData(m) {
+    const left = game.dims[game.dim === 'nether' ? 'over' : 'nether'], x = m.x | 0, y = m.y | 0, z = m.z | 0;
+    if (!left || y < 0 || y >= WH) return;
+    const a = left.edits && left.edits[(x >> 4) + ',' + (z >> 4)], i = (x & 15) | ((z & 15) << 4) | (y << 8);
+    let id = -1;
+    if (Array.isArray(a)) for (let j = 0; j + 1 < a.length; j += 2) if (a[j] === i) id = a[j + 1] & 255;
+    if (!left.tiles) left.tiles = {};
+    if (m.t === 'sign' && id === B.SIGN && Array.isArray(m.l)) left.tiles[tileKey(x, y, z)] = { type: 'sign', lines: [0, 1, 2, 3].map(n => cleanText(m.l[n], SIGN_CHARS)) };
+    if (m.t === 'board' && id === B.BOARD && cleanBoardPx(m.px)) left.tiles[tileKey(x, y, z)] = { type: 'board', px: m.px, pic: clamp(m.pic | 0, 0, BOARD_PICS.length - 1) };
   },
   tileChanged(t, except) {
     if (this.role !== 'host') return;
@@ -408,7 +493,7 @@ const MP = {
     if (this.role === 'guest' && t.remote && !t.loading) { this.pushTile(t); this.sendSave(); }   // save right away so the chest and her things always match
     else if (this.role === 'host') this.tileChanged(t);
   },
-  pushTile(t) { this.send({ t: 'tile', x: t.x, y: t.y, z: t.z, s: t.slots, burn: r2(t.burn || 0), burnMax: r2(t.burnMax || 0), cook: r2(t.cook || 0) }); },
+  pushTile(t) { this.send({ t: 'tile', x: t.x, y: t.y, z: t.z, s: t.slots, burn: r2(t.burn || 0), burnMax: r2(t.burnMax || 0), cook: r2(t.cook || 0), bt: r2(t.t || 0) }); },
   closeTile(t) {
     if (this.role !== 'guest' || !t.remote || t.gone) return;
     if (!t.loading) this.pushTile(t);
@@ -416,10 +501,10 @@ const MP = {
     this.sendSave();
   },
   sendDrops(r, loot, x, y, z) { if (r && r.link && loot.length) r.link.send({ t: 'drops', l: loot, x: r2(x), y: r2(y), z: r2(z) }); },
-  hurtRemote(r, dmg, cause, kx, ky, kz) {
+  hurtRemote(r, dmg, cause, kx, ky, kz, src) {
     if (!r.link) return;
     if (dmg > 0) r.invuln = 0.5;
-    r.link.send({ t: 'hurt', a: dmg, c: cause, v: [r2(kx), r2(ky), r2(kz)] });
+    r.link.send({ t: 'hurt', a: dmg, c: cause, v: [r2(kx), r2(ky), r2(kz)], e: src && src.mob ? src.nid : undefined });   // (e: the creature that hit them, for Thorns)
   },
   explosion(x, y, z, power, reach) {
     this.outFx.push(['boom', r2(x), r2(y), r2(z), power]);
@@ -432,7 +517,7 @@ const MP = {
       this.hurtRemote(r, dmg, 'explosion', ((ex - x) / l) * imp * 14, Math.max(3, ((ey - y) / l) * imp * 10), ((ez - z) / l) * imp * 14);
     }
   },
-  syncTime() { if (this.role === 'host') this.broadcast({ t: 'time', w: game.world.time, day: game.day }); },
+  syncTime() { if (this.role === 'host') this.broadcast({ t: 'time', w: game.world.time, day: game.day, c: Math.round(game.world.clock * 100) / 100 }); },
   bedtime(name) {
     const w = game.world, night = w.time > 0.53 && w.time < 0.97;
     if (!night) return;
@@ -488,7 +573,7 @@ const MP = {
           onOpen: l => {
             stage = 'wait';
             status('Connected! Waiting for the host to let you in...');
-            l.send({ t: 'hello', v: MP_PROTO, name: playerName(), skin: PROFILE.skin, pid: PROFILE.pid });
+            l.send({ t: 'hello', v: MP_PROTO, name: playerName(), skin: PROFILE.skin, pid: PROFILE.pid, look: myLook() });
             until(150000, () => this.joinFailed('The host did not answer. Ask them to tap Let them in, then try again.'));   // they may take a while to tap it
           },
           onMessage: (l, msg) => this.guestMsg(msg),
@@ -541,23 +626,24 @@ const MP = {
   sendSave() {
     if (this.role !== 'guest' || !this.welcomed) return;
     const pl = game.player, at = pl.alive ? restPos(pl) : game.spawnPos();
-    this.send({ t: 'save', d: { x: r2(at[0]), y: r2(at[1]), z: r2(at[2]), yaw: r2(pl.yaw), pitch: r2(pl.pitch), health: pl.alive ? pl.health : 20, food: pl.alive ? pl.food : 20, air: pl.air, inv: pl.inv, sel: pl.sel, spawn: pl.spawn, mode: game.mode, flying: pl.flying, dim: game.dim } });
+    this.send({ t: 'save', d: { x: r2(at[0]), y: r2(at[1]), z: r2(at[2]), yaw: r2(pl.yaw), pitch: r2(pl.pitch), health: pl.alive ? pl.health : 20, food: pl.alive ? pl.food : 20, air: pl.air, inv: pl.inv, sel: pl.sel, spawn: pl.spawn, mode: game.mode, flying: pl.flying, dim: game.dim, xp: pl.xp, enchSeed: pl.enchSeed, effects: pl.alive ? saveEffects(pl) : {} } });
   },
   guestMsg(m) {
     if (this.role !== 'guest') return;
     switch (m.t) {
-      case 'deny': this.joinFailed(m.why === 'full' ? 'That game is full.' : m.why === 'version' ? 'The two iPads have different versions of Declan-craft. Close the game on both iPads, open it again while online, and try again.' : 'The host said not now.'); break;
+      case 'deny': this.joinFailed(m.why === 'full' ? 'That game is full.' : m.why === 'out' ? 'You already used your one life in that Hardcore world.' : m.why === 'version' ? 'The two iPads have different versions of Declan-craft. Close the game on both iPads, open it again while online, and try again.' : 'The host said not now.'); break;
       case 'welcome': this.startGuest(m); break;
       case 'b': if ((m.we | 0) === this.we) { this.applyBlocks(Array.isArray(m.b) ? m.b : []); this.playFx(m.fx); } break;
       case 'dim': {
         if (!this.welcomed || !okXYZ(m.at)) break;
+        if (game.hardcore && game.state === 'dead') { game.quitToTitle(); showMsg('Game over!', 'You used up your one life in this Hardcore world, so you stay out of it.'); break; }   // (out: not coming along)
         game.closeForTravel();   // first, so a chest still open here sends its last changes for the world being left
         this.we = m.we | 0;
         this.outBlocks = []; this.outFx = [];   // changes to the world being left must not land in the new one
         for (const e of this.proxies.values()) e.removed = true;
         this.proxies.clear();
         for (const r of this.remotes.values()) { r.has = false; r.lastState = null; }
-        game.guestDim({ dim: m.dim, edits: m.edits && typeof m.edits === 'object' ? m.edits : {}, at: m.at, time: m.time, clock: m.clock, ns: m.dim === 'nether' && okXYZ(m.ns) ? m.ns : null });
+        game.guestDim({ dim: m.dim, edits: m.edits && typeof m.edits === 'object' ? m.edits : {}, td: cleanDataTiles(m.td), at: m.at, time: m.time, clock: m.clock, ns: m.dim === 'nether' && okXYZ(m.ns) ? m.ns : null });
         break;
       }
       case 'tp': {   // where to step out of the portal
@@ -575,9 +661,12 @@ const MP = {
         if (Array.isArray(m.p)) for (const ps of m.p) { const r = ps && this.remotes.get(ps.id); if (r) applyState(r, ps.s); }
         break;
       }
-      case 'pj': if (m.id && !this.remotes.has(m.id)) { this.remotes.set(m.id, new RemotePlayer(m.id, cleanName(m.name) || 'Player', m.skin)); chat(cleanName(m.name) + ' joined the game', '#ffff55'); sfx('join'); } break;
+      case 'pj': if (m.id && !this.remotes.has(m.id)) { this.remotes.set(m.id, new RemotePlayer(m.id, cleanName(m.name) || 'Player', m.skin, m.look)); chat(cleanName(m.name) + ' joined the game', '#ffff55'); sfx('join'); } break;
       case 'pl': { const r = this.remotes.get(m.id); if (r) { this.removeRemote(m.id, true); chat(r.name + ' left the game', '#ffff55'); sfx('leave'); } break; }
-      case 'time': if (game.world && isFinite(+m.w)) { game.world.time = +m.w; game.day = m.day | 0 || game.day; } break;
+      case 'time': if (game.world && isFinite(+m.w)) {
+        game.world.time = +m.w; game.day = m.day | 0 || game.day;
+        if (isFinite(+m.c) && +m.c >= 0 && Math.abs(game.world.clock - m.c) > 0.5) game.world.clock = +m.c;   // (TV shows change at the same moment everywhere)
+      } break;
       case 'mount': {   // the host says whether we got in
         const v = this.proxies.get(m.e), pl = game.player;
         if (!m.ok) { if (v) toast('Someone is already in it.', 2); break; }
@@ -599,16 +688,22 @@ const MP = {
         if (game.state !== 'playing' || !pl.alive) break;
         if (m.c === 'party') pl.partyT = 5;
         if (m.c === 'ice') pl.chill = 5;
-        pl.damage(clamp(+m.a || 0, 0, 40), typeof m.c === 'string' && Object.prototype.hasOwnProperty.call(DEATH_MSG, m.c) ? m.c : 'zombie');
-        if (Array.isArray(m.v)) { pl.vx += +m.v[0] || 0; pl.vy = Math.max(pl.vy, +m.v[1] || 0); pl.vz += +m.v[2] || 0; }
+        const v = Array.isArray(m.v) ? m.v.map(q => (isFinite(+q) ? +q : 0)) : [0, 0, 0], push = Math.hypot(v[0], v[2]) > 0.01;   // (the hit came from where it pushes away from)
+        const src = m.e !== undefined ? this.proxies.get(m.e) : null;
+        pl.damage(clamp(+m.a || 0, 0, 40), typeof m.c === 'string' && Object.prototype.hasOwnProperty.call(DEATH_MSG, m.c) ? m.c : 'zombie', src && src.mob && !src.removed ? src : null, push ? pl.x - v[0] : undefined, push ? pl.z - v[2] : undefined);
+        pl.vx += v[0]; pl.vy = Math.max(pl.vy, v[1]); pl.vz += v[2];
         break;
       }
-      case 'drops': if (Array.isArray(m.l)) for (const it of m.l) { const s = cleanStack({ id: it[0], count: it[1], dmg: it[2] }); if (s) { const e = dropItem(game, +m.x, +m.y, +m.z, s.id, s.count, true); if (e && s.dmg) e.dmg = s.dmg; } } break;
+      case 'xp': if (game.state === 'playing' || game.state === 'dead') addXp(game.player, clamp(m.n | 0, 0, 1000)); break;
+      case 'eff': if (game.state === 'playing' && POTIONS[m.k | 0]) potionOnPlayer(game.player, m.k | 0, clamp(+m.s || 0, 0, 1)); break;   // splashed by a potion
+      case 'sign': if ((m.we | 0) === this.we && game.world && Array.isArray(m.l) && game.world.knownBlock(m.x | 0, m.y | 0, m.z | 0) === B.SIGN) setSignText(game.world, m.x | 0, m.y | 0, m.z | 0, m.l); break;
+      case 'board': if ((m.we | 0) === this.we && game.world && cleanBoardPx(m.px) && game.world.knownBlock(m.x | 0, m.y | 0, m.z | 0) === B.BOARD) setBoard(game.world, m.x | 0, m.y | 0, m.z | 0, m.px, m.pic); break;
+      case 'drops': if (Array.isArray(m.l)) for (const it of m.l) { if (!Array.isArray(it)) continue; const s = cleanStack({ id: it[0], count: it[1], dmg: it[2], tag: it[3] }); if (s) dropItem(game, +m.x, +m.y, +m.z, s.id, s.count, true, s); } break;
       case 'tile': {   // what is inside a chest or furnace this device just opened (it then runs here until closed)
         const t = ui.inv && ui.inv.tile;
         if (!t || !t.remote || !t.loading || t.x !== m.x || t.y !== m.y || t.z !== m.z) break;
         if (Array.isArray(m.s) && m.s.length === t.slots.length) for (let i = 0; i < t.slots.length; i++) t.slots[i] = cleanStack(m.s[i]);
-        t.burn = +m.burn || 0; t.burnMax = +m.burnMax || 0; t.cook = +m.cook || 0; t.loading = false;
+        t.burn = +m.burn || 0; t.burnMax = +m.burnMax || 0; t.cook = +m.cook || 0; t.t = clamp(+m.bt || 0, 0, BREW_TIME); t.loading = false;
         refreshInv();
         break;
       }
@@ -628,7 +723,8 @@ const MP = {
         this.reset(true);
         setTimeout(() => { if (l) l.close('bye'); }, 1000);
         game.quitToTitle(true);
-        showMsg('Game ended', who + ' saved and closed their world. Your things are saved in it for next time.');
+        if (m.hc) showMsg('Game over!', who + ' used up their only life, so the Hardcore world is gone. Start a new one together!');
+        else showMsg('Game ended', who + ' saved and closed their world. Your things are saved in it for next time.');
         break;
       }
     }
@@ -640,14 +736,14 @@ const MP = {
     if (this.sig) { const s = this.sig; this.sig = null; s.close(); }
     this.hostName = cleanName(m.host) || 'Host';
     this.remotes.clear();
-    for (const p of Array.isArray(m.players) ? m.players : []) if (p && p.id) this.remotes.set(p.id, new RemotePlayer(p.id, cleanName(p.name) || 'Player', p.skin));
+    for (const p of Array.isArray(m.players) ? m.players : []) if (p && p.id) this.remotes.set(p.id, new RemotePlayer(p.id, cleanName(p.name) || 'Player', p.skin, p.look));
     const you = m.you ? cleanGuestSave(m.you) : null;
     const at = okXYZ(m.at) ? m.at : null;
     this.we = m.we | 0;
     const ns = okXYZ(m.ns) ? m.ns : null;
-    game.startGuestWorld({ map: m.map, seed: m.seed | 0, vb: Array.isArray(m.vb) ? m.vb.map(String) : [], edits: m.edits && typeof m.edits === 'object' ? m.edits : {}, dim: m.dim, ns,
+    game.startGuestWorld({ map: m.map, seed: m.seed | 0, vb: Array.isArray(m.vb) ? m.vb.map(String) : [], edits: m.edits && typeof m.edits === 'object' ? m.edits : {}, td: cleanDataTiles(m.td), dim: m.dim, ns,
       time: +m.time || 0.02, clock: +m.clock || 0, day: m.day | 0 || 1, mode: m.mode === 'creative' ? 'creative' : 'survival',
-      spawn: Array.isArray(m.spawn) ? m.spawn : null, you, at, tpWait: !!m.wait });
+      spawn: Array.isArray(m.spawn) ? m.spawn : null, you, at, tpWait: !!m.wait, hc: m.hc === 1 });
     this.hookWorld();
     this.updateUI();
     chat('You joined ' + this.hostName + "'s world!", '#ffff55'); sfx('join');
@@ -663,7 +759,7 @@ const MP = {
     this.applying = false;
     const t = ui.inv && ui.inv.tile;
     if (t && t.remote) {   // it was broken: shut its screen
-      const id = w.getBlock(t.x, t.y, t.z), same = t.type === 'chest' ? id === B.CHEST : t.type === 'dispenser' ? id === B.DISPENSER : id === B.FURNACE || id === B.FURNACE_LIT;
+      const id = w.getBlock(t.x, t.y, t.z), same = t.type === 'chest' ? id === B.CHEST : t.type === 'dispenser' ? id === B.DISPENSER : t.type === 'brew' ? id === B.BREWING_STAND : id === B.FURNACE || id === B.FURNACE_LIT;
       if (!same && id !== B.UNLOADED) game.closeUI();
     }
   },
@@ -686,6 +782,7 @@ const MP = {
           e.kind = PROJ_KINDS[a[8] | 0] || 'arrow'; e.w = PROJ[e.kind].r; e.h = 0;
           if (a[10]) for (const g of game.entities) if (g.ghost && g.tok === a[10]) g.removed = true;   // our own shot: the real one takes over
         } else if (VEHICLES[type]) { e.vehicle = true; e.w = VEHICLES[type].w; e.h = VEHICLES[type].h; e.yaw = e.yawT = +a[5] || 0; e.wheel = 0; e.hits = 0; e.rider = null; }
+        else if (type === 'xp') { e.w = 0.12; e.h = 0.25; e.value = clamp(a[5] | 0, 1, 40); e.spin = Math.random() * TAU; }
         else { e.w = 0.49; e.h = 0.98; }
         this.proxies.set(nid, e);
         game.entities.push(e);
@@ -714,8 +811,13 @@ const MP = {
         if (e.type === 'piglin') e.angry = x === 1;
         if (e.type === 'enderman') { e.carry = itemDef(x & 1023) ? x & 1023 : 0; e.angry = !!(x & 1024); }
         if (e.type === 'ghast') e.firing = x ? 0.5 : 0;
+        if (e.type === 'tropical' && e.variant !== x) { e.variant = clamp(x, 0, TROPICAL_COLORS.length - 1); e.color = hexRGB(TROPICAL_COLORS[e.variant]).map(v => v / 255); }
+        if (e.type === 'pufferfish') e.puff = clamp(x / 10, 0, 1);
         e.frozen = (f & 16) ? 1 : 0;
+        e.fireT = (f & 32) ? 0.3 : 0;
+        e.invis = !!(f & 64); e.poisoned = !!(f & 128);
       } else if (ti === -1) { e.fuse = +a[5] || 0; e.kind = TNT_KINDS[a[6] | 0] || 'normal'; e.small = a[7] === 1; if (e.small) { e.w = 0.25; e.h = 0.5; } }
+      else if (ti === -7) continue;
       else e.id = BLOCKS[a[5] | 0] ? a[5] | 0 : B.SAND;
     }
     for (const [nid, e] of this.proxies) {
@@ -727,12 +829,13 @@ const MP = {
   },
   openTile(x, y, z, kind) {
     const t = kind === 'chest' ? { type: 'chest', slots: new Array(27).fill(null) } : kind === 'dispenser' ? { type: 'dispenser', slots: new Array(9).fill(null) }
-      : { type: 'furnace', slots: [null, null, null], burn: 0, burnMax: 0, cook: 0 };
+      : kind === 'brew' ? { type: 'brew', slots: [null, null, null, null], t: 0 } : { type: 'furnace', slots: [null, null, null], burn: 0, burnMax: 0, cook: 0 };
     Object.assign(t, { remote: true, loading: true, x, y, z });
     this.send({ t: 'open', x, y, z });
     return t;
   },
-  sendHit(e, dmg, fx, fz) { this.send({ t: 'hit', e: e.nid, d: dmg, x: r2(fx), z: r2(fz) }); },
+  sendHit(e, dmg, fx, fz, o) { this.send({ t: 'hit', e: e.nid, d: dmg, x: r2(fx), z: r2(fz), o }); },
+  giveXp(r, n) { if (r && r.link) r.link.send({ t: 'xp', n }); },
 
   /* ---------- both ---------- */
   hookWorld() {
@@ -743,11 +846,12 @@ const MP = {
   localFx(kind, x, y, z, id) { if (this.role) this.outFx.push([kind, x, y, z, id, this.role === 'host' ? 'host' : PROFILE.pid]); },
   /* host: effects and sounds that happen here, for everyone else to see and hear (from: a guest who already did) */
   fx(kind, x, y, z) { if (this.role === 'host') this.outFx.push([kind, r2(x), r2(y), r2(z), 0, 'host']); },
+  fxId(kind, x, y, z, id) { if (this.role === 'host') this.outFx.push([kind, r2(x), r2(y), r2(z), id, 'host']); },
   sfx(name, x, y, z, from) { const i = SFX_NET.indexOf(name); if (this.role === 'host' && i >= 0) this.outFx.push(['sfx', r2(x), r2(y), r2(z), i, from || 'host']); },
   /* host: sounds from a guest's action, played here and passed on to everyone else */
   takeFx(list, from) {
     if (!Array.isArray(list)) return;
-    const guestKind = f => f[0] === 'break' || f[0] === 'place' || f[0] === 'door' || (f[0] === 'sfx' && f[4] >= 0 && f[4] < 3);   // a lever, a button or a horn
+    const guestKind = f => f[0] === 'break' || f[0] === 'place' || f[0] === 'door' || (f[0] === 'sfx' && GUEST_SFX.has(SFX_NET[f[4]]));   // a lever, a button, a horn or a sonar ping
     const ok = list.filter(f => Array.isArray(f) && [1, 2, 3, 4].every(i => typeof f[i] === 'number' && isFinite(f[i])) && guestKind(f)).slice(0, 64);
     this.playFx(ok);
     for (const f of ok) this.outFx.push([f[0], f[1], f[2], f[3], f[4], from]);
@@ -766,6 +870,8 @@ const MP = {
       else if (k === 'ice') iceEffect(x, y, z);
       else if (k === 'tele') { enderParticles(x, y, z, 20); sfx('endermanPortal', x, y + 1.4, z); }
       else if (k === 'smoke') smokeParticles(x, y, z, 5, 0.12, false);
+      else if (k === 'splash') splashFx(x, y, z, clamp(id, 0, POTIONS.length - 1));
+      else if (k === 'xpb') { sfx('break_glass', x, y, z); for (let i = 0; i < 16 && PARTICLES.length < 1500; i++) PARTICLES.push({ x, y, z, vx: randRange(-2, 2), vy: randRange(0, 3), vz: randRange(-2, 2), life: randRange(0.4, 0.8), tile: TILE.xp_orb, u: 0, v: 0, us: 16, size: 0.05, grav: 4, bright: 1 }); }
       else if (k === 'boom') {
         const p = clamp(+f[4] || 3, 1, 6);
         sfx('explode', x, y, z); smokeParticles(x, y, z, 40, p * 0.6, true);
@@ -804,7 +910,7 @@ const MP = {
           if (!r) continue;
           const ents = [];
           for (const e of game.entities) {
-            if (e.removed || !(e.mob || e.vehicle || e.type === 'tnt' || e.type === 'falling' || e.type === 'proj') || Math.abs(e.x - r.tx) > 72 || Math.abs(e.z - r.tz) > 72) continue;
+            if (e.removed || !(e.mob || e.vehicle || e.type === 'tnt' || e.type === 'falling' || e.type === 'proj' || e.type === 'xp') || Math.abs(e.x - r.tx) > 72 || Math.abs(e.z - r.tz) > 72) continue;
             const a = encodeEnt(e);
             if (a) ents.push(a);
           }
@@ -831,9 +937,9 @@ const MP = {
       if (this.saveT >= 3) { this.saveT = 0; this.sendSave(); }
       // a furnace open on this device cooks here, and the host gets its state twice a second
       const ft = ui.inv && ui.inv.tile;
-      if (ft && ft.remote && !ft.loading && ft.type === 'furnace') {
-        stepFurnace(ft, dt);
-        if (w) w.lightFurnace(ft.x, ft.y, ft.z, ft);
+      if (ft && ft.remote && !ft.loading && (ft.type === 'furnace' || ft.type === 'brew')) {
+        if (ft.type === 'brew') { if (stepBrew(ft, dt)) { sfx('brewDone', ft.x + 0.5, ft.y + 0.5, ft.z + 0.5); this.pushTile(ft); } }
+        else { stepFurnace(ft, dt); if (w) w.lightFurnace(ft.x, ft.y, ft.z, ft); }
         this.tileT += dt;
         if (this.tileT >= 0.5) { this.tileT = 0; this.pushTile(ft); }
       }
@@ -848,7 +954,7 @@ const MP = {
       if (!r.tag) { r.tag = h('div', { class: 'nametag' }, r.name); box.appendChild(r.tag); }
       const x = r.x - cam.x, y = r.y + (r.sneaking ? 1.95 : 2.2) - cam.y, z = r.z - cam.z;
       const cw = m[3] * x + m[7] * y + m[11] * z + m[15];
-      if (cw <= 0.1 || !r.has || !r.alive || Math.hypot(x, y, z) > 48 || game.state !== 'playing') { r.tag.style.display = 'none'; continue; }
+      if (cw <= 0.1 || !r.has || !r.alive || isInvisible(r) || Math.hypot(x, y, z) > 48 || game.state !== 'playing') { r.tag.style.display = 'none'; continue; }
       const cx = m[0] * x + m[4] * y + m[8] * z + m[12], cy = m[1] * x + m[5] * y + m[9] * z + m[13];
       const sx = (cx / cw * 0.5 + 0.5) * W, sy = (1 - (cy / cw * 0.5 + 0.5)) * H;
       r.tag.style.display = '';
@@ -910,7 +1016,7 @@ const MP = {
     for (const t of w.tiles.values()) if (t.viewers) t.viewers.clear();
     const line = (who || playerName()) + (game.dim === 'nether' ? ' went into the Nether' : ' went back to ' + MAPS[game.mapId].name) + '. Everyone travels together!';
     chat(line, '#ff9966');
-    this.broadcast({ t: 'dim', dim: game.dim, we: this.we, edits, at: [r2(pl.x), r2(pl.y), r2(pl.z)], time: w.time, clock: w.clock, ns: game.netherSpawn });
+    this.broadcast({ t: 'dim', dim: game.dim, we: this.we, edits, td: dataTiles(w), at: [r2(pl.x), r2(pl.y), r2(pl.z)], time: w.time, clock: w.clock, ns: game.netherSpawn });
     this.broadcast({ t: 'chat', m: line, c: '#ff9966' });
   },
   /* host: the portal on the other side is ready: everyone steps out of it */
@@ -930,13 +1036,13 @@ const MP = {
     }
   },
   /* host leaving (after saving): tell everyone, take each guest's last save for a moment, then close */
-  stop() {
+  stop(hcOver) {
     if (this.role !== 'host') { this.reset(); return; }
-    this.broadcast({ t: 'closing' });
-    const links = this.allLinks(), map = game.mapId;
+    this.broadcast({ t: 'closing', hc: hcOver ? 1 : 0 });
+    const links = this.allLinks(), slot = hcOver ? null : game.slot;   // (a Hardcore world that is over keeps nothing)
     for (const l of links) {
       const r = l.player;
-      l.h = { onMessage: (l2, m) => { if (r && m.t === 'save') { const d = cleanGuestSave(m.d); if (d) patchSavedGuest(map, r.id, Object.assign(d, { name: r.name })); } } };
+      l.h = { onMessage: (l2, m) => { if (r && slot && m.t === 'save') { const d = cleanGuestSave(m.d); if (d) patchSavedGuest(slot, r.id, Object.assign(d, { name: r.name })); } } };
     }
     this.links.clear(); this.newLinks.clear();
     this.reset();
@@ -946,6 +1052,7 @@ const MP = {
 function drawRemotePlayers(game, s, t, cam) {
   for (const r of MP.remotes.values()) {
     if (!r.has || !r.alive) continue;
+    effectSwirls(r.x, r.y, r.z, r.fxBits || 0, 1 / 60, 1);
     const dx = r.x - cam.x, dz = r.z - cam.z;
     if (dx * dx + dz * dz > R.fogEnd * R.fogEnd) continue;
     if (!boxInFrustum(R.planes, dx - 1, r.y - cam.y, dz - 1, dx + 1, r.y - cam.y + 2.2, dz + 1)) continue;
@@ -956,9 +1063,9 @@ function drawRemotePlayers(game, s, t, cam) {
   entityBegin(texSkins);
 }
 /* write one guest's things into a saved world (used just after the host closed it) */
-function patchSavedGuest(map, id, d) {
-  if (MP.guestSavesMap === map) MP.guestSaves[id] = d;
-  const key = saveKey(map), raw = store.get(key);
+function patchSavedGuest(slot, id, d) {
+  if (MP.guestSavesMap === slot) MP.guestSaves[id] = d;
+  const key = saveKey(slot), raw = store.get(key);
   if (!raw) return;
   try {
     const data = JSON.parse(raw);

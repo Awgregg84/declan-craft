@@ -13,7 +13,8 @@ class Chunk {
     this.tmeshes = new Array(NSEC).fill(null);
     this.dirty = new Uint8Array(NSEC).fill(1);
     this.counts = new Uint16Array(NSEC);
-    for (let i = 0; i < CVOL; i++) if (blocks[i]) this.counts[i >> 12]++;
+    this.specials = new Set();   // where its enchanting tables, signs, TVs and boards are (see SPECIAL)
+    for (let i = 0; i < CVOL; i++) { const b = blocks[i]; if (b) { this.counts[i >> 12]++; if (SPECIAL[b]) this.specials.add(i); } }
     this.everMeshed = false;
   }
 }
@@ -429,6 +430,7 @@ class World {
     c.blocks[i] = id; c.data[i] = data;
     const s = y >> 4;
     if (!old && id) c.counts[s]++; else if (old && !id) c.counts[s]--;
+    if (SPECIAL[id]) c.specials.add(i); else if (SPECIAL[old]) c.specials.delete(i);
     let em = this.edits.get(c.key);
     if (!em) { em = new Map(); this.edits.set(c.key, em); }
     em.set(i, id | (data << 8));
@@ -440,9 +442,11 @@ class World {
     if (this.onChange) this.onChange(x, y, z, id, data, old);
     if (!this.remote && (POWER_SRC[old] || POWER_SRC[id] || (old !== id && POWER_DEV[id]))) this.powerQ.push(x, y, z, old, od, id, data);   // levers, buttons and machines
     if (old !== id) {
-      const tileOld = old === B.CHEST || old === B.FURNACE || old === B.FURNACE_LIT || old === B.DISPENSER;
+      const tileOld = old === B.CHEST || old === B.FURNACE || old === B.FURNACE_LIT || old === B.DISPENSER || old === B.BREWING_STAND;
       const furnaceSwap = (old === B.FURNACE || old === B.FURNACE_LIT) && (id === B.FURNACE || id === B.FURNACE_LIT);
+      if (old === B.CHEST && (od & 8) && !this.remote) this.getTile(x, y, z, 'chest', od);   // an unopened village chest still has its things
       if (tileOld && !furnaceSwap && !this.remote) this.dropTile(x, y, z);
+      if (SPECIAL[old]) this.tiles.delete(tileKey(x, y, z));   // a sign's words, a board's picture: gone with it
       if (SAPLING_KIND[id] !== undefined) this.saplings.set(posKey(x, y, z), this.clock + randRange(40, 100));
     }
     if (!this.remote) this.neighborChanged(x, y, z);
@@ -452,10 +456,18 @@ class World {
   applyRemote(x, y, z, id, data) {
     if (y < 0 || y >= WH) return;
     if (this.getChunk(x >> 4, z >> 4)) { this.setBlock(x, y, z, id, data, true); return; }
-    const key = chunkKey(x >> 4, z >> 4);
+    const key = chunkKey(x >> 4, z >> 4), tk = tileKey(x, y, z), t = this.tiles.get(tk);
     let em = this.edits.get(key);
     if (!em) { em = new Map(); this.edits.set(key, em); }
     em.set((x & 15) | ((z & 15) << 4) | (y << 8), id | ((data | 0) << 8));
+    if (t && ((t.type === 'sign' && id !== B.SIGN) || (t.type === 'board' && id !== B.BOARD))) this.tiles.delete(tk);   // a sign or board broken out of sight
+  }
+  /* the block at x, y, z; where the chunk isn't loaded here, what a saved or sent change put there (B.UNLOADED: not known) */
+  knownBlock(x, y, z) {
+    const b = this.getBlock(x, y, z);
+    if (b !== B.UNLOADED || y < 0 || y >= WH) return b;
+    const em = this.edits.get(chunkKey(x >> 4, z >> 4)), v = em && em.get((x & 15) | ((z & 15) << 4) | (y << 8));
+    return v === undefined ? B.UNLOADED : v & 255;
   }
   canStay(x, y, z, id, data) {
     const d = BLOCKS[id];
@@ -469,6 +481,17 @@ class World {
       return b === B.UNLOADED || (SOLID[b] && OPAQUE[b]);
     }
     if (d.plant === 'rail') return SOLID[below] && OPAQUE[below];
+    if (d.plant === 'sign') {   // standing on something solid, or hung on the block behind it
+      if ((data | 0) < 16) return below === B.UNLOADED || SOLID[below];
+      const f = FRONT_FACE[(data | 0) & 3], b = this.getBlock(x - DX[f], y, z - DZ[f]);
+      return b === B.UNLOADED || SOLID[b];
+    }
+    if (d.plant === 'cane') {   // on more cane, or on ground with water beside it
+      if (below === B.SUGAR_CANE) return true;
+      if (below !== B.GRASS && below !== B.DIRT && below !== B.SAND && below !== B.SNOWY_GRASS) return false;
+      for (let k = 0; k < 4; k++) { const b = this.getBlock(x + HX[k], y - 1, z + HZ[k]); if (b === B.WATER || b === B.ICE || b === B.UNLOADED) return true; }
+      return false;
+    }
     if (d.plant === 'torch') {
       if (!data) return SOLID[below] && OPAQUE[below];
       const o = TORCH_DIRS[data];
@@ -502,7 +525,7 @@ class World {
       const nb = this.getBlock(nx, ny, nz);
       if (LIQUID[nb]) this.scheduleLiquid(nx, ny, nz);
       if (d === 2 && BLOCKS[nb] && BLOCKS[nb].gravity) this.gravQ.push(nx, ny, nz);
-      if (nb && nb !== B.UNLOADED && BLOCKS[nb].plant && (d !== 3 || BLOCKS[nb].plant === 'attached')) this.checkSupport(nx, ny, nz);
+      if (nb && nb !== B.UNLOADED && BLOCKS[nb].plant && (d !== 3 || BLOCKS[nb].plant === 'attached' || BLOCKS[nb].plant === 'sign')) this.checkSupport(nx, ny, nz);
       if (nb === B.NETHER_PORTAL) this.portalQ.push(nx, ny, nz);
     }
   }
@@ -666,6 +689,7 @@ class World {
       if (!c) continue;
       for (let k = 0; k < 24; k++) {
         const i = (Math.random() * CVOL) | 0, b = c.blocks[i];
+        if (b === B.SUGAR_CANE) { this.growCane(c.cx * 16 + (i & 15), i >> 8, c.cz * 16 + ((i >> 4) & 15)); continue; }
         if (b !== B.DIRT && b !== B.GRASS) continue;
         const y = i >> 8;
         if (y >= WH - 1) continue;
@@ -679,20 +703,31 @@ class World {
     }
   }
 
-  /* ---- tile entities (chests, furnaces and dispensers) ---- */
-  getTile(x, y, z, create) {
+  /* sugar cane grows up to three tall */
+  growCane(x, y, z) {
+    if (y + 1 >= WH || this.getBlock(x, y + 1, z) !== B.AIR) return;
+    let n = 1;
+    while (n < 3 && this.getBlock(x, y - n, z) === B.SUGAR_CANE) n++;
+    if (n < 3) this.setBlock(x, y + 1, z, B.SUGAR_CANE, 0);
+  }
+
+  /* ---- tile entities (chests, furnaces and dispensers; and signs, which hold words) ---- */
+  getTile(x, y, z, create, lootData) {
     const k = tileKey(x, y, z);
     let t = this.tiles.get(k);
     if (!t && create) {
       t = create === 'chest' ? { type: 'chest', slots: new Array(27).fill(null) } : create === 'dispenser' ? { type: 'dispenser', slots: new Array(9).fill(null) }
-        : { type: 'furnace', slots: [null, null, null], burn: 0, burnMax: 0, cook: 0 };
+        : create === 'brew' ? { type: 'brew', slots: [null, null, null, null], t: 0 } : { type: 'furnace', slots: [null, null, null], burn: 0, burnMax: 0, cook: 0 };
       this.tiles.set(k, t);
+      // a village chest that has never been opened: fill it now (and remember it has been). lootData: the chest's data as it is broken
+      const d = lootData !== undefined ? lootData : this.getBlock(x, y, z) === B.CHEST ? this.getData(x, y, z) : 0;
+      if (create === 'chest' && !this.remote && (d & 8)) { fillVillageChest(t); if (lootData === undefined) this.setBlock(x, y, z, B.CHEST, d & 7); }
     }
     return t || null;
   }
   dropTile(x, y, z) {
     const k = tileKey(x, y, z), t = this.tiles.get(k);
-    if (!t) return;
+    if (!t || !t.slots) return;
     this.tiles.delete(k);
     if (this.onDrop) for (const s of t.slots) if (s) this.onDrop(x + 0.5, y + 0.5, z + 0.5, s);
     t.slots.fill(null);   // they are on the ground now, so an open screen can't hand them out again
@@ -700,10 +735,11 @@ class World {
   }
   tickFurnaces(dt) {
     for (const [k, t] of this.tiles) {
-      if (t.type !== 'furnace') continue;
+      if (t.type !== 'furnace' && t.type !== 'brew') continue;
       if (t.viewers && t.viewers.size) continue;   // open on another player's device: that device runs it until they close it
       const [x, y, z] = k.split(',').map(Number);
       if (this.getBlock(x, y, z) === B.UNLOADED) continue;
+      if (t.type === 'brew') { if (stepBrew(t, dt) && this.onSound) this.onSound('brewDone', x + 0.5, y + 0.5, z + 0.5); continue; }
       stepFurnace(t, dt);
       this.lightFurnace(x, y, z, t);
     }

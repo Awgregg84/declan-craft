@@ -4,7 +4,10 @@ const SKIN_LABELS = { declan: 'Blonde hair', sister: 'Brown hair' };
 const PROFILE = (() => {
   let p = {};
   try { p = JSON.parse(store.get(PROFILE_KEY) || '{}') || {}; } catch (e) { p = {}; }
-  if (!PLAYER_SKINS.includes(p.skin)) p.skin = 'declan';
+  p.chars = (Array.isArray(p.chars) ? p.chars : []).slice(0, MAX_CHARS).map(c => c && typeof c === 'object' ? { name: cleanName(c.name), look: cleanLook(c.look) } : null).filter(c => c && c.look);
+  if (!p.seeded) { p.chars = p.chars.concat(FAMILY.map(f => ({ name: f.name, look: f.look.slice() }))).slice(0, MAX_CHARS); p.seeded = 1; store.set(PROFILE_KEY, JSON.stringify(p)); }   // the family, once
+  p.cur = Number.isInteger(p.cur) && p.chars[p.cur] ? p.cur : 0;
+  if (!PLAYER_SKINS.includes(p.skin) && !(p.skin === 'custom_me' && p.chars[p.cur])) p.skin = 'declan';   // (custom_me: one you made)
   if (typeof p.name !== 'string') p.name = '';
   if (typeof p.pid !== 'string' || p.pid.length < 6) { p.pid = Math.random().toString(36).slice(2, 12); store.set(PROFILE_KEY, JSON.stringify(p)); }
   return p;
@@ -22,7 +25,30 @@ function buildCharScreen() {
     b.addEventListener('click', () => { PROFILE.skin = skin; saveProfile(); sfx('click'); buildCharScreen(); updateCharButtons(); });
     wrap.appendChild(b);
   }
+  // the characters you made: tap one to play as it, or Change to make it look different
+  PROFILE.chars.forEach((c, i) => {
+    const on = PROFILE.skin === 'custom_me' && PROFILE.cur === i, nm = c.name || 'No name';
+    const b = h('button', { type: 'button', class: 'btn char-card', 'aria-pressed': on ? 'true' : 'false' }, h('img', { src: lookFace(c.look, 96), alt: '' }), h('span', { text: nm }));
+    b.addEventListener('click', () => { sfx('click'); pickChar(i); });
+    const ed = h('button', { type: 'button', class: 'btn char-edit', text: 'Change', 'aria-label': 'Change how ' + nm + ' looks' });
+    ed.addEventListener('click', () => { sfx('click'); openMaker(i); });
+    wrap.appendChild(h('div', { class: 'char-slot' }, b, ed));
+  });
+  if (PROFILE.chars.length < MAX_CHARS) {
+    const nb = h('button', { type: 'button', class: 'btn char-card char-new' }, h('span', { class: 'char-plus', 'aria-hidden': 'true', text: '+' }), h('span', { text: 'Make a character' }));
+    nb.addEventListener('click', () => { sfx('click'); openMaker(-1); });
+    wrap.appendChild(nb);
+  }
   el('char-name').value = PROFILE.name;
+}
+/* play as a character you made (it brings its name with it) */
+function pickChar(i) {
+  const c = PROFILE.chars[i];
+  if (!c) return;
+  PROFILE.skin = 'custom_me'; PROFILE.cur = i;
+  if (c.name) PROFILE.name = c.name;
+  saveProfile(); applyMyLook();
+  buildCharScreen(); updateCharButtons();
 }
 function updateCharButtons() {
   for (const id of ['btn-char', 'btn-mp-char']) {

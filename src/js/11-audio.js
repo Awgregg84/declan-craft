@@ -135,6 +135,37 @@ const SFX = {
   leverClick: (v, p) => { tone({ f: 700, fEnd: 400, dur: 0.05, type: 'square', vol: 0.1 * v, lp: 2000, pan: p }); nz({ f: 1200, q: 3, dur: 0.04, vol: 0.15 * v, pan: p }); },
   buttonClick: (v, p) => tone({ f: 1000, fEnd: 600, dur: 0.04, type: 'square', vol: 0.08 * v, lp: 2500, pan: p }),
   pearlThrow: (v, p) => nz({ f: 1500, fEnd: 500, q: 1, dur: 0.25, vol: 0.18 * v, pan: p }),
+  // experience and enchanting
+  xpOrb: (v, p) => tone({ f: randRange(1400, 2100), dur: 0.09, type: 'triangle', vol: 0.06 * v, pan: p }),
+  levelUp: (v) => { [784, 988, 1175].forEach((f, i) => tone({ f, dur: 0.22, type: 'triangle', vol: 0.07 * v, when: i * 0.06 })); },
+  levelUpBig: (v) => { [523, 659, 784, 1046, 1318].forEach((f, i) => tone({ f, dur: 0.35, type: 'triangle', vol: 0.08 * v, when: i * 0.08 })); },
+  enchant: (v, p) => { for (let i = 0; i < 6; i++) tone({ f: randRange(900, 2400), dur: 0.5, type: 'sine', vol: 0.05 * v, when: i * 0.07, vib: [8, 12], pan: p }); nz({ f: 3000, q: 2, dur: 0.6, vol: 0.06 * v, attack: 0.2, pan: p }); },
+  // TVs and coloring
+  tvOn: (v, p) => { nz({ f: 3000, type: 'highpass', q: 0.5, dur: 0.5, vol: 0.12 * v, pan: p }); tone({ f: 15000, dur: 0.4, type: 'sine', vol: 0.02 * v, pan: p }); },
+  tvOff: (v, p) => { tone({ f: 600, fEnd: 120, dur: 0.15, type: 'sine', vol: 0.1 * v, pan: p }); nz({ f: 2000, type: 'highpass', dur: 0.08, vol: 0.06 * v, pan: p }); },
+  boardDab: (v, p) => nz({ f: 2600, q: 1.2, dur: 0.05, vol: 0.12 * v, pan: p }),
+  boardFill: (v, p) => { nz({ f: 1600, fEnd: 3200, q: 1, dur: 0.18, vol: 0.12 * v, pan: p }); tone({ f: 520, fEnd: 780, dur: 0.15, type: 'triangle', vol: 0.06 * v, pan: p }); },
+  pageTurn: (v, p) => nz({ f: 2400, fEnd: 1200, q: 0.8, dur: 0.18, vol: 0.14 * v, pan: p }),
+  // boats and submarines
+  paddle: (v, p) => { nz({ f: 900, fEnd: 400, type: 'lowpass', dur: 0.35, vol: 0.2 * v, pan: p }); nz({ f: 2400, q: 1, dur: 0.12, vol: 0.06 * v, when: 0.05, pan: p }); },
+  subHum: (v, p) => { tone({ f: 70, fEnd: 74, dur: 0.5, type: 'sawtooth', vol: 0.05 * v, lp: 300, pan: p }); tone({ f: 140, dur: 0.5, type: 'sine', vol: 0.025 * v, pan: p }); },
+  sonar: (v, p) => { for (let i = 0; i < 3; i++) tone({ f: 1320, fEnd: 1250, dur: 0.6, type: 'sine', vol: 0.22 * v / (1 + i * 1.6), when: i * 0.42, pan: p, attack: 0.004 }); },
+  // fish and fishing
+  fishSay: () => {},
+  fishHurt: (v, p) => nz({ f: 1800, q: 2, dur: 0.08, vol: 0.12 * v, pan: p }),
+  fishDeath: (v, p) => nz({ f: 1400, fEnd: 600, q: 2, dur: 0.2, vol: 0.12 * v, pan: p }),
+  fishFlop: (v, p) => { nz({ f: 900, q: 1.5, dur: 0.06, vol: 0.18 * v, pan: p }); tone({ f: 260, fEnd: 180, dur: 0.06, type: 'triangle', vol: 0.06 * v, pan: p }); },
+  cast: (v, p) => { nz({ f: 2400, fEnd: 900, q: 1, dur: 0.3, vol: 0.12 * v, pan: p }); tone({ f: 900, fEnd: 600, dur: 0.15, type: 'square', vol: 0.02 * v, lp: 2000, pan: p }); },
+  reel: (v, p) => { for (let i = 0; i < 4; i++) nz({ f: 3000, q: 5, dur: 0.03, vol: 0.1 * v, when: i * 0.05, pan: p }); },
+  fishBite: (v, p) => { nz({ f: 1600, fEnd: 400, type: 'lowpass', dur: 0.35, vol: 0.35 * v, pan: p }); tone({ f: 600, fEnd: 300, dur: 0.15, type: 'sine', vol: 0.1 * v, pan: p }); },
+  // potions
+  drink: (v, p) => { tone({ f: randRange(300, 380), fEnd: 220, dur: 0.12, type: 'sine', vol: 0.16 * v, pan: p }); nz({ f: 900, q: 2, dur: 0.08, vol: 0.08 * v, pan: p }); },
+  bottleFill: (v, p) => { for (let i = 0; i < 4; i++) tone({ f: 400 + i * 120, dur: 0.08, type: 'sine', vol: 0.08 * v, when: i * 0.05, pan: p }); nz({ f: 1200, type: 'lowpass', dur: 0.3, vol: 0.12 * v, pan: p }); },
+  splashPotion: (v, p) => { nz({ f: 3800, q: 1.5, dur: 0.2, vol: 0.3 * v, pan: p }); for (let i = 0; i < 4; i++) tone({ f: randRange(2400, 4800), dur: 0.1, vol: 0.05 * v, when: i * 0.03, pan: p }); nz({ f: 1400, fEnd: 300, type: 'lowpass', dur: 0.4, vol: 0.25 * v, when: 0.05, pan: p }); },
+  brewDone: (v, p) => { for (let i = 0; i < 5; i++) tone({ f: randRange(500, 1200), dur: 0.12, type: 'sine', vol: 0.06 * v, when: i * 0.07, pan: p }); },
+  // armor and shields
+  armorEquip: (v, p) => { nz({ f: 2400, q: 2, dur: 0.08, vol: 0.18 * v, pan: p }); tone({ f: 1600, fEnd: 1200, dur: 0.12, type: 'triangle', vol: 0.05 * v, when: 0.05, pan: p }); nz({ f: 900, q: 1.5, dur: 0.1, vol: 0.12 * v, when: 0.12, pan: p }); },
+  shieldBlock: (v, p) => { tone({ f: 160, fEnd: 90, dur: 0.18, type: 'triangle', vol: 0.3 * v, pan: p }); nz({ f: 700, q: 1.2, dur: 0.14, vol: 0.32 * v, pan: p }); tone({ f: 900, dur: 0.2, type: 'square', vol: 0.03 * v, lp: 2000, pan: p }); },
   // endermen and ghasts
   endermanSay: (v, p) => tone({ f: 300, fEnd: 120, dur: 0.6, type: 'sawtooth', vol: 0.08 * v, lp: 900, vib: [12, 40], pan: p }),
   endermanStare: (v, p) => { tone({ f: 600, fEnd: 900, dur: 1.0, type: 'sawtooth', vol: 0.13 * v, lp: 2400, vib: [25, 80], attack: 0.05, pan: p }); nz({ f: 2000, q: 2, dur: 1.0, vol: 0.1 * v, pan: p }); },

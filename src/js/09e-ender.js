@@ -10,7 +10,7 @@ function isNatural(world, x, y, z) {
 }
 /* who (if anyone) is looking an enderman right in the eyes, with nothing in between */
 function enderStaredBy(game, e) {
-  if (game.settings.difficulty === 0) return null;
+  if (difficulty() === 0) return null;
   for (const p of allPlayers(game)) {
     const remote = p !== game.player;
     if (!p.alive || (remote && !p.lastState) || (remote ? p.mode : game.mode) !== 'survival') continue;

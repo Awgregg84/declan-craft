@@ -43,6 +43,7 @@ async function silentPeer() {
   const contexts = [];
   async function open(profile, label, cfg) {
     const ctx = await browser.newContext({ viewport: { width: 900, height: 600 } });
+    await ctx.route(/fonts\.(googleapis|gstatic)\.com/, r => r.abort());   // (the web font can stall the page loading from a test machine; it isn't needed here)
     contexts.push(ctx);
     await ctx.addInitScript(([cfg, prof]) => {
       window.DC_NET = Object.assign({ host: '127.0.0.1', secure: false, path: '/', key: 'peerjs', iceServers: [] }, cfg);

@@ -221,7 +221,7 @@ function initGL() {
 
 function buildTileTexture() {
   const n = TILE_DATA.length;
-  for (const nm of ['door_top', 'oak_leaves', 'birch_leaves', 'spruce_leaves', 'glass', 'torch', 'tall_grass', 'dandelion', 'poppy', 'cornflower', 'dead_bush', 'oak_sapling', 'birch_sapling', 'spruce_sapling', 'cactus_side', 'cactus_top', 'cactus_bottom', 'bed_side', 'bed_end', 'rail', 'rail_corner', 'lever', 'button'])
+  for (const nm of ['door_top', 'oak_leaves', 'birch_leaves', 'spruce_leaves', 'glass', 'torch', 'tall_grass', 'dandelion', 'poppy', 'cornflower', 'dead_bush', 'oak_sapling', 'birch_sapling', 'spruce_sapling', 'cactus_side', 'cactus_top', 'cactus_bottom', 'bed_side', 'bed_end', 'rail', 'rail_corner', 'lever', 'button', 'sugar_cane', 'ench_side', 'brewing_rod'])
     CUTOUT_TILE[TILE[nm]] = 1;
   for (const nm of ['water', 'ice', 'nether_portal']) TRANS_TILE[TILE[nm]] = 1;   // see-through from far away too
   for (const nm of TILE_NAMES) if (TILE[nm] >= TILE.stick) CUTOUT_TILE[TILE[nm]] = 1;

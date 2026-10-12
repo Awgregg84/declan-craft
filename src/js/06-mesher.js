@@ -9,6 +9,9 @@ function buildBlockTiles() {
     const t = d.tex;
     const side = typeof t === 'string' ? t : t.side, top = typeof t === 'string' ? t : (t.top || t.side), bot = typeof t === 'string' ? t : (t.bottom || t.side);
     const tt = [side, side, top, bot, side, side];
+    if (typeof t === 'object' && t.front) tt.push(t.front);
+    if (typeof t === 'object' && t.back) tt.push(t.back);
+    for (const n of tt) if (!(TILE[n] < 256)) console.error('The picture ' + n + ' is number ' + TILE[n] + ': block pictures must be under 256 (add it in buildNewBlockTiles)');
     for (let f = 0; f < 6; f++) BT[id * 6 + f] = TILE[tt[f]];
     if (typeof t === 'object' && t.front) FRONT_T[id] = TILE[t.front];
     if (typeof t === 'object' && t.back) BACK_T[id] = TILE[t.back];
@@ -247,6 +250,16 @@ function meshSection(world, c, s) {
         emitBox(WO, x, y, z, pi, bb[0] * 16, bb[1] * 16, bb[2] * 16, bb[3] * 16, bb[4] * 16, bb[5] * 16, _tiles6, SIX_FULL, 63, 0, 0);
       } else if (r === R_LEVER) {
         emitLever(x, y, z, pi, padD[pi]);
+      } else if (r === R_BREW) {   // a brass rod on three little stone feet
+        for (let f = 0; f < 6; f++) _tiles6[f] = TILE.brewing_rod;
+        emitBox(WO, x, y, z, pi, 7, 0, 7, 9, 14, 9, _tiles6, SIX_FULL, 63, 0, 0);
+        for (let f = 0; f < 6; f++) _tiles6[f] = TILE.brewing_base;
+        for (const [a, b] of [[9, 5], [1, 1], [1, 9]]) emitBox(WO, x, y, z, pi, a, 0, b, a + 6, 2, b + 6, _tiles6, SIX_FULL, 63, 0, 0);
+        for (const [a, b, c, d] of [[9, 7.5, 12, 8.5], [4, 4, 7, 5], [4, 11, 7, 12]]) emitBox(WO, x, y, z, pi, a, 9, b, c, 10, d, _tiles6, SIX_FULL, 63, 0, 0);
+      } else if (r === R_LOW) {   // a block shorter than a full one (the enchanting table): the bottom rows of its side pictures
+        const hgt = BLOCKS[id].low, uv = [0, 16 - hgt, 16, 16];
+        for (let d = 0; d < 6; d++) _tiles6[d] = tileFor(id, d, padD[pi]);
+        emitBox(WO, x, y, z, pi, 0, 0, 0, 16, hgt, 16, _tiles6, [uv, uv, FULL_UV, FULL_UV, uv, uv], OPAQUE[padB[pi - 324]] ? 0x37 : 63, 0, 0);
       } else if (r === R_BED) {
         const data = padD[pi], f = data & 3;
         for (let d = 0; d < 6; d++) _tiles6[d] = tileFor(id, d, data);

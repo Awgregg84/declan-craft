@@ -154,7 +154,7 @@ function entityBegin(tex, vp) {
 }
 function brightAt(world, x, y, z, s) {
   const L = world.getLight(Math.floor(x), Math.floor(y), Math.floor(z));
-  return Math.max(s.nether ? 0.45 : 0.05, lightCurve((L >> 4) * s.skyLight), Math.min(1, lightCurve(L & 15) * 1.25));
+  return Math.max(s.nether ? 0.45 : s.nightVision ? 0.8 : s.subLight ? 0.5 : 0.05, lightCurve((L >> 4) * s.skyLight), Math.min(1, lightCurve(L & 15) * 1.25));
 }
 function drawOutline(x, y, z) {
   const P = PROG.line;
@@ -207,7 +207,7 @@ function drawParticles(list, world, s) {
 
 /* ---- character preview drawn into a DOM rectangle ---- */
 const _pv = M4.create(), _pp = M4.create(), _pb = M4.create();
-function drawPreview(rect, pose, yaw, t, target) {
+function drawPreview(rect, pose, yaw, t, target, mdl) {
   let x = 0, y = 0, w, hgt;
   if (target) { w = target.width; hgt = target.height; if (w > R.width || hgt > R.height) return; }
   else {
@@ -225,10 +225,16 @@ function drawPreview(rect, pose, yaw, t, target) {
   entityBegin(texSkins, _pv);
   gl.uniform2f(PROG.entity.u.uFog, 1000, 2000);
   M4.identity(_pb); M4.rotY(_pb, _pb, yaw);
-  const model = playerModelFor(PROFILE.skin), sc = model.scale;
+  const model = mdl || playerModelFor(PROFILE.skin), sc = model.scale;
+  if (pose && pose._hs === undefined) pose._hs = headScaleFor(model.skin);
   M4.scale(_pb, _pb, sc, sc, sc);
   gl.enable(gl.CULL_FACE);
   drawModel(model, _pb, pose);
+  if (target && game.state !== 'title' && !mdl) {   // in the inventory: what you are wearing too
+    const pl = game.player;
+    drawArmor(wornArmor(pl), _pb, pose, t, wornGlint(pl));
+    if (shieldHand(pl) === 'off') drawShield(_pb, pose, 'off', false);
+  }
   gl.disable(gl.SCISSOR_TEST);
   gl.viewport(0, 0, R.width, R.height);
   if (target) {

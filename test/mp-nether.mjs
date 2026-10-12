@@ -21,13 +21,14 @@ const HOST = { skin: 'declan', name: 'Declan', pid: 'hostpid0001' }, GUEST = { s
   const url = 'http://localhost:' + server.address().port + '/';
   async function open(profile, label) {
     const ctx = await browser.newContext({ viewport: { width: 900, height: 600 } });
+    await ctx.route(/fonts\.(googleapis|gstatic)\.com/, r => r.abort());   // (the web font can stall the page loading from a test machine; it isn't needed here)
     await ctx.addInitScript(([port, prof]) => {
       window.DC_NET = { host: '127.0.0.1', port, secure: false, path: '/', key: 'peerjs', iceServers: [], mqtt: [] };
       if (!localStorage.getItem('declancraft:v1:profile')) localStorage.setItem('declancraft:v1:profile', JSON.stringify(prof));
     }, [PEER_PORT, profile]);
     const p = await ctx.newPage();
     p.errs = []; p.on('pageerror', e => p.errs.push(label + ': ' + e.message));
-    await p.goto(url);
+    await p.goto(url, { waitUntil: 'domcontentloaded', timeout: 90000 });   // (slow when the machine is busy)
     await p.waitForFunction(() => typeof BOOT !== 'undefined' && BOOT.ok, null, { timeout: 60000 });
     await p.evaluate(() => { window.__chat = []; const say = chat; chat = (m, c) => { window.__chat.push(String(m)); return say(m, c); }; });   // lines fade from the screen after 10 s
     return p;

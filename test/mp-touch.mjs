@@ -23,13 +23,14 @@ const overlap = (a, b) => a && b && a.left < b.right && b.left < a.right && a.to
   ];
   for (const su of setups) {
     const ctx = await browser.newContext(su.ctx);
+    await ctx.route(/fonts\.(googleapis|gstatic)\.com/, r => r.abort());   // (the web font can stall the page loading from a test machine; it isn't needed here)
     await ctx.addInitScript(port => {
       window.DC_NET = { host: '127.0.0.1', port, secure: false, path: '/', key: 'peerjs', iceServers: [], mqtt: [] };
       localStorage.setItem('declancraft:v1:profile', JSON.stringify({ skin: 'declan', name: 'Declan', pid: 'touchhost01' }));
     }, PEER_PORT);
     const p = await ctx.newPage();
     const errs = []; p.on('pageerror', e => errs.push(e.message));
-    await p.goto(url);
+    await p.goto(url, { waitUntil: 'domcontentloaded', timeout: 90000 });   // (slow when the machine is busy)
     await p.waitForFunction(() => typeof BOOT !== 'undefined' && BOOT.ok, null, { timeout: 60000 });
     const waitFor = (fn, ms, arg) => p.waitForFunction(fn, arg, { timeout: ms, polling: 250 }).then(() => true, () => false);
     // the Play Together and Join screens

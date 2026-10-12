@@ -17,7 +17,8 @@ let fails = 0; const check = (name, ok, info) => { if (!ok) fails++; console.log
   const browser = await chromium.launch({ args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
   const ctx = await browser.newContext({ viewport: { width: 1024, height: 700 } });
   const errs = [];
-  const open = async (p, file) => { await p.goto(base + file); await p.waitForFunction(() => typeof BOOT !== 'undefined' && BOOT.ok, null, { timeout: 60000 }); };
+  await ctx.route(/fonts\.(googleapis|gstatic)\.com/, r => r.abort());   // (the web font can stall the page loading from a test machine; it isn't needed here)
+  const open = async (p, file) => { await p.goto(base + file, { waitUntil: 'domcontentloaded', timeout: 90000 }); await p.waitForFunction(() => typeof BOOT !== 'undefined' && BOOT.ok, null, { timeout: 90000 }); };
   const waitFor = (p, fn, ms, arg) => p.waitForFunction(fn, arg, { timeout: ms, polling: 250 }).then(() => true, () => false);
   const P = await ctx.newPage(); P.on('pageerror', e => errs.push(e.message));
 

@@ -27,7 +27,7 @@ function addBox(mb, x0, y0, z0, w, hgt, d, u, v, layer, inflate) {
   mb.quad([[X0, Y0, Z0], [X1, Y0, Z0], [X1, Y0, Z1], [X0, Y0, Z1]], [[u + d + w, v], [u + d + 2 * w, v], [u + d + 2 * w, v + d], [u + d + w, v + d]], layer, 0.55, T);
 }
 function defModel(name, skin, scale, parts) {
-  const m = { name, scale, parts: {}, list: [] };
+  const m = { name, skin, scale, parts: {}, list: [] };
   for (const p of parts) {
     const mb = new MeshBuilder();
     for (const b of p.boxes || [p.box.concat(p.uv)]) addBox(mb, b[0], b[1], b[2], b[3], b[4], b[5], b[6], b[7], SKIN[p.skin || skin], p.inflate);   // boxes: [x, y, z, w, h, d, u, v] each
@@ -49,7 +49,7 @@ function humanoid(name, skin, scale, extras) {
   ].concat(extras || []));
 }
 const PLAYER_SKINS = ['declan', 'sister'];
-const VILLAGER_PROFS = ['farmer', 'butcher', 'toolsmith', 'shepherd', 'mason', 'cleric'];
+const VILLAGER_PROFS = ['farmer', 'butcher', 'toolsmith', 'shepherd', 'mason', 'cleric', 'librarian', 'armorer', 'fisherman'];   // (new jobs go on the end: playing together sends their numbers)
 function playerModelFor(skin) { return MODELS['player_' + skin] || MODELS.player; }
 function buildModels() {
   humanoid('player', 'declan', 0.9375 / 16);
@@ -67,6 +67,29 @@ function buildModels() {
       { name: 'lleg', box: [0, 0, -2, 4, 6, 4], uv: [40, 0], pivot: [2, 6, 0] },
     ]);
   }
+  // armor worn over a player: one model for each piece and material, posed like the player
+  for (const mat of ARMOR_MATS) {
+    const sk = 'armor_' + mat;
+    defModel(sk + '_0', sk, 1, [{ name: 'head', box: [-4, 24, -4, 8, 8, 8], uv: [0, 0], pivot: [0, 24, 0], inflate: 1 }]);
+    defModel(sk + '_1', sk, 1, [
+      { name: 'body', box: [-4, 12, -2, 8, 12, 4], uv: [16, 16], pivot: [0, 24, 0], inflate: 1 },
+      { name: 'rarm', box: [-8, 12, -2, 4, 12, 4], uv: [40, 16], pivot: [-6, 22, 0], inflate: 1 },
+      { name: 'larm', box: [4, 12, -2, 4, 12, 4], uv: [40, 16], pivot: [6, 22, 0], inflate: 1 },
+    ]);
+    defModel(sk + '_2', sk, 1, [
+      { name: 'body', box: [-4, 12, -2, 8, 12, 4], uv: [16, 32], pivot: [0, 24, 0], inflate: 0.5 },
+      { name: 'rleg', box: [-4, 0, -2, 4, 12, 4], uv: [0, 16], pivot: [-2, 12, 0], inflate: 0.5 },
+      { name: 'lleg', box: [0, 0, -2, 4, 12, 4], uv: [0, 16], pivot: [2, 12, 0], inflate: 0.5 },
+    ]);
+    defModel(sk + '_3', sk, 1, [
+      { name: 'rleg', box: [-4, 0, -2, 4, 12, 4], uv: [0, 32], pivot: [-2, 12, 0], inflate: 1 },
+      { name: 'lleg', box: [0, 0, -2, 4, 12, 4], uv: [0, 32], pivot: [2, 12, 0], inflate: 1 },
+    ]);
+  }
+  defModel('shield', 'shield', 1, [
+    { name: 'board', box: [-6, -11, -0.5, 12, 22, 1], uv: [0, 0] },
+    { name: 'handle', box: [-1, -3, -6.5, 2, 6, 6], uv: [30, 0] },
+  ]);
   humanoid('zombie', 'zombie', 1 / 16);
   defModel('piglin', 'piglin', 1 / 16, [
     { name: 'head', box: [-5, 24, -4, 10, 8, 8], uv: [0, 0], pivot: [0, 24, 0] },
@@ -130,6 +153,7 @@ function buildModels() {
     { name: 'leg3', box: [-4, 0, -6, 4, 6, 4], uv: [0, 16], pivot: [-2, 6, -4] },
     { name: 'leg4', box: [0, 0, -6, 4, 6, 4], uv: [0, 16], pivot: [2, 6, -4] },
   ]);
+  buildNewModels();
   defModel('pig', 'pig', 1 / 16, [
     { name: 'head', box: [-4, 8, 6, 8, 8, 8], uv: [0, 0], pivot: [0, 12, 6] },
     { name: 'snout', box: [-2, 9, 14, 4, 3, 1], uv: [32, 0], pivot: [0, 12, 6], follow: 'head' },
@@ -175,17 +199,18 @@ function buildModels() {
 const _pm = M4.create();
 /* pose: { partName: [rx, ry, rz] } */
 function drawModel(model, base, pose, color) {
-  const u = PROG.entity.u;
+  const u = PROG.entity.u, hs = pose && pose._hs;   // (_hs: a bigger head, for made characters)
   let tinted = false;
   for (const part of model.list) {
-    const r = pose ? pose[part.follow || part.name] : null;
+    const r = pose ? pose[part.follow || part.name] : null, big = hs && (part.name === 'head' || part.follow === 'head');
     _pm.set(base);
-    if (r && (r[0] || r[1] || r[2])) {
+    if (big || (r && (r[0] || r[1] || r[2]))) {
       const pv = part.pivot;
       M4.translate(_pm, _pm, pv[0], pv[1], pv[2]);
-      if (r[2]) M4.rotZ(_pm, _pm, r[2]);
-      if (r[1]) M4.rotY(_pm, _pm, r[1]);
-      if (r[0]) M4.rotX(_pm, _pm, r[0]);
+      if (r && r[2]) M4.rotZ(_pm, _pm, r[2]);
+      if (r && r[1]) M4.rotY(_pm, _pm, r[1]);
+      if (r && r[0]) M4.rotX(_pm, _pm, r[0]);
+      if (big) M4.scale(_pm, _pm, hs, hs, hs);
       M4.translate(_pm, _pm, -pv[0], -pv[1], -pv[2]);
     }
     gl.uniformMatrix4fv(u.uModel, false, _pm);
@@ -204,7 +229,7 @@ function drawPart(part, m) {
 
 /* ---- items as 3D meshes (pixel units, centered on x/z, feet at y=0) ---- */
 const ITEM_MESH = {};
-function isCubeItem(id) { return id < 256 && (RENDER[id] === R_CUBE || RENDER[id] === R_LIQUID || RENDER[id] === R_CACTUS || RENDER[id] === R_BED); }
+function isCubeItem(id) { return id < 256 && (RENDER[id] === R_CUBE || RENDER[id] === R_LIQUID || RENDER[id] === R_CACTUS || RENDER[id] === R_BED || RENDER[id] === R_LOW); }
 function itemMesh(id) {
   if (ITEM_MESH[id]) return ITEM_MESH[id];
   const mesh = isCubeItem(id) ? blockCubeMesh(id) : spriteMesh(id < 256 ? BT[id * 6] : TILE[ITEMS[id].tex]);
@@ -213,7 +238,7 @@ function itemMesh(id) {
 }
 function blockCubeMesh(id) {
   const mb = new MeshBuilder();
-  const hgt = RENDER[id] === R_BED ? 9 : 16, ins = RENDER[id] === R_CACTUS ? 1 : 0;
+  const hgt = RENDER[id] === R_BED ? 9 : RENDER[id] === R_LOW ? BLOCKS[id].low : 16, ins = RENDER[id] === R_CACTUS ? 1 : 0;
   const x0 = -8 + ins, x1 = 8 - ins, z0 = -8 + ins, z1 = 8 - ins;
   const F = [
     [[x1, 0, z1], [x1, 0, z0], [x1, hgt, z0], [x1, hgt, z1]],
@@ -225,7 +250,7 @@ function blockCubeMesh(id) {
   ];
   const shade = [0.62, 0.62, 1, 0.5, 0.8, 0.8];
   for (let d = 0; d < 6; d++) {
-    const t = tileFor(id, d, 0), vt = (RENDER[id] === R_BED && d !== 2 && d !== 3) ? 7 : 0;
+    const t = tileFor(id, d, 0), vt = d === 2 || d === 3 ? 0 : RENDER[id] === R_BED ? 7 : RENDER[id] === R_LOW ? 16 - BLOCKS[id].low : 0;
     mb.quad(F[d], [[0, 16], [16, 16], [16, vt], [0, vt]], t, shade[d], 16, 0);
   }
   return mb.build();

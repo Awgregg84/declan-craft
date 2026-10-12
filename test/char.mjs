@@ -27,12 +27,13 @@ let fails = 0; const check = (name, ok, info) => { if (!ok) fails++; console.log
 
   // 2. the character screen
   await p.tap('#btn-char');
-  const c1 = await E(() => ({ shown: !el('scr-char').hidden, cards: [...document.querySelectorAll('.char-card')].map(b => b.textContent + ':' + b.getAttribute('aria-pressed')), note: el('char-note').textContent }));
-  check('character screen offers both looks', c1.shown && c1.cards.join() === 'Blonde hair:true,Brown hair:false' && /stays on this device/.test(c1.note), c1);
+  const c1 = await E(() => ({ shown: !el('scr-char').hidden, cards: [...document.querySelectorAll('#char-pick > .char-card:not(.char-new)')].map(b => b.textContent + ':' + b.getAttribute('aria-pressed')),
+    family: [...document.querySelectorAll('.char-slot .char-card')].map(b => b.textContent + ':' + b.getAttribute('aria-pressed')), add: !!document.querySelector('.char-new'), note: el('char-note').textContent }));
+  check('character screen offers both looks, the family, and making one', c1.shown && c1.cards.join() === 'Blonde hair:true,Brown hair:false' && c1.family.join() === 'Mommy:false,Daddy:false,Cooper:false,Lily:false,Michael:false,Luca:false' && c1.add && /stays on this device/.test(c1.note), c1);
   await p.tap('.char-card >> nth=1');
   await p.fill('#char-name', 'Cora');
   await p.screenshot({ path: path.join(out, 'char.png') });
-  const c2 = await E(() => ({ cards: [...document.querySelectorAll('.char-card')].map(b => b.getAttribute('aria-pressed')).join(), prof: JSON.parse(localStorage.getItem('declancraft:v1:profile')) }));
+  const c2 = await E(() => ({ cards: [...document.querySelectorAll('#char-pick > .char-card:not(.char-new)')].map(b => b.getAttribute('aria-pressed')).join(), prof: JSON.parse(localStorage.getItem('declancraft:v1:profile')) }));
   check('picking brown hair and typing a name saves them', c2.cards === 'false,true' && c2.prof.skin === 'sister' && c2.prof.name === 'Cora', c2);
   await p.tap('#btn-char-done');
   check('Done goes back to the title', await shown('scr-title'));

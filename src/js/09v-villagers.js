@@ -1,12 +1,19 @@
 /* ===================== Villagers and trading ===================== */
-const PROF_NAMES = { farmer: 'Farmer', butcher: 'Butcher', toolsmith: 'Toolsmith', shepherd: 'Shepherd', mason: 'Mason', cleric: 'Cleric' };
+const PROF_NAMES = { farmer: 'Farmer', butcher: 'Butcher', toolsmith: 'Toolsmith', shepherd: 'Shepherd', mason: 'Mason', cleric: 'Cleric', librarian: 'Librarian', armorer: 'Armorer', fisherman: 'Fisherman' };
 
 /* Each job buys something easy to collect for emeralds, and sells useful things for emeralds. */
 function tradesFor(prof, vseed) {
   const E = I.EMERALD, t = (give, get) => ({ give, get });
   switch (prof) {
     case 'farmer': return [t([[B.PUMPKIN, 4]], [E, 1]), t([[B.DANDELION, 10]], [E, 1]), t([[E, 1]], [I.BREAD, 6]),
-      t([[E, 1]], [I.APPLE, 4]), t([[E, 1]], [B.OAK_SAPLING, 4]), t([[E, 2]], [B.PUMPKIN, 3])];
+      t([[E, 1]], [I.APPLE, 4]), t([[E, 1]], [B.OAK_SAPLING, 4]), t([[E, 1]], [B.SUGAR_CANE, 6]), t([[E, 2]], [B.PUMPKIN, 3])];
+    case 'librarian': return [t([[I.PAPER, 24]], [E, 1]), t([[I.BOOK, 4]], [E, 1]), t([[E, 1]], [I.WRITTEN_BOOK, 1, 'story']),
+      t([[E, 1]], [I.WRITABLE_BOOK, 1]), t([[E, 1]], [I.PAPER, 8]), t([[E, 2]], [B.BOOKSHELF, 1]), t([[E, 3]], [I.XP_BOTTLE, 2])];
+    case 'armorer': return [t([[I.COAL, 16]], [E, 1]), t([[I.IRON_INGOT, 4]], [E, 1]), t([[E, 3]], [I.SHIELD, 1]),
+      t([[E, 4]], [armorId(2, 0), 1]), t([[E, 7]], [armorId(2, 1), 1]), t([[E, 6]], [armorId(2, 2), 1]), t([[E, 3]], [armorId(2, 3), 1]),
+      t([[E, 10]], [armorId(3, 3), 1]), t([[E, 12]], [armorId(3, 0), 1])];
+    case 'fisherman': return [t([[I.COD, 12]], [E, 1]), t([[I.SALMON, 8]], [E, 1]), t([[I.STRING, 12]], [E, 1]), t([[E, 1]], [I.COOKED_COD, 6]),
+      t([[E, 1]], [I.COOKED_SALMON, 4]), t([[E, 2]], [I.FISHING_ROD, 1]), t([[E, 2]], [I.TROPICAL_FISH, 1])];
     case 'butcher': return [t([[I.PORKCHOP, 8]], [E, 1]), t([[I.BEEF, 8]], [E, 1]), t([[I.CHICKEN, 10]], [E, 1]), t([[I.COAL, 16]], [E, 1]),
       t([[E, 1]], [I.COOKED_PORKCHOP, 5]), t([[E, 1]], [I.STEAK, 5])];
     case 'toolsmith': return [t([[I.COAL, 16]], [E, 1]), t([[I.IRON_INGOT, 4]], [E, 1]), t([[E, 1]], [toolId(1, 0), 1]), t([[E, 3]], [toolId(2, 0), 1]),
@@ -18,8 +25,9 @@ function tradesFor(prof, vseed) {
     }
     case 'mason': return [t([[B.COBBLE, 16]], [E, 1]), t([[B.CLAY, 10]], [E, 1]), t([[E, 1]], [B.BRICKS, 10]), t([[E, 1]], [B.STONE_BRICKS, 12]),
       t([[E, 1]], [B.GLASS, 6]), t([[E, 2]], [B.GLOWSTONE, 3])];
-    case 'cleric': return [t([[I.ROTTEN_FLESH, 16]], [E, 1]), t([[I.GOLD_INGOT, 2]], [E, 1]), t([[E, 1]], [I.GUNPOWDER, 4]),
-      t([[E, 2]], [B.OBSIDIAN, 3]), t([[E, 5]], [I.ENDER_PEARL, 1]), t([[E, 6]], [I.DIAMOND, 1])];
+    case 'cleric': return [t([[I.ROTTEN_FLESH, 16]], [E, 1]), t([[I.GOLD_INGOT, 2]], [E, 1]), t([[E, 1]], [I.GUNPOWDER, 4]), t([[E, 1]], [I.LAPIS, 4]),
+      t([[E, 2]], [B.OBSIDIAN, 3]), t([[E, 3]], [I.XP_BOTTLE, 2]), t([[E, 2]], [potionId(1, false), 1]), t([[E, 1]], [I.GLASS_BOTTLE, 4]),
+      t([[E, 5]], [I.ENDER_PEARL, 1]), t([[E, 6]], [I.DIAMOND, 1])];
   }
   return [];
 }
@@ -78,9 +86,11 @@ function doTrade(tr) {
     return;
   }
   for (const [id, n] of tr.give) takeItem(pl, id, n);
-  const left = pl.give(tr.get[0], tr.get[1]);
-  if (left > 0) dropItem(game, pl.x, pl.y + 1.2, pl.z, tr.get[0], left, true);
+  const ex = tr.get[2] === 'story' ? { tag: randomStoryBook() } : undefined;   // the librarian's stories: a different one each time
+  const left = pl.give(tr.get[0], tr.get[1], ex);
+  if (left > 0) dropItem(game, pl.x, pl.y + 1.2, pl.z, tr.get[0], left, true, ex);
   sfx('villagerYes', e.x, e.y + 1.6, e.z); sfx('pop');
+  addXp(pl, randInt(2, 4));   // trading gives a little experience
   game.stats.traded = (game.stats.traded || 0) + 1;
   ui.inv.msg = 'You got ' + tr.get[1] + ' ' + itemName(tr.get[0]) + '!'; ui.inv.msgNo = false;
   ui.dirty = true;
