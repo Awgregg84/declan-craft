@@ -346,7 +346,8 @@ const game = {
     this.view = 0; this.paused = false; this.uiOpen = false;
     ui.dirty = true; ui.hearts = ui.food = ui.air = ui.armor = -2;
     this.state = 'loading';
-    this.loadT = 0;
+    this.loadT = 0; this.loadBest = 0; this.loadStill = 0;
+    el('btn-load-back').hidden = true;
     el('fx-portal').style.opacity = 0;
     el('load-title').textContent = title;
     el('load-tip').textContent = 'Tip: ' + LOAD_TIPS[randInt(0, LOAD_TIPS.length - 1)];
@@ -920,10 +921,13 @@ function frame(ts) {
     w.stream(game.pool, pl.x, pl.z, S.renderDist);
     game.pool.pump(20);
     w.meshStep(14, S.renderDist);
-    const p = w.readyAround(pl.x, pl.z, 2);
+    const p = w.readyAround(pl.x, pl.z, Math.min(2, S.renderDist - 1));   // (only as far out as the world is built at this render distance)
     el('load-bar').style.width = Math.round(p * 100) + '%';
     el('load-bar-wrap').setAttribute('aria-valuenow', Math.round(p * 100));
-    if (p >= 1 && game.loadT > 0.4) game.finishLoading();
+    if (p > game.loadBest + 0.001) { game.loadBest = p; game.loadStill = 0; } else game.loadStill += dt;
+    // stuck farther out for a while: start with the ground around you (the rest is built while you play), and offer a way back
+    if ((p >= 1 || (game.loadStill > 15 && w.readyAround(pl.x, pl.z, 1) >= 1)) && game.loadT > 0.4) game.finishLoading();
+    else if (game.loadStill > 25 && el('btn-load-back').hidden) el('btn-load-back').hidden = false;
     gl.viewport(0, 0, R.width, R.height); gl.clearColor(0, 0, 0, 1); gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
     return;
   }
@@ -1019,6 +1023,7 @@ function wireButtons() {
   click('btn-respawn', () => game.respawn());
   click('btn-hc-new', () => { sfx('click'); game.quitToTitle(true); game.startWorld('hardcore', 'survival', true); });
   click('btn-death-title', () => game.quitToTitle());
+  click('btn-load-back', () => game.quitToTitle());
   el('click-hint').addEventListener('click', () => { initAudio(); game.requestPointer(); });
   el('scr-inv').addEventListener('pointerdown', e => {
     if (e.target !== el('scr-inv') && e.target !== el('inv-root')) return;
