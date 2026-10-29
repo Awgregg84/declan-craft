@@ -174,6 +174,7 @@ function genModule(B, P) {
   /* ========== Map 1: Sunny Valley ========== */
   function valleyGen(seed) {
     const SEA = 48;
+    const nCo = makeNoise(seed ^ 0xc0a1c0);   // (where the coral reefs are)
     const nC = makeNoise(seed ^ 0x1a2b3c), nE = makeNoise(seed ^ 0x2b3c4d), nR = makeNoise(seed ^ 0x3c4d5e),
       nD = makeNoise(seed ^ 0x4d5e6f), nT = makeNoise(seed ^ 0x5e6f70), nM = makeNoise(seed ^ 0x6f7081),
       nK1 = makeNoise(seed ^ 0x708192), nK2 = makeNoise(seed ^ 0x8192a3), nK3 = makeNoise(seed ^ 0x92a3b4);
@@ -230,6 +231,7 @@ function genModule(B, P) {
       if (y < 54 && y < h - 8) { const c = tri(K3, lx, y, lz); if (c > 0.6 - (54 - y) * 0.0025) return true; }
       return false;
     }
+    const DG = GEN3.dungeonPlanner(seed, { column, SEA, OCEAN, FROZEN, villagesNear, spawn });   // (dungeons under the ground)
     function generate(cx, cz, vb) {
       const blocks = new Uint8Array(CVOL);
       const x0 = cx * 16, z0 = cz * 16;
@@ -290,6 +292,16 @@ function genModule(B, P) {
         if (blocks[idx(lx + 1, h, lz)] !== B.WATER && blocks[idx(lx - 1, h, lz)] !== B.WATER && blocks[idx(lx, h, lz + 1)] !== B.WATER && blocks[idx(lx, h, lz - 1)] !== B.WATER) continue;
         for (let t = 1; t <= tall; t++) { if (blocks[idx(lx, h + t, lz)] !== B.AIR) break; blocks[idx(lx, h + t, lz)] = B.SUGAR_CANE; }
       }
+      // coral reefs on the floor of the warm sea, in patches (their own random stream as well)
+      const reef = Math.max(0, Math.min(1, nCo.n2((x0 + 8) * 0.013, (z0 + 8) * 0.013) * 1.8 - 0.15));
+      if (reef > 0) {
+        const rr = mulberry32(hash3(seed + 97, cx, cz));
+        for (let k = 0, n = Math.round(reef * 48); k < n; k++) {
+          const lx = (rr() * 16) | 0, lz = (rr() * 16) | 0, tall = 1 + ((rr() * rr() * 3.2) | 0), kind = (rr() * 3) | 0, cv = cols[lz * 16 + lx], h = cv & 255;
+          if ((cv >> 8) !== OCEAN || h > SEA - 4) continue;
+          for (let t = 1; t <= tall && h + t < SEA - 1; t++) { if (blocks[idx(lx, h + t, lz)] !== B.WATER) break; blocks[idx(lx, h + t, lz)] = B.CORAL_RED + kind; }
+        }
+      }
       // trees from this chunk and its neighbours (so canopies cross borders cleanly)
       for (let ncz = cz - 1; ncz <= cz + 1; ncz++) for (let ncx = cx - 1; ncx <= cx + 1; ncx++) {
         const tr = mulberry32(hash3(seed + 7, ncx, ncz));
@@ -323,6 +335,13 @@ function genModule(B, P) {
         buildVillage(blocks, data, cx, cz, v, cols);
         const sx = v.x, sz = v.z + 3;
         if (sx >= x0 && sx < x0 + 16 && sz >= z0 && sz < z0 + 16) spawns.push(['villager', sx + 0.5, (cols[(sz - z0) * 16 + (sx - x0)] & 255) + 1, sz + 0.5, v.profs.length, v.id, v.profs.join(',')]);
+      }
+      // dungeons whose stairs or rooms reach into this chunk (worked out on their own, so older worlds keep everything else)
+      for (const d of DG.near(x0 + 8, z0 + 8)) {
+        const bb = d.bbox;
+        if ((vb && vb.has(d.id)) || bb[2] < x0 || bb[0] > x0 + 15 || bb[3] < z0 || bb[1] > z0 + 15) continue;
+        if (!data) data = new Uint8Array(CVOL);
+        DG.build(blocks, data, cx, cz, d);
       }
       if (r() < 0.16) {
         const type = MOBS[(r() * 4) | 0], count = 2 + ((r() * 3) | 0);
@@ -544,7 +563,7 @@ function genModule(B, P) {
       }
       return [0.5, 90, 0.5];
     }
-    return { generate, spawn, column, villagesNear, nearestVillage };
+    return { generate, spawn, column, villagesNear, nearestVillage, dungeons: DG };
   }
 
   /* ========== Map 2: Sky Islands ========== */
@@ -662,7 +681,7 @@ function genModule(B, P) {
       return { blocks, spawns };
     }
     function spawn() { const t = topAt(0, 0); return [0.5, (t > 0 ? t : 70) + 1, 0.5]; }
-    return { generate, spawn };
+    return { generate, spawn, biomeAt };
   }
 
   /* ========== The Nether: netherrack caverns over a lava sea, between bedrock floor and ceiling ========== */
@@ -733,11 +752,12 @@ function genModule(B, P) {
     return { generate, spawn };
   }
 
+  const GEN3 = genModule3(B, { WH, CVOL, idx, clamp, mulberry32, hash3, makeNoise, fbm2, placeTree, decorate, oreVeins, PLAINS, FOREST });   // (the Moon and Hogwarts: see 02b-gen3.js)
   const gens = new Map();
   function getGen(map, seed) {
     const k = map + ':' + seed;
     let g = gens.get(k);
-    if (!g) { g = map === 'sky' ? skyGen(seed) : map === 'nether' ? netherGen(seed) : valleyGen(seed); gens.set(k, g); }
+    if (!g) { g = map === 'sky' ? skyGen(seed) : map === 'nether' ? netherGen(seed) : map === 'moon' ? GEN3.moonGen(seed) : map === 'hogwarts' ? GEN3.hogwartsGen(seed) : valleyGen(seed); gens.set(k, g); }
     return g;
   }
 
@@ -820,5 +840,39 @@ function genModule(B, P) {
     return Array.from(out);
   }
   function findVillage(map, seed, x, z, blocked) { return map === 'valley' ? getGen(map, seed).nearestVillage(x, z, new Set(blocked || [])) : null; }
-  return { generateChunk, spawnPoint, computeLight, makeNoise, mulberry32, hash3, villagesTouching, findVillage };
+  /* dungeons whose tower, stairs or room overlap any of the given chunks (kept out of what was built before there were dungeons) */
+  function dungeonsTouching(map, seed, chunks) {
+    if (map !== 'valley') return [];
+    const g = getGen(map, seed), out = new Set();
+    for (const [cx, cz] of chunks) for (const d of g.dungeons.near(cx * 16 + 8, cz * 16 + 8)) {
+      const bb = d.bbox;
+      if (bb[2] >= cx * 16 && bb[0] <= cx * 16 + 15 && bb[3] >= cz * 16 && bb[1] <= cz * 16 + 15) out.add(d.id);
+    }
+    return Array.from(out);
+  }
+  /* the nearest dungeon's tower; and the dungeon (at the bottom of its stairs, or in its room) at a spot, if any */
+  function findDungeon(map, seed, x, z, blocked) {
+    if (map !== 'valley') return null;
+    const d = getGen(map, seed).dungeons.nearest(x, z, new Set(blocked || []));
+    return d && { id: d.id, name: d.name, kind: d.kind, x: d.S[0], y: d.g + 1, z: d.S[1] };
+  }
+  function dungeonsNear(map, seed, x, z) {
+    return map !== 'valley' ? [] : getGen(map, seed).dungeons.near(x, z).map(d => ({ id: d.id, kind: d.kind, name: d.name, x: d.x, z: d.z, y: d.y, h: d.h, g: d.g, S: d.S, E: d.E, D: d.D, bbox: d.bbox }));
+  }
+  function dungeonHere(map, seed, x, y, z, blocked) {
+    if (map !== 'valley') return null;
+    for (const d of getGen(map, seed).dungeons.near(x, z)) {
+      const bb = d.bbox;
+      if ((blocked && blocked.includes(d.id)) || x < bb[0] || x > bb[2] + 1 || z < bb[1] || z > bb[3] + 1 || y < d.y - 1 || y > d.y + d.h + 1) continue;
+      return { id: d.id, name: d.name, kind: d.kind };
+    }
+    return null;
+  }
+  /* what falls from the sky here when the weather turns: 0 nothing (a desert), 1 rain, 2 snow (cold places) */
+  function climateAt(map, seed, x, z) {
+    if (map === 'moon' || map === 'nether') return 0;
+    const bio = map === 'valley' ? getGen(map, seed).column(Math.floor(x), Math.floor(z)) >> 8 : map === 'sky' ? getGen(map, seed).biomeAt(Math.floor(x), Math.floor(z)) : PLAINS;
+    return bio === DESERT ? 0 : bio === SNOWY || bio === PEAKS || bio === FROZEN ? 2 : 1;
+  }
+  return { generateChunk, spawnPoint, computeLight, makeNoise, mulberry32, hash3, villagesTouching, findVillage, dungeonsTouching, findDungeon, dungeonHere, dungeonsNear, climateAt, hogwarts: GEN3.HW };
 }

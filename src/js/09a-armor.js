@@ -3,7 +3,7 @@
 // the damage from monsters, arrows, blasts, fire and cactus, but not from falling, drowning, hunger or the void,
 // and wears out doing it. A shield, held in the hand or put in the off-hand slot, is raised by holding Place:
 // it stops hits, arrows, fireballs and blasts from in front.
-const ARMOR_CAUSES = new Set(['zombie', 'piglin', 'magma', 'enderman', 'explosion', 'arrow', 'fireball', 'ghast', 'cactus', 'lava', 'fire']);
+const ARMOR_CAUSES = new Set(['zombie', 'piglin', 'magma', 'enderman', 'explosion', 'arrow', 'fireball', 'ghast', 'cactus', 'lava', 'fire', 'golem']);
 const SHIELD_CAUSES = new Set(['zombie', 'piglin', 'magma', 'enderman', 'explosion', 'arrow', 'fireball', 'ghast']);
 /* the armor ids someone has on (a player here, or one on another iPad), helmet to boots */
 function wornArmor(p) {
@@ -92,7 +92,7 @@ function drawArmor(ids, base, pose, t, glint) {
     const a = ids[k] && armorOf(ids[k]);
     if (!a) continue;
     if (glint & (1 << k)) glintOn(true);
-    drawModel(MODELS['armor_' + ARMOR_MATS[a.mat] + '_' + k], base, pose);
+    drawModel(MODELS[a.model || 'armor_' + ARMOR_MATS[a.mat] + '_' + k], base, pose);   // (a space helmet has its own)
     if (glint & (1 << k)) glintOn(false);
   }
 }

@@ -9,11 +9,13 @@ const PROJ = {
   pearl: { grav: 20, drag: 0.99, r: 0.12 },  // an ender pearl: takes its thrower where it lands
   xpb: { grav: 20, drag: 0.99, r: 0.12 },    // a Bottle o' Enchanting: breaks into experience
   potion: { grav: 20, drag: 0.99, r: 0.12 }, // a splash potion: splashes everyone near where it breaks
+  spell: { grav: 0, drag: 1, r: 0.15 },      // a spell from a magic wand (see 09x-wand.js)
 };
 const PROJ_KINDS = Object.keys(PROJ);
 const isPlayerOwner = o => o === 'me' || (typeof o === 'string' && o !== 'disp' && o !== 'mob');
 
 function shootProjectile(game, kind, x, y, z, vx, vy, vz, o) {
+  if (kind === 'spell' && o && o.pk === SPELL_PATRONUS && !o.ghost) return summonPatronus(game, x, y, z, vx, vz);   // (not a shot: a stag)
   const e = new Entity('proj', x, y, z);
   e.kind = kind; e.vx = vx; e.vy = vy; e.vz = vz; e.w = PROJ[kind].r; e.h = 0;
   e.owner = (o && o.owner) || null; e.ownerNid = (o && o.ownerNid) || 0;
@@ -35,7 +37,7 @@ function playerShoot(game, kind, vel, o) {
   if (MP.role === 'guest') {
     const tok = randomId(6);
     MP.send({ t: 'shoot', k: kind, p: [r2(x), r2(y), r2(z)], v: [r2(vx), r2(vy), r2(vz)], d: o.dmg || 0, c: o.crit ? 1 : 0, tok, s: o.snd, kb: o.kb || 0, fl: o.fire ? 1 : 0, np: o.pickup === false ? 1 : 0, pk: o.pk || 0 });
-    shootProjectile(game, kind, x, y, z, vx, vy, vz, { owner: 'me', ghost: true, tok, crit: o.crit, fire: o.fire, pk: o.pk });
+    if (!o.noGhost) shootProjectile(game, kind, x, y, z, vx, vy, vz, { owner: 'me', ghost: true, tok, crit: o.crit, fire: o.fire, pk: o.pk });
     return;
   }
   shootProjectile(game, kind, x, y, z, vx, vy, vz, Object.assign({ owner: 'me' }, o));
@@ -92,6 +94,7 @@ function updateProjectile(game, e, dt) {
   if (hit) { projHit(game, e, e.x + nx * hit.t, e.y + ny * hit.t, e.z + nz * hit.t, nx, ny, nz, null, hit); return; }
   e.x += nx * len; e.y += ny * len; e.z += nz * len;
   if (e.y < -40 || e.age > 30) e.removed = true;
+  if (e.kind === 'spell' && e.age > 0.9) { e.removed = true; spellBurst(e.x, e.y, e.z, spellOf(e).tile, 8); }   // (a spell only reaches so far)
   projTrail(e, dt);
 }
 function projTrail(e, dt) {
@@ -99,6 +102,8 @@ function projTrail(e, dt) {
   if (e.kind === 'fireball' || e.kind === 'charge') {
     if (Math.random() < dt * 30) PARTICLES.push({ x: e.x + randRange(-0.2, 0.2), y: e.y + randRange(-0.2, 0.2), z: e.z + randRange(-0.2, 0.2), vx: 0, vy: 0.4, vz: 0, life: randRange(0.2, 0.45), tile: TILE.flame, u: 0, v: 0, us: 16, size: e.kind === 'fireball' ? 0.18 : 0.1, grav: -0.5, bright: 1 });
     if (Math.random() < dt * 12) smokeParticles(e.x, e.y, e.z, 1, 0.15, false);
+  } else if (e.kind === 'spell') {
+    for (let i = 0; i < 2; i++) if (Math.random() < dt * 60) PARTICLES.push({ x: e.x + randRange(-0.1, 0.1), y: e.y + randRange(-0.1, 0.1), z: e.z + randRange(-0.1, 0.1), vx: randRange(-0.5, 0.5), vy: randRange(-0.5, 0.5), vz: randRange(-0.5, 0.5), life: 0.4, tile: TILE[spellOf(e).tile], u: 0, v: 0, us: 16, size: 0.05, grav: 0, bright: 1 });
   } else if (e.kind === 'pearl') {
     if (Math.random() < dt * 25) PARTICLES.push({ x: e.x, y: e.y, z: e.z, vx: randRange(-0.3, 0.3), vy: randRange(-0.3, 0.3), vz: randRange(-0.3, 0.3), life: 0.5, tile: TILE.ender_dot, u: 0, v: 0, us: 16, size: 0.05, grav: 0, bright: 1 });
   } else if (e.kind === 'xpb') {
@@ -119,6 +124,7 @@ function projHit(game, e, x, y, z, nx, ny, nz, ent, blk) {
   if (k === 'pearl') { e.removed = true; pearlLand(game, e, x - nx * 0.4, y - ny * 0.4, z - nz * 0.4, blk); return; }
   if (k === 'xpb') { e.removed = true; xpBottleBreak(game, x - nx * 0.3, y - ny * 0.3, z - nz * 0.3); return; }
   if (k === 'potion') { e.removed = true; splashPotion(game, x - nx * 0.3, y - ny * 0.3, z - nz * 0.3, clamp(e.pk | 0, 0, POTIONS.length - 1)); return; }
+  if (k === 'spell') { e.removed = true; spellHit(game, e, x - nx * 0.2, y - ny * 0.2, z - nz * 0.2, nx, ny, nz, ent, blk); return; }
   if (k === 'fireball') {
     e.removed = true;
     if (ent && !ent.player) hurtMob(game, ent.o, ent.o.type === 'ghast' && e.deflected ? 1000 : 4, x - nx, z - nz, cause, by);
@@ -215,6 +221,14 @@ function drawProjectile(e, dx, dy, dz) {
     M4.rotY(_pj, _pj, e.age * 5); M4.rotX(_pj, _pj, e.age * 3);
     M4.scale(_pj, _pj, s, s, s);
     drawMesh(fireballMesh(), _pj);
+    return;
+  }
+  if (e.kind === 'spell') {   // a glowing ball of light, the spell's colour
+    gl.uniform1f(P.u.uBright, 1);
+    M4.rotY(_pj, _pj, R.cam.yaw); M4.rotX(_pj, _pj, R.cam.pitch);
+    M4.scale(_pj, _pj, 0.5 / 16, 0.5 / 16, 0.5 / 16);
+    M4.translate(_pj, _pj, 0, -8, 0);
+    drawMesh(tileMesh(spellOf(e).tile), _pj);
     return;
   }
   if (e.kind === 'pearl' || e.kind === 'xpb' || e.kind === 'potion') {

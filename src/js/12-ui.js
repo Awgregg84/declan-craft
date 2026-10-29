@@ -1,15 +1,16 @@
 /* ===================== Interface ===================== */
 const ui = { dirty: true, cursor: null, screen: 'scr-title', inv: null, hoverRef: null, hbEls: [], hearts: -1, food: -1, air: -1, armor: -1, xp: -1, nameT: 0, toastT: 0, back: 'scr-title', px: 0, py: 0 };
-const SCREENS = ['scr-title', 'scr-worlds', 'scr-loading', 'scr-pause', 'scr-settings', 'scr-help', 'scr-death', 'scr-inv', 'scr-mp', 'scr-join', 'scr-char', 'scr-msg', 'scr-book', 'scr-sign', 'scr-maker', 'scr-board'];
+const SCREENS = ['scr-title', 'scr-worlds', 'scr-loading', 'scr-pause', 'scr-settings', 'scr-help', 'scr-death', 'scr-inv', 'scr-mp', 'scr-join', 'scr-char', 'scr-msg', 'scr-book', 'scr-sign', 'scr-maker', 'scr-board', 'scr-plans'];
 const SPLASHES = ['Now with Sky Islands!', 'Made for Declan!', '100% blocks!', 'Punch a tree!', 'Watch out for creepers!', 'Blonde hair, blue eyes!',
   'Build a castle!', 'Diamonds hide deep down!', 'Sleep tight!', 'Never dig straight down!', 'Pigs say oink!', 'Build it big!', 'Also try bridges!', 'Torches keep monsters away!',
   'Now with villagers!', 'Hrmm!', 'Trade for emeralds!', 'Play together!', 'Now with the Nether!', 'Mind the lava!', 'Light the portal!'];
 const MAPS = {
   valley: { name: 'Sunny Valley', desc: 'Rolling hills, forests, lakes and beaches, deep caves full of ore, and snowy mountain peaks.' },
   sky: { name: 'Sky Islands', desc: 'Floating islands above a sea of clouds. Build bridges between them, and mind the edge!' },
+  hogwarts: { name: 'Hogwarts', desc: 'The castle above the Black Lake, the Forbidden Forest, Hogsmeade, and a Quidditch pitch. You get a wand and a broomstick!' },
 };
 /* the saved worlds: each has its own save, and the land it is made of (Hardcore is a Sunny Valley you only get one life in) */
-const SLOTS = { valley: { map: 'valley' }, sky: { map: 'sky' }, hardcore: { map: 'valley', hardcore: true } };
+const SLOTS = { valley: { map: 'valley' }, sky: { map: 'sky' }, hogwarts: { map: 'hogwarts' }, hardcore: { map: 'valley', hardcore: true } };
 const HC_LAST_KEY = 'declancraft:v1:hardcore-last';
 /* Hardcore is always at least Normal */
 const difficulty = () => game.hardcore ? Math.max(2, game.settings.difficulty) : game.settings.difficulty;
@@ -526,6 +527,7 @@ function drawLogo() {
 function drawThumb(cv, map) {
   const W = 160, H = 70, ctx = cv.getContext('2d');
   cv.width = W; cv.height = H;
+  if (map === 'hogwarts') { drawHogwartsThumb(ctx, W, H); return; }
   const r = mulberry32(map === 'sky' ? 7 : 3);
   const g = ctx.createLinearGradient(0, 0, 0, H);
   g.addColorStop(0, '#5f8ff0'); g.addColorStop(1, map === 'sky' ? '#d8e8ff' : '#a9c8ff');
@@ -557,7 +559,7 @@ function buildWorldCards() {
   const wrap = el('world-cards');
   wrap.textContent = '';
   el('worlds-h').textContent = ui.hostMode ? 'Choose a World to Share' : 'Choose a World';
-  for (const id of ['valley', 'sky', 'hardcore']) {
+  for (const id of ['valley', 'sky', 'hogwarts', 'hardcore']) {
     const hc = !!SLOTS[id].hardcore, info = hc ? { name: 'Hardcore', desc: 'Sunny Valley, but you only get one life! If you die, the world is gone and you start a new one.' } : MAPS[id], save = loadSaveMeta(id);
     const card = h('article', { class: 'card' + (hc ? ' hardcore' : '') });
     const cv = h('canvas', { 'aria-hidden': 'true' });
@@ -567,7 +569,7 @@ function buildWorldCards() {
     card.appendChild(h('p', { text: info.desc }));
     let last = null;
     if (hc) { try { last = JSON.parse(store.get(HC_LAST_KEY) || 'null'); } catch (e) { last = null; } }
-    card.appendChild(h('p', { class: 'status', text: save ? 'Saved world - ' + (hc ? 'Hardcore' : save.mode === 'creative' ? 'Creative' : 'Survival') + ', day ' + (save.day || 1) + (save.nether ? ', in the Nether' : '')
+    card.appendChild(h('p', { class: 'status', text: save ? 'Saved world - ' + (hc ? 'Hardcore' : save.mode === 'creative' ? 'Creative' : 'Survival') + ', day ' + (save.day || 1) + (save.nether ? ', in the Nether' : save.moon ? ', on the Moon' : '')
       : 'New world' + (last && last.days ? '. Last time you lasted ' + last.days + (last.days === 1 ? ' day' : ' days') + '.' : '') }));
     const actions = h('div', { class: 'actions' });
     let mode = save ? save.mode : 'survival';
@@ -693,7 +695,7 @@ function buildHelp() {
     '<li>Cook meat and smelt ore in a furnace.</li>' +
     '<li>Zombies burn in sunlight. Creepers hiss before they explode.</li>' +
     '<li>Right-click TNT to light it, then run!</li>' +
-    '<li>Commands: /time set day, /gamemode creative, /give diamond 5, /summon pig, /summon enderman, /summon boat, /locate village, /spawnpoint, /help.</li>' +
+    '<li>Commands: /time set day, /weather rain (or snow, thunder, clear), /gamemode creative, /give diamond 5, /summon pig, /summon enderman, /summon boat, /locate village, /locate dungeon, /spawnpoint, /help.</li>' +
     '<li>Your world saves by itself in this browser.</li></ul></section>' +
     '<section><h3>The Nether</h3><ul>' +
     '<li>Build a frame of obsidian 4 wide and 5 tall (the corners can be left out), then use flint and steel on the inside to light it.</li>' +
@@ -760,6 +762,37 @@ function buildHelp() {
     '<section><h3>Hardcore</h3><ul>' +
     '<li>In the Hardcore world you only get one life. If you die, the world is gone and you start a new one.</li>' +
     '<li>No Creative and no cheats in Hardcore. Good luck!</li></ul></section>' +
+    '<section><h3>Rain, snow and thunder</h3><ul>' +
+    '<li>Now and then it rains (or snows where it is cold, but never in the desert). Sometimes there is a thunderstorm, as dark as evening.</li>' +
+    '<li>Rain puts out fire, and zombies do not burn in it. Fish bite more in the rain. Type /weather clear to stop it.</li></ul></section>' +
+    '<section><h3>Iron golems</h3><ul>' +
+    '<li>Every village has an iron golem. It leaves you alone, but it throws monsters up in the air!</li>' +
+    '<li>Build your own: four iron blocks in a T, with a pumpkin on top.</li></ul></section>' +
+    '<section><h3>Snorks</h3><ul>' +
+    '<li>Snorks swim in the deep sea, near the coral. Give one a fish and it gives you a present.</li>' +
+    '<li>Swim close to a Snork when you are running out of air: it shares its snorkel air with you.</li></ul></section>' +
+    '<section><h3>The flying car and the broom</h3><ul>' +
+    '<li>Flying car (a car and 4 feathers): drive it on the ground, press Jump to take off. Jump goes up, Sneak goes down.</li>' +
+    '<li>Broom (3 sticks and a feather): get on and fly. Land, then press Sneak to get off.</li></ul></section>' +
+    '<section><h3>The rocket and the Moon</h3><ul>' +
+    '<li>Rocket (iron, glass and a furnace): put it on the ground, get in, and tap: 3, 2, 1, blast off! Everyone playing together comes too.</li>' +
+    '<li>There is no air on the Moon: wear a space helmet (you get one when you land) or stay in the rocket. You jump very high there.</li>' +
+    '<li>Look for cheese in the craters. Put up a flag! Tap the rocket to fly home again.</li></ul></section>' +
+    '<section><h3>Magic wands and Hogwarts</h3><ul>' +
+    '<li>Wand (a stick, a feather and gold): tap to cast a spell. The Spell button (or F) picks the spell: Lumos, Wingardium Leviosa, Stupefy, Expelliarmus, Accio and Expecto Patronum.</li>' +
+    '<li>The Hogwarts world has the castle, the Great Hall, the Quidditch pitch, Hagrid\'s hut and Hogsmeade. Sit under the Sorting Hat to find your house, fly through the hoops to score, and catch the Golden Snitch!</li></ul></section>' +
+    '<section><h3>Books of building plans</h3><ul>' +
+    '<li>Book of Building Plans (a book and paper): tap to open it, pick something to build, and tap Build it here.</li>' +
+    '<li>A see-through outline shows where each block goes, the bright layer first. A wrong block shows red. Finish it for a surprise!</li></ul></section>' +
+    '<section><h3>Security cameras</h3><ul>' +
+    '<li>Security camera (iron, glass and coal): put it on a wall and it looks out from the wall. On top of a block, it looks back at you.</li>' +
+    '<li>Camera monitor (a TV and an iron ingot): it shows what your cameras see, live. Tap it to switch cameras.</li></ul></section>' +
+    '<section><h3>Dungeons</h3><ul>' +
+    '<li>Look for a little old stone tower: stairs inside go down to a dungeon. Type /locate dungeon to find one.</li>' +
+    '<li>There are Monster Rooms, Mazes, Treasure Vaults and Lava Temples, with chests of treasure. Break a monster spawner with a pickaxe to stop the monsters.</li></ul></section>' +
+    '<section><h3>Robots</h3><ul>' +
+    '<li>Robot (glass and 5 iron ingots): keep it in your bag, and tap the ground to let it out.</li>' +
+    '<li>Tap your robot to change what it does: follow you, guard you (it zaps monsters), collect things for you, or stay. Hit it to put it back in your bag.</li></ul></section>' +
     '<section><h3>Villagers and trading</h3><ul>' +
     '<li>Villages have a well, houses and gardens. A new Sunny Valley world starts next to one. Type /locate village to find one.</li>' +
     '<li>Tap a villager (or right-click) to trade. Each job trades different things.</li>' +
@@ -796,6 +829,7 @@ function setupTouch() {
   hold('tb-inv', () => game.toggleInventory());
   hold('tb-view', () => game.cycleView());
   hold('tb-pause', () => game.pause());
+  hold('tb-spell', () => nextSpell(game));
   hold('tb-fly', () => { if (game.mode === 'creative') { game.player.flying = !game.player.flying; toast(game.player.flying ? 'Flying' : 'Walking', 1); } });
   const joy = el('joy'), knob = el('joy-knob');
   let jid = null;

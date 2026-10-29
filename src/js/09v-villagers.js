@@ -125,7 +125,7 @@ function villagerSteer(game, e, dt) {
     return [-Math.sin(e.yaw), -Math.cos(e.yaw), 1.8];
   }
   if (e.tradeT > 0 && near) { e.yaw = Math.atan2(-(near.x - e.x), -(near.z - e.z)); e.moving = false; return [0, 0, 0]; }
-  const night = game.sky ? game.sky.day < 0.3 : false;
+  const night = game.sky ? game.sky.day < 0.3 || wxRaining() : false;   // (at night, and in the rain, they stay close to the well)
   if (e.home) {
     const hx = e.home[0] - e.x, hz = e.home[1] - e.z, hd = Math.hypot(hx, hz);
     if (hd > (night ? 5 : 16)) { e.moving = true; e.yaw = Math.atan2(-hx, -hz); e.aiT = 1; return [hx / hd, hz / hd, 0.6]; }
@@ -152,4 +152,5 @@ function spawnVillagers(game, sp) {
     const sy = top > 0 && Math.abs(top + 1 - y) < 4 ? top + 1 : y;
     spawnMob(game, 'villager', sx, sy, sz, { prof: profs[i % profs.length] || 'farmer', home: [x, z - 3], village: vid, vseed: (hashString(vid) + i * 7919) % 100000 });
   }
+  spawnGolems(game, x, y, z - 3, count, vid);   // and its iron golem
 }

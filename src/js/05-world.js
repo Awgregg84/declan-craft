@@ -25,7 +25,7 @@ class GenPool {
     this.workers = []; this.inflight = new Map(); this.queue = []; this.nextId = 1; this.local = null;
     const n = clamp((navigator.hardwareConcurrency || 4) - 1, 1, 4);
     try {
-      const src = 'const genModule = ' + genModule.toString() + ';\nlet G = null;\n' +
+      const src = 'const genModule3 = ' + genModule3.toString() + ';\nconst genModule = ' + genModule.toString() + ';\nlet G = null;\n' +
         'onmessage = function (e) { const m = e.data; if (m.t === "init") { G = genModule(m.B, m.P); return; }\n' +
         '  const r = G.generateChunk(m.map, m.seed, m.cx, m.cz, m.edits, m.vb);\n' +
         '  const tr = [r.blocks.buffer, r.light.buffer]; if (r.data) tr.push(r.data.buffer);\n' +
@@ -721,7 +721,7 @@ class World {
       this.tiles.set(k, t);
       // a village chest that has never been opened: fill it now (and remember it has been). lootData: the chest's data as it is broken
       const d = lootData !== undefined ? lootData : this.getBlock(x, y, z) === B.CHEST ? this.getData(x, y, z) : 0;
-      if (create === 'chest' && !this.remote && (d & 8)) { fillVillageChest(t); if (lootData === undefined) this.setBlock(x, y, z, B.CHEST, d & 7); }
+      if (create === 'chest' && !this.remote && (d & 8)) { fillChestLoot(t, (d >> 4) & 3); if (lootData === undefined) this.setBlock(x, y, z, B.CHEST, d & 7); }   // (d >> 4: a dungeon's treasure)
     }
     return t || null;
   }

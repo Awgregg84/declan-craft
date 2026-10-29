@@ -18,6 +18,16 @@ const MOB_DEFS = {
   salmon: { model: 'salmon', w: 0.3, h: 0.4, hp: 3, speed: 1.9, fish: true, xp: [1, 3], drops: [[I.SALMON, 1, 1]], sound: 'fish' },
   tropical: { model: 'tropical', w: 0.2, h: 0.35, hp: 3, speed: 1.4, fish: true, xp: [1, 3], drops: [[I.TROPICAL_FISH, 1, 1]], sound: 'fish' },
   pufferfish: { model: 'pufferfish', w: 0.25, h: 0.35, hp: 3, speed: 1.0, fish: true, puffs: true, xp: [1, 3], drops: [[I.PUFFERFISH, 1, 1]], sound: 'fish' },
+  // iron golems guard villages (see 09g-golem.js): big, strong, slow, and they don't get knocked about
+  golem: { model: 'golem', w: 0.7, h: 2.6, hp: 100, speed: 1.4, neutral: true, guard: true, dmg: 7, xp: [0, 0], drops: [[I.IRON_INGOT, 3, 5], [B.POPPY, 0, 2]], sound: 'golem' },
+  // Snorks swim about in the sea (see 09h-snorks.js); nothing hurts them
+  snork: { model: 'snork_0', w: 0.25, h: 1.15, hp: 20, speed: 1.7, swimmer: true, unhurt: true, xp: [0, 0], drops: [], sound: 'snork' },
+  // a Patronus: a silver stag from a magic wand that gallops off chasing monsters away (see 09x-wand.js)
+  patronus: { model: 'patronus', w: 0.45, h: 1.7, hp: 1000, speed: 7, spirit: true, unhurt: true, xp: [0, 0], drops: [], sound: 'patronus' },
+  // the Golden Snitch zips about the Quidditch pitch at Hogwarts: catch it! (see 12h-hogwarts.js)
+  snitch: { model: 'snitch', w: 0.2, h: 0.4, hp: 1, speed: 10, snitch: true, unhurt: true, xp: [0, 0], drops: [], sound: 'snitch' },
+  // a robot you keep in your bag: it follows you, guards you, collects things or stays put (see 09z-robots.js)
+  robot: { model: 'robot', w: 0.3, h: 1.15, hp: 100, speed: 3.4, robot: true, unhurt: true, xp: [0, 0], drops: [], sound: 'robot' },
 };
 const MOB_TYPES = Object.keys(MOB_DEFS);
 let ENTITY_NID = 0;
@@ -81,6 +91,7 @@ function liquidAt(world, e) {
 }
 /* gravity + collisions with sub-steps */
 function physicsStep(world, e, dt, grav) {
+  if (world.map === 'moon') grav *= MOON_G;   // (the Moon pulls much less)
   liquidAt(world, e);
   if (e.inWater || e.inLava) {
     e.vy -= grav * 0.25 * dt;
@@ -127,6 +138,8 @@ function spawnMob(game, type, x, y, z, opts) {
   }
   if (type === 'tropical') { e.variant = opts && opts.variant !== undefined ? clamp(opts.variant | 0, 0, TROPICAL_COLORS.length - 1) : randInt(0, TROPICAL_COLORS.length - 1); e.color = hexRGB(TROPICAL_COLORS[e.variant]).map(v => v / 255); }
   if (type === 'pufferfish') e.puff = 0;
+  if (type === 'golem') { const o = opts || {}; e.home = o.home || [x, z]; e.village = o.village || null; e.built = !!o.built; e.aiT = 0; }
+  if (type === 'snork') { const o = opts || {}; e.variant = o.variant !== undefined ? clamp(o.variant | 0, 0, SNORK_COLORS.length - 1) : randInt(0, SNORK_COLORS.length - 1); e.home = o.home || [x, z]; e.aiT = 0; e.yaw = Math.random() * TAU; }
   if (MOB_DEFS[type].fish) { e.aiT = 0; e.yaw = Math.random() * TAU; }
   if (type === 'sheep') {
     let r = Math.random();
@@ -219,17 +232,19 @@ function updateParticles(world, dt) {
 function hurtMob(game, e, dmg, fx, fz, cause, by, o) {
   if (e.dead || e.removed) return;
   const d = MOB_DEFS[e.type];
-  if (e.proxy) { MP.sendHit(e, dmg, fx, fz, o); e.hurt = 0.45; sfx(d.sound + 'Hurt', e.x, e.y + 0.5, e.z); return; }
+  if (e.proxy) { MP.sendHit(e, dmg, fx, fz, o); e.hurt = d.unhurt ? 0 : 0.45; sfx(d.sound + 'Hurt', e.x, e.y + 0.5, e.z); return; }
+  if (d.robot) { if (cause === 'player') robotHit(game, e, by || myPid()); return; }   // (nothing hurts a robot: hit by its owner, it goes back in the bag)
   e.hurt = 0.45;
   let dx = e.x - fx, dz = e.z - fz;
   const l = Math.hypot(dx, dz) || 1, kb = 1 + ((o && o.kb) || 0);
   dx /= l; dz /= l;
-  if (!(o && o.nokb)) { e.vx = dx * 7 * kb; e.vz = dz * 7 * kb; e.vy = 5 + (kb - 1) * 1.5; }   // (poison and potions don't push)
+  if (!(o && o.nokb)) { const heavy = d.guard ? 0.12 : 1; e.vx = dx * 7 * kb * heavy; e.vz = dz * 7 * kb * heavy; e.vy = (5 + (kb - 1) * 1.5) * heavy; }   // (poison and potions don't push; golems hardly budge)
   if (o && o.fire > 0 && !d.fireproof) e.fireT = Math.max(e.fireT || 0, o.fire);
   if (cause === 'player') e.playerHitT = e.age;
-  if (!d.hostile) { e.panic = d.villager ? 2.5 : 4; e.yaw = Math.atan2(-dx, -dz); }
+  if (!d.hostile && !d.guard) { e.panic = d.villager ? 2.5 : 4; e.yaw = Math.atan2(-dx, -dz); }
   if (d.villager) { sfx('villagerHurt', e.x, e.y + 1.5, e.z); return; }   // villagers are never harmed
-  if (d.neutral && cause === 'player' && difficulty() > 0) {   // on Peaceful they just take the hit
+  if (d.unhurt) { e.hurt = 0; e.panic = 2; sfx(d.sound + 'Hurt', e.x, e.y + 0.5, e.z); return; }   // (nor are snorks: they just swim off)
+  if (d.neutral && cause === 'player' && difficulty() > 0 && !e.built) {   // on Peaceful they just take the hit
     const who = by || 'me';
     for (const o of game.entities) {
       if (o.type !== e.type || o.dead || o.removed || Math.hypot(o.x - e.x, o.z - e.z) > 16 || (!d.group && o !== e)) continue;
@@ -311,7 +326,7 @@ function updateEntities(game, dt) {
         const dx = pl.x - e.x, dy = pl.y + 1.1 - e.y, dz = pl.z - e.z, d = Math.hypot(dx, dy, dz) || 1, k = Math.min(1, dt * 6);
         e.vx += (dx / d * 9 - e.vx) * k; e.vy += (dy / d * 9 - e.vy) * k + Math.min(1, e.reel) * 8 * dt; e.vz += (dz / d * 9 - e.vz) * k;
         moveEntity(world, e, e.vx * dt, e.vy * dt, e.vz * dt);
-      } else physicsStep(world, e, dt, 20);
+      } else { floatTick(world, e, dt, 20); physicsStep(world, e, dt, 20); }
       if (e.inWater && !(e.reel > 0)) e.vy += 30 * dt;
       if (e.onGround) { const f = Math.pow(0.02, dt); e.vx *= f; e.vz *= f; }
       e.pickup -= dt;
@@ -328,8 +343,9 @@ function updateEntities(game, dt) {
       continue;
     }
     if (e.type === 'falling') {
+      if (floatTick(world, e, dt, 26)) { e.vx *= 0.9; e.vz *= 0.9; e.age = 0; }   // (Wingardium Leviosa)
       physicsStep(world, e, dt, 26);
-      if (e.onGround || e.age > 20) {
+      if ((e.onGround && !(e.floatT > 0)) || e.age > 20) {
         e.removed = true;
         const bx = Math.floor(e.x), by = Math.floor(e.y + 0.2), bz = Math.floor(e.z), cur = world.getBlock(bx, by, bz);
         if (cur === B.AIR || LIQUID[cur] || (!SOLID[cur] && cur !== B.UNLOADED)) world.setBlock(bx, by, bz, e.id, 0, true);
@@ -447,19 +463,26 @@ function updateMob(game, e, dt) {
   tickMobEffects(game, e, dt);
   if (e.dead) return;
   speed *= mobSpeedFx(e);
-  if (e.frozen > 0) {   // Ice TNT: stuck in place for a while
+  if (e.frozen > 0) {   // Ice TNT (or Stupefy): stuck in place for a while
     e.frozen -= dt;
     e.vx *= 0.5; e.vz *= 0.5;
     if (!d.flyer) physicsStep(world, e, dt, 26);
     if (e.landed) e.fallDist = 0;
-    if (Math.random() < dt * 4) PARTICLES.push({ x: e.x + randRange(-e.w, e.w), y: e.y + Math.random() * e.h, z: e.z + randRange(-e.w, e.w), vx: 0, vy: -0.3, vz: 0, life: 0.8, tile: TILE.snowflake, u: 0, v: 0, us: 16, size: 0.06, grav: 0.5, bright: 1 });
+    if (e.stun > 0) {   // stunned: little stars go round its head
+      e.stun -= dt;
+      if (Math.random() < dt * 8) { const a = e.age * 6; PARTICLES.push({ x: e.x + Math.cos(a) * 0.4, y: e.y + e.h + 0.1, z: e.z + Math.sin(a) * 0.4, vx: 0, vy: 0, vz: 0, life: 0.4, tile: TILE.spark_yellow, u: 0, v: 0, us: 16, size: 0.06, grav: 0, bright: 1 }); }
+    } else if (Math.random() < dt * 4) PARTICLES.push({ x: e.x + randRange(-e.w, e.w), y: e.y + Math.random() * e.h, z: e.z + randRange(-e.w, e.w), vx: 0, vy: -0.3, vz: 0, life: 0.8, tile: TILE.snowflake, u: 0, v: 0, us: 16, size: 0.06, grav: 0.5, bright: 1 });
     return;
   }
   if (e.angryT > 0) e.angryT -= dt;
+  if (e.fleeT > 0) e.fleeT -= dt;   // (chased off by a Patronus)
+  if (d.spirit) { updatePatronus(game, e, dt); return; }
+  if (d.snitch) { updateSnitch(game, e, dt); return; }
   if (d.ender) { enderTick(game, e, dt); if (e.removed || e.dead) return; }
   if (d.fish) { updateFish(game, e, d, dt); return; }
+  if (d.swimmer) { updateSnork(game, e, d, dt); return; }
   if (d.flyer) { updateGhast(game, e, d, dt); return; }
-  const tg = d.hostile ? mobTarget(game, e) : d.neutral && e.angryT > 0 ? angryTarget(game, e) : null, chase = !!tg;
+  const tg = d.guard || e.fleeT > 0 || e.floatT > 0 ? null : d.hostile ? mobTarget(game, e) : d.neutral && e.angryT > 0 ? angryTarget(game, e) : null, chase = !!tg;
   if (d.hopper) { hopMob(game, e, d, dt, tg); return; }
   const dxp = tg ? tg.dx : 0, dzp = tg ? tg.dz : 0, dist = tg ? tg.dist : 0;
   if (chase) {
@@ -480,6 +503,12 @@ function updateMob(game, e, dt) {
     }
   } else if (d.villager) {
     const st = villagerSteer(game, e, dt);
+    mx = st[0]; mz = st[1]; speed *= st[2];
+  } else if (d.guard) {
+    const st = golemSteer(game, e, dt);
+    mx = st[0]; mz = st[1]; speed *= st[2];
+  } else if (d.robot) {
+    const st = robotSteer(game, e, dt);
     mx = st[0]; mz = st[1]; speed *= st[2];
   } else {
     if (e.fuse > 0) e.fuse = Math.max(0, e.fuse - dt);
@@ -503,28 +532,30 @@ function updateMob(game, e, dt) {
     if (!SOLID[b1] && !SOLID[b2] && !LIQUID[b1] && b1 !== B.UNLOADED) { mx = mz = 0; e.aiT = 0; e.panic = 0; }
   }
   const acc = e.onGround ? 10 : 2.5;
-  e.vx += (mx * speed - e.vx) * Math.min(1, acc * dt);
-  e.vz += (mz * speed - e.vz) * Math.min(1, acc * dt);
+  if (e.knockT > 0) e.knockT -= dt;   // (blasted by a spell: it flies off before it can walk again)
+  else { e.vx += (mx * speed - e.vx) * Math.min(1, acc * dt); e.vz += (mz * speed - e.vz) * Math.min(1, acc * dt); }
   if (e.collidedH && (mx || mz) && e.onGround) e.vy = 8.4;
   if (e.inWater && (mx || mz || chase)) e.vy = Math.max(e.vy, 2.2);
   if (e.inWater && e.type !== 'zombie') e.vy += 16 * dt;
   if (e.type === 'chicken' && !e.onGround && e.vy < -2) e.vy = -2;
+  if (floatTick(world, e, dt, 26)) { e.vx *= 0.9; e.vz *= 0.9; e.bodyYaw += dt * 1.5; }   // (Wingardium Leviosa: up it goes, turning slowly)
   physicsStep(world, e, dt, 26);
-  if (e.landed) { if (e.fallDist > 4 && e.type !== 'chicken' && !(e.partyT > 0)) hurtMob(game, e, Math.floor(e.fallDist - 3), e.x, e.z, 'fall'); e.fallDist = 0; }
+  if (e.landed) { const fall = e.fallDist * (world.map === 'moon' ? MOON_G : 1); if (fall > 4 && e.type !== 'chicken' && !(e.partyT > 0)) hurtMob(game, e, Math.floor(fall - 3), e.x, e.z, 'fall'); e.fallDist = 0; }
   if (e.inLava && !d.fireproof && e.age % 0.5 < dt) hurtMob(game, e, 2, e.x, e.z, 'lava');
   if (e.type === 'zombie') {
     const s = game.sky;
     const L = world.getLight(Math.floor(e.x), Math.floor(e.y + 1.6), Math.floor(e.z));
-    if (s && s.day > 0.75 && (L >> 4) >= 15 && !e.inWater) {
+    if (s && s.day > 0.75 && (L >> 4) >= 15 && !e.inWater && !wxRaining()) {
       e.burnT += dt;
       if (Math.random() < dt * 15) sparkParticles(e.x, e.y, e.z, 1);
       if (e.burnT > 1) { e.burnT = 0; hurtMob(game, e, 2, e.x, e.z, 'fire'); }
     }
   }
-  if (d.hostile || d.neutral) {
+  if ((d.hostile || d.neutral) && !d.guard) {
     const pd = nearestPlayerDist(game, e);
     if (pd > 80 || (pd > 40 && Math.random() < dt * 0.02)) e.removed = true;
   }
+  if (d.robot && e.y < -20) robotRescue(game, e);
   if (e.y < -30) e.removed = true;
   if (e.armSwing > 0) e.armSwing -= dt;
   const hs = Math.hypot(e.vx, e.vz);
@@ -544,7 +575,7 @@ function spawnTick(game) {
   if (MP.role === 'guest') { world.spawnQueue.length = 0; return; }
   if (difficulty() === 0) for (const e of game.entities) if (e.mob) { if (MOB_DEFS[e.type].hostile) e.removed = true; else if (e.angryT) e.angryT = 0; }   // Peaceful: no monsters, and nothing stays angry
   let passive = 0, hostile = 0;
-  for (const e of game.entities) if (e.mob && !e.dead) { const d = MOB_DEFS[e.type]; if (d.hostile || d.ender) hostile++; else if (!d.villager && !d.fish) passive++; }
+  for (const e of game.entities) if (e.mob && !e.dead) { const d = MOB_DEFS[e.type]; if (d.hostile || d.ender) hostile++; else if (!d.villager && !d.fish && !d.swimmer && !d.guard && !d.spirit && !d.snitch && !d.robot) passive++; }
   while (world.spawnQueue.length) {
     const sp = world.spawnQueue.shift(), [type, x, y, z, count] = sp;
     if (type === 'villager') { spawnVillagers(game, sp); continue; }
@@ -555,7 +586,10 @@ function spawnTick(game) {
     }
   }
   if (world.map === 'nether') { netherSpawnTick(game); return; }
-  if (game.settings.animals) fishSpawnTick(game);
+  if (world.map === 'moon') return;   // (nothing lives on the Moon)
+  spawnerTick(game);   // (a dungeon's monster spawners)
+  if (world.map === 'hogwarts') snitchTick(game);
+  if (game.settings.animals) { fishSpawnTick(game); snorkSpawnTick(game); }
   const players = allPlayers(game).filter(p => p.alive && (p === game.player ? game.mode : p.mode) === 'survival');
   if (!players.length || difficulty() === 0) return;
   const cap = (difficulty() === 1 ? 6 : 12) * Math.min(2, players.length);
@@ -624,6 +658,21 @@ function mobPose(e, t) {
     return { head, rarm: [-1.45 - sw + Math.sin(t * 2) * 0.05, 0, 0.05], larm: [-1.45 - sw + Math.sin(t * 2 + 1) * 0.05, 0, -0.05], rleg: [a, 0, 0], lleg: [-a, 0, 0] };
   }
   if (e.type === 'villager') return { head, rleg: [a, 0, 0], lleg: [-a, 0, 0], rarmU: [-0.75, 0, 0], larmU: [-0.75, 0, 0] };
+  if (e.type === 'snitch') { const f = Math.sin(e.walk) * 0.9; return { lwing: [0, 0, f], rwing: [0, 0, -f] }; }   // (its wings a blur)
+  if (e.type === 'patronus') { const g = Math.sin(e.walk) * 0.9 * e.walkAmt; return { head: [0.15, 0, 0], fl: [g, 0, 0], fr: [-g * 0.7, 0, 0], bl: [-g, 0, 0], br: [g * 0.7, 0, 0] }; }   // galloping
+  if (e.type === 'snork') {   // swimming: legs kick, arms paddle (and wave about when it is happy)
+    const k = Math.sin(e.walk * 2.2) * 0.7 * e.walkAmt, p = Math.sin(e.walk * 1.1) * 0.5;
+    if (e.happy > 0) { const wv = Math.sin(e.walk * 6) * 0.4; return { head, rleg: [k, 0, 0], lleg: [-k, 0, 0], rarm: [-2.7 + wv, 0, 0.2], larm: [-2.7 - wv, 0, -0.2] }; }
+    return { head: [head[0] + (e.tootT > 0 ? -0.2 : 0), head[1], 0], rleg: [k, 0, 0], lleg: [-k, 0, 0], rarm: [-0.5 + p, 0, 0.5 + p * 0.3], larm: [-0.5 - p, 0, -0.5 - p * 0.3] };
+  }
+  if (e.type === 'robot') {   // stomping along; an arm up when it zaps or picks something up
+    const g = a * 0.8, sw = e.armSwing > 0 ? 1.8 : 0, bob = e.mode === 'stay' ? 0.25 : 0;
+    return { head: [head[0] + bob, head[1], 0], rleg: [g, 0, 0], lleg: [-g, 0, 0], rarm: [-g * 0.7 - sw, 0, 0.1], larm: [g * 0.7, 0, -0.1] };
+  }
+  if (e.type === 'golem') {
+    const g = a * 0.55, sw = e.armSwing > 0 ? Math.sin(Math.min(1, e.armSwing / 0.5) * Math.PI) * 2.1 : 0;
+    return { head, rleg: [g, 0, 0], lleg: [-g, 0, 0], rarm: [-g * 0.6 - sw - (e.rose > 0 ? 1.25 : 0), 0, 0], larm: [g * 0.6 - sw, 0, 0] };
+  }
   if (e.type === 'piglin') {
     const sw = e.armSwing > 0 ? Math.sin(e.armSwing / 0.3 * Math.PI) * 1.2 : 0, up = e.angryT > 0 || e.angry ? -0.5 : 0;
     return { head, rarm: [-a * 0.6 + up - sw, 0, 0.05], larm: [a * 0.6, 0, -0.05], rleg: [a, 0, 0], lleg: [-a, 0, 0] };
@@ -655,9 +704,9 @@ function drawEntities(game, s, t, cam) {
     if (!boxInFrustum(R.planes, dx - bw, dy - low, dz - bw, dx + bw, dy + Math.max(2.2, e.h + 0.4), dz + bw)) continue;
     if (e.vehicle) { drawVehicle(game, e, dx, dy, dz, s); continue; }
     if (mobInvisible(e)) continue;
-    const def = MOB_DEFS[e.type], model = MODELS[e.type === 'villager' ? 'villager_' + (e.prof || 'farmer') : e.type === 'ghast' && e.firing > 0 ? 'ghast_fire' : def.model];
-    gl.uniform1f(P.u.uBright, brightAt(world, e.x, e.y + e.h * 0.7, e.z, s));
-    let tint = e.hurt > 0 || e.dead ? [0.8, 0.1, 0.1, 0.45] : e.frozen > 0 ? [0.6, 0.85, 1, 0.5] : [0, 0, 0, 0];
+    const def = MOB_DEFS[e.type], model = MODELS[e.type === 'villager' ? 'villager_' + (e.prof || 'farmer') : e.type === 'ghast' && e.firing > 0 ? 'ghast_fire' : e.type === 'snork' ? 'snork_' + (e.variant | 0) : def.model];
+    gl.uniform1f(P.u.uBright, Math.max(def.swimmer ? 0.6 : def.robot ? 0.4 : 0, brightAt(world, e.x, e.y + e.h * 0.7, e.z, s)));   // (snorks stay bright and colourful deep in the sea)
+    let tint = e.hurt > 0 || e.dead ? [0.8, 0.1, 0.1, 0.45] : e.frozen > 0 ? (e.stun > 0 ? [1, 0.95, 0.5, 0.2] : [0.6, 0.85, 1, 0.5]) : [0, 0, 0, 0];
     let sc = model.scale;
     if (e.type === 'creeper' && e.fuse > 0) {
       const f = e.fuse / 1.5;
@@ -670,7 +719,8 @@ function drawEntities(game, s, t, cam) {
     M4.rotY(_eb, _eb, e.bodyYaw + Math.PI);
     if (e.dead) M4.rotZ(_eb, _eb, Math.min(1, e.dead / 0.4) * Math.PI / 2);
     if (e.type === 'ghast') M4.translate(_eb, _eb, 0, -2.25, 0);   // its tentacles hang below it
-    if (e.carry) held.push(e);
+    if (e.carry || (e.type === 'golem' && e.rose > 0)) held.push(e);
+    if (def.spirit) { M4.scale(_eb, _eb, sc, sc, sc); PATRONUS_Q.push({ m: Float32Array.from(_eb), pose: mobPose(e, t), a: clamp((e.life === undefined ? 1 : e.life), 0, 1) * 0.75 }); continue; }   // (drawn later, glowing)
     if (e.type === 'magma') {
       const k = e.squash > 0 ? -e.squash * 1.4 : e.onGround ? 0 : clamp((e.vy || 0) / 14, -0.25, 0.4), z = (e.size || 1) * 1.2;
       M4.scale(_eb, _eb, sc * z * (1 - k * 0.5), sc * z * (1 + k), sc * z * (1 - k * 0.5));
@@ -678,12 +728,14 @@ function drawEntities(game, s, t, cam) {
     else M4.scale(_eb, _eb, sc, sc, sc);
     if (def.fish && e.pitch) M4.rotX(_eb, _eb, e.pitch);
     drawModel(model, _eb, mobPose(e, t), e.color);
+    if (e.type === 'robot') drawModel(MODELS.robot_light, _eb, mobPose(e, t), ROBOT_LIGHT[Math.max(0, ROBOT_MODES.indexOf(e.mode))]);   // (its antenna light shows what it is doing)
   }
-  if (game.view > 0 && game.player.alive) drawPlayerModel(game, s, t, cam);
+  if ((game.view > 0 || CAMS.pass) && game.player.alive) drawPlayerModel(game, s, t, cam);   // (and on a security camera's monitor)
   if (MP.remotes.size) drawRemotePlayers(game, s, t, cam);
   entityBegin(texTiles);
   gl.disable(gl.CULL_FACE);
-  for (const e of held) {   // the block an enderman carries, held out in front
+  for (const e of held) {   // the block an enderman carries, held out in front (or a golem's poppy)
+    if (e.type === 'golem') { drawGolemRose(e, world, s, cam); continue; }
     if (!itemDef(e.carry)) continue;
     gl.uniform1f(P.u.uBright, brightAt(world, e.x, e.y + 1.4, e.z, s));
     gl.uniform4f(P.u.uTint, 0, 0, 0, 0);

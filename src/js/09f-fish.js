@@ -99,7 +99,7 @@ function useRod(game, pl, creative) {
   pl.bobber = e;
   sfx('cast', pl.x, pl.y + 1.5, pl.z);
 }
-const fishWait = e => Math.max(2, randRange(5, 22) - e.lure * 4);
+const fishWait = e => Math.max(2, randRange(5, 22) - e.lure * 4) * (wxRaining() ? 0.7 : 1);   // (fish bite sooner in the rain)
 function reelIn(game, pl, b, creative) {
   b.removed = true; pl.bobber = null;
   sfx('reel', pl.x, pl.y + 1.5, pl.z);

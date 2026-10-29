@@ -1,6 +1,6 @@
 # Declan-craft
 
-A block-building game made for Declan. It has two worlds to explore (Sunny Valley and Sky Islands), each with its own Nether, plus a Hardcore world where you only get one life. There is mining, crafting, building, animals, fish and monsters, villages with villagers to trade with, armor and shields, enchanting, potions, books and signs, bows and crossbows, six kinds of TNT, levers and dispensers, minecarts, a car, a boat and a submarine, TVs and coloring boards, day and night, and survival and creative modes. You can make your own characters. Two to four players can share a world over the internet. Everything in it, including the worlds, textures, characters and sounds, is generated in code.
+A block-building game made for Declan. It has three worlds to explore (Sunny Valley, Sky Islands and Hogwarts), each with its own Nether, the Moon (go there in a rocket), plus a Hardcore world where you only get one life. There is mining, crafting, building, animals, fish and monsters, villages with villagers and iron golems, dungeons, Snorks in the sea, armor and shields, enchanting, potions, magic wands, books and signs, books of building plans, bows and crossbows, six kinds of TNT, levers and dispensers, minecarts, a car, a flying car, a broom, a boat and a submarine, TVs, coloring boards and security cameras, robots, rain, snow and thunder, day and night, and survival and creative modes. You can make your own characters. Two to four players can share a world over the internet. Everything in it, including the worlds, textures, characters and sounds, is generated in code.
 
 **Play:** https://awgregg84.github.io/declan-craft/
 
@@ -48,6 +48,20 @@ Build a frame of obsidian 4 wide and 5 tall (the corners can be left out) and li
 - **TVs and coloring boards.** A TV (iron, glass and coal) turns on and off with a tap. You can't pick what's on: creeper cartoons, the fish tank, space, pig races, the weather, fireworks, a baking show, a soccer match and a dance party, changing every so often. A coloring board (sticks round a piece of paper) stands like an easel or hangs on a wall: tap it to color in a creeper, a heart, a house, a fish and more (or a blank page), with a brush, a fill bucket and a rubber.
 - **Hardcore.** The third world, Hardcore, is a Sunny Valley where you only get one life: it is always at least Normal difficulty, there is no Creative and no cheat commands, and the hearts look different. If you die, the world is gone, and you start a new one. Playing together, a guest who dies is out of that world, and if the host dies the world is over for everyone.
 
+## The third wish list
+
+- **Rain, snow and thunder.** Now and then it rains, or snows where it is cold (never in the desert), and sometimes there's a thunderstorm with lightning, as dark as evening. Rain puts out fires, zombies don't burn in it, villagers go indoors and fish bite more. Everyone playing together has the same weather. `/weather clear|rain|thunder|snow` changes it.
+- **Iron golems.** Every village has an iron golem (two in a big village). It leaves players alone but goes after monsters and flings them up in the air, and sometimes holds out a poppy to a villager. Build your own with four iron blocks in a T and a pumpkin on top.
+- **Snorks.** Friendly sea creatures with snorkels, in six colours, swim in families in the deep sea, near new coral reefs. Give one a fish and it gives you a present; swim close when you are running out of air and it shares its air. Nothing hurts them.
+- **The flying car and the broom.** The flying car (a car and four feathers) drives like the car, and Jump takes off: Jump goes up, Sneak comes down. The broom (three sticks and a feather) flies faster and turns quicker.
+- **The rocket and the Moon.** Put a rocket (iron, glass and a furnace) on the ground, get in and tap: 3, 2, 1, blast off, and everyone playing together comes too. The Moon has grey dust, craters with cheese in them, low gravity, a black sky with the Earth in it, and no air: you get a space helmet when you land. Put up a flag! Tap the rocket to fly home; it lands back where it took off.
+- **Magic wands.** A wand (a stick, a feather and gold) casts six spells: Lumos (a light), Wingardium Leviosa (things float up), Stupefy (a monster stops still), Expelliarmus (it flies back), Accio (things come to you) and Expecto Patronum (a silver stag chases the monsters away). The Spell button (or F) picks the spell.
+- **Hogwarts.** A new world: the castle above the Black Lake with its towers and the Great Hall (floating candles, house banners and the Sorting Hat, which puts you in a house), the Quidditch pitch with its hoops (fly through one to score) and the Golden Snitch to catch, Hagrid's hut by the Forbidden Forest, and Hogsmeade in the snow. You arrive with a wand and a broom.
+- **Books of building plans.** A Book of Building Plans (a book and paper) has ten plans, from a snowman to a castle, each with a picture and what you need. Pick one and a see-through outline appears in front of you: put blocks where it shows (the lowest layer is brightest, and a wrong block shows red) and the count at the top goes up until "You built it!". In Creative, "Build it all now" builds it at once.
+- **Security cameras.** Put a camera up on a wall (it looks out from the wall) or stand one on a block (it looks back at you), and a Camera Monitor (a TV and an iron ingot) shows what it sees, live, with the camera's number. Tap the monitor to switch cameras.
+- **Dungeons.** Little old stone towers in Sunny Valley have stairs winding down to a dungeon: a Monster Room (a monster spawner and two chests), a Maze with treasure in the middle, a Treasure Vault behind iron bars, or a Lava Temple with treasure on an island in a lava moat. Break a spawner with a pickaxe to stop the monsters. `/locate dungeon` finds the nearest one. Worlds from before keep dungeons out of anything already built.
+- **Robots.** A robot (glass and five iron ingots) lives in your bag: tap the ground to let it out, tap it to change what it does (follow you, guard you and zap monsters, collect things into your bag, or stay put), and hit it to put it back. Robots keep their colour, come along through portals and in the rocket, are saved with the world, and nothing can hurt them.
+
 ## Playing together
 
 Both devices need the internet.
@@ -57,7 +71,7 @@ Both devices need the internet.
 3. On the other device: **Play Together**, **Join a Game**, type the code, then **Join**. A small typing mistake (WORSE8 for HORSE8) is corrected automatically.
 4. The host taps **Let them in**.
 
-The shared world, and everything a guest collects there, is saved on the host's device. A guest who leaves and joins again gets their things back. When one player goes through a Nether portal, everyone travels together. Arrows, TNT, levers, dispensers, minecarts, cars, boats and submarines, armor, enchanting, potions, brewing, fishing, signs, coloring boards and TVs all work for every player; a guest drives a car or a boat on their own device and the host follows along. Both devices need this version of the game.
+The shared world, and everything a guest collects there, is saved on the host's device. A guest who leaves and joins again gets their things back. When one player goes through a Nether portal, everyone travels together. Arrows, TNT, levers, dispensers, minecarts, cars, boats and submarines, armor, enchanting, potions, brewing, fishing, signs, coloring boards and TVs, the weather, flying cars and brooms, the rocket, wands, Quidditch, plans, cameras, dungeons and robots all work for every player; a guest drives a car or a boat on their own device and the host follows along. Both devices need this version of the game.
 
 If joining doesn't work, tap **Check Connection** on the Play Together screen on both devices. It tests each matchmaking service and the network, and failed joins show a short code (for example `S0` for no internet, `G1` for a wrong room code, `D1` when the two devices can't reach each other).
 
@@ -69,13 +83,15 @@ Requires Node.js.
 
 - `node build.mjs` writes `dist/site/` (the website, published on the `gh-pages` branch) and `dist/declan-craft.html` (a single file that opens in a desktop browser).
 - `node tools/make-assets.mjs` regenerates the icons and link-preview picture in `assets/`. It needs Playwright.
-- `test/` holds browser tests that use Playwright with Chromium, for example `node test/site.mjs`. `test/wishlist.mjs` covers the bows, TNT, machines, endermen, ghasts and vehicles, and `test/wishlist2.mjs` the armor, enchanting, books, potions, fish, boats, TVs, coloring boards, Hardcore and made characters (sections can be picked: `node test/wishlist2.mjs fish boats`). `test/upgrade-wishlist2.mjs <previous build>` opens a world saved by the previous version. `test/loading.mjs` checks that a world always finishes loading (at every render distance, and when part of it never arrives). The playing-together tests (`test/mp.mjs`, `test/mp-touch.mjs`, `test/mp-nether.mjs`, `test/mp-backup.mjs`, `test/mp-wishlist.mjs`, `test/mp-wishlist2.mjs`) run local copies of the PeerJS and MQTT services; install them first with `npm install` in `tools/`.
+- `test/` holds browser tests that use Playwright with Chromium, for example `node test/site.mjs`. `test/wishlist.mjs` covers the bows, TNT, machines, endermen, ghasts and vehicles, `test/wishlist2.mjs` the armor, enchanting, books, potions, fish, boats, TVs, coloring boards, Hardcore and made characters, and `test/wishlist3.mjs` the golems, weather, Snorks, flying, the Moon, wands, plans, cameras, dungeons, robots and Hogwarts (sections can be picked: `node test/wishlist2.mjs fish boats`). `test/upgrade-wishlist2.mjs <previous build>` opens a world saved by the previous version. `test/loading.mjs` checks that a world always finishes loading (at every render distance, and when part of it never arrives). The playing-together tests (`test/mp.mjs`, `test/mp-touch.mjs`, `test/mp-nether.mjs`, `test/mp-backup.mjs`, `test/mp-wishlist.mjs`, `test/mp-wishlist2.mjs`, `test/mp-wishlist3.mjs`) run local copies of the PeerJS and MQTT services; install them first with `npm install` in `tools/`.
 
 ## Layout
 
 - `src/js/`: game code, joined in file-name order
   - `02-gen.js`: terrain, trees, caves, ores, villages and the Nether
+  - `02b-gen3.js`: the Moon, Hogwarts and dungeons
   - `03b-tiles2.js`, `07b-models2.js`: pictures, skins and models for the second wish list
+  - `03c-tiles3.js`, `07c-models3.js`, `11b-audio3.js`: pictures, skins, models and sounds for the third wish list
   - `08c-dyntex.js`: live pictures (sign words, coloring boards, TV shows)
   - `09a-armor.js`: armor and shields
   - `09b-books.js`: paper, books, story books and signs
@@ -83,15 +99,26 @@ Requires Node.js.
   - `09d-boats.js`: the boat and the submarine
   - `09e-ender.js`: endermen and ghasts
   - `09f-fish.js`: fish and fishing
+  - `09g-golem.js`: iron golems
+  - `09h-snorks.js`: Snorks
+  - `09j-flying.js`: the flying car and the broom
   - `09k-tnt.js`: the kinds of TNT
+  - `09m-moon.js`: the rocket and the Moon
   - `09n-enchant.js`: experience and enchanting
   - `09o-potions.js`: brewing, potions and their effects
-  - `09p-projectiles.js`: arrows, fireballs, fire charges and ender pearls
+  - `09p-projectiles.js`: arrows, fireballs, fire charges, ender pearls and spells
+  - `09q-plans.js`: books of building plans
   - `09r-redstone.js`: levers, buttons and dispensers
+  - `09s-cameras.js`: security cameras and monitors
   - `09t-tv.js`: TVs and coloring boards
   - `09v-villagers.js`: trading and how villagers move about
+  - `09w-weather.js`: rain, snow and thunder
+  - `09x-wand.js`: magic wands and spells
+  - `09y-dungeons.js`: dungeon chests, monster spawners and finding dungeons
+  - `09z-robots.js`: robots
   - `12b-looks.js`: making your own characters
   - `12c-character.js`: character look and name
+  - `12h-hogwarts.js`: Hogwarts: the Sorting Hat, Quidditch and the Golden Snitch
   - `12n-net.js`: room codes and direct connections
   - `12p-mp.js`: playing together (host and guest)
   - `12q-portal.js`: Nether portals (frames, linking, building the other side)

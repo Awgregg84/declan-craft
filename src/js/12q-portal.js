@@ -113,6 +113,7 @@ function buildPortal(w, sp, dim) {
 }
 /* flint and steel: light a frame next to the clicked face. Returns the portal record or null. */
 function lightPortalAt(game, x, y, z) {
+  if (game.dim === 'moon') return null;   // (portals don't work on the Moon: the rocket is the way home)
   const f = findPortalFrame(game.world, x, y, z);
   if (!f) return null;
   fillPortal(game.world, f);

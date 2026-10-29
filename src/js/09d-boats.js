@@ -3,7 +3,7 @@
 // with it. On land a boat only shuffles along. A submarine goes where you look when you push forward (up, down,
 // anywhere), and left and right turn it. Inside a submarine you never run out of air, its lamps light up the
 // water, and a tap sends out a sonar ping. Sneak gets out of either.
-const RIDE_KIND = { car: 'car', minecart: 'cart', boat: 'boat', submarine: 'sub' };
+const RIDE_KIND = { car: 'car', minecart: 'cart', boat: 'boat', submarine: 'sub', flycar: 'car', broom: 'broom', rocket: 'rocket' };
 const rideKind = v => v ? (typeof v === 'string' ? v : RIDE_KIND[v.type] || 'cart') : null;
 const inSubmarine = pl => !!(pl.riding && pl.riding.type === 'submarine');
 

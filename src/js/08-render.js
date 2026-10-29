@@ -42,7 +42,14 @@ function initRenderExtras() {
 
 /* ---- sky, fog and light for a time of day ---- */
 const NETHER_FOG = [0.24, 0.05, 0.035];
+const EARTH_DIR = [0.34, 0.62, -0.71];   // where the Earth is in the Moon's sky (it never moves)
 function skyState(time, map, underwater) {
+  if (map === 'moon') {   // no air: a black sky full of stars, a bright sun and the Earth; the ground is lit by the sun, or the Earth at night
+    const ang = time * TAU, sy = Math.sin(ang), len = Math.hypot(Math.cos(ang), sy, 0.22), black = [0.004, 0.004, 0.01], far = [0.02, 0.02, 0.032];
+    return { sunDir: [Math.cos(ang) / len, sy / len, 0.22 / len], day: 1, zenith: black, horizon: far, bottom: black, glow: [1, 1, 1], glowAmt: 0, stars: 1, sunVis: 1,
+      skyLight: lerp(0.62, 1, smoothstep(-0.25, 0.1, sy)), skyTint: [1, 1, 1], cloud: black,
+      fog: underwater === 'lava' ? [0.8, 0.28, 0.05] : underwater === 'water' ? [0.1, 0.12, 0.3] : far.slice(), minLight: [0.06, 0.06, 0.07], moon: true };
+  }
   if (map === 'nether') {   // no sky, no sun: a red haze and a dim warm glow everywhere
     const f = NETHER_FOG;
     return { sunDir: [0, 1, 0], day: 0, zenith: f, horizon: f, bottom: f, glow: f, glowAmt: 0, stars: 0, sunVis: 0, skyLight: 0, skyTint: [1, 1, 1],
@@ -104,6 +111,7 @@ function drawSky(s) {
   gl.uniform3fv(P.u.uZenith, s.zenith); gl.uniform3fv(P.u.uHorizon, s.horizon); gl.uniform3fv(P.u.uBottom, s.bottom);
   gl.uniform3fv(P.u.uSunDir, s.sunDir); gl.uniform3fv(P.u.uGlow, s.glow);
   gl.uniform1f(P.u.uStars, s.stars); gl.uniform1f(P.u.uGlowAmt, s.glowAmt); gl.uniform1f(P.u.uSunVis, s.sunVis);
+  gl.uniform1f(P.u.uEarth, s.moon ? 1 : 0); gl.uniform3fv(P.u.uEarthDir, EARTH_DIR);
   gl.disable(gl.DEPTH_TEST); gl.depthMask(false);
   gl.bindVertexArray(null);
   gl.drawArrays(gl.TRIANGLES, 0, 3);
@@ -118,6 +126,7 @@ function terrainUniforms(s, time, alphaTest) {
   gl.uniform1f(P.u.uSkyLight, s.skyLight); gl.uniform3fv(P.u.uSkyTint, s.skyTint);
   gl.uniform3fv(P.u.uFogColor, R.fogColor); gl.uniform2f(P.u.uFog, R.fogStart, R.fogEnd);
   gl.uniform1f(P.u.uAlphaTest, alphaTest); gl.uniform3fv(P.u.uMinLight, s.minLight || [0.035, 0.035, 0.035]);
+  gl.uniform1f(P.u.uLumos, s.lumos || 0);
 }
 function drawTerrainList(list, trans) {
   const P = PROG.terrain, cam = R.cam;
@@ -154,7 +163,8 @@ function entityBegin(tex, vp) {
 }
 function brightAt(world, x, y, z, s) {
   const L = world.getLight(Math.floor(x), Math.floor(y), Math.floor(z));
-  return Math.max(s.nether ? 0.45 : s.nightVision ? 0.8 : s.subLight ? 0.5 : 0.05, lightCurve((L >> 4) * s.skyLight), Math.min(1, lightCurve(L & 15) * 1.25));
+  const lum = s.lumos ? 0.9 * clamp(1 - Math.hypot(x - R.cam.x, y - R.cam.y, z - R.cam.z) / 13, 0, 1) : 0;   // (Lumos)
+  return Math.max(s.nether ? 0.45 : s.nightVision ? 0.8 : s.subLight ? 0.5 : 0.05, lum, lightCurve((L >> 4) * s.skyLight), Math.min(1, lightCurve(L & 15) * 1.25));
 }
 function drawOutline(x, y, z) {
   const P = PROG.line;

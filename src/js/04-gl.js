@@ -47,6 +47,7 @@ uniform vec3 uFogColor;
 uniform vec2 uFog;
 uniform float uAlphaTest;
 uniform vec3 uMinLight;
+uniform float uLumos;
 in vec3 vUV; in float vShade; in vec2 vLight; in float vDist; in float vFlag;
 out vec4 outColor;
 float curve(float l) { float x = clamp(l / 15.0, 0.0, 1.0); return x / (4.0 - 3.0 * x); }
@@ -57,6 +58,7 @@ void main() {
   float blk = min(1.0, curve(vLight.y) * 1.25);
   vec3 light = max(uSkyTint * sky, vec3(1.0, 0.84, 0.6) * blk);
   light = max(light, uMinLight);
+  if (uLumos > 0.0) light = max(light, vec3(1.0, 0.92, 0.74) * (0.9 * uLumos * clamp(1.0 - vDist / 13.0, 0.0, 1.0)));   // a wand lit with Lumos
   if (vFlag > 1.5) light = vec3(1.0);
   vec3 col = c.rgb * vShade * light;
   float fog = clamp((vDist - uFog.x) / (uFog.y - uFog.x), 0.0, 1.0);
@@ -108,7 +110,8 @@ precision highp float;
 uniform vec3 uRight, uUp, uFwd;
 uniform vec2 uTan;
 uniform vec3 uZenith, uHorizon, uBottom, uSunDir, uGlow;
-uniform float uStars, uGlowAmt, uSunVis;
+uniform float uStars, uGlowAmt, uSunVis, uEarth;
+uniform vec3 uEarthDir;
 in vec2 vNdc;
 out vec4 outColor;
 float hash(vec3 p) { p = fract(p * 0.3183099 + 0.1); p *= 17.0; return fract(p.x * p.y * p.z * (p.x + p.y + p.z)); }
@@ -131,7 +134,7 @@ void main() {
     float m = max(abs(sp.x), abs(sp.y));
     if (m < 0.085) col = mix(col, m < 0.055 ? vec3(1.0, 1.0, 0.86) : vec3(1.0, 0.93, 0.6), uSunVis);
     else col += vec3(1.0, 0.85, 0.5) * 0.18 * smoothstep(0.32, 0.085, m) * uSunVis;
-  } else {
+  } else if (uEarth < 0.5) {
     vec2 mp = vec2(dot(dir, sT), dot(dir, sB)) / (-sdot);
     float m = max(abs(mp.x), abs(mp.y));
     if (m < 0.065) {
@@ -139,6 +142,24 @@ void main() {
       float cr = hash(vec3(cell, 3.0));
       col = vec3(0.86, 0.88, 0.92) * (cr > 0.75 ? 0.72 : 1.0);
     } else col += vec3(0.5, 0.6, 0.8) * 0.08 * smoothstep(0.25, 0.065, m) * uStars;
+  }
+  if (uEarth > 0.5) {   // on the Moon: the Earth hangs in the sky, blue and green with white clouds, lit by the sun
+    vec3 eT = normalize(cross(uEarthDir, vec3(0.0, 1.0, 0.0)));
+    vec3 eB = cross(eT, uEarthDir);
+    float ed = dot(dir, uEarthDir);
+    if (ed > 0.0) {
+      vec2 ep = vec2(dot(dir, eT), dot(dir, eB)) / ed / 0.14;
+      float r = length(ep);
+      if (r < 1.0) {
+        vec2 cell = floor(ep * 11.0);
+        float land = hash(vec3(floor(cell * 0.5), 5.0)) * 0.6 + hash(vec3(cell, 6.0)) * 0.4;
+        float cloud = hash(vec3(cell + vec2(3.0, 0.0), 9.0));
+        vec3 c = land > 0.62 ? (land > 0.8 ? vec3(0.62, 0.52, 0.32) : vec3(0.25, 0.58, 0.22)) : vec3(0.12, 0.3, 0.78);
+        if (cloud > 0.78 || abs(ep.y) > 0.86) c = vec3(0.95, 0.96, 1.0);
+        vec3 n = normalize(eT * ep.x + eB * ep.y - uEarthDir * sqrt(1.0 - r * r));
+        col = c * clamp(dot(n, uSunDir) * 1.3 + 0.12, 0.06, 1.0);
+      } else col += vec3(0.3, 0.5, 1.0) * 0.25 * smoothstep(1.35, 1.0, r);
+    }
   }
   outColor = vec4(col, 1.0);
 }`;
@@ -204,9 +225,9 @@ function initGL() {
     gl = glCanvas.getContext('webgl2', { antialias: false, alpha: false, depth: true, stencil: false, powerPreference: 'high-performance' });
   } catch (e) { gl = null; }
   if (!gl) return false;
-  PROG.terrain = program(TERRAIN_VS, TERRAIN_FS, ['uViewProj', 'uOffset', 'uTime', 'uTex', 'uSkyLight', 'uSkyTint', 'uFogColor', 'uFog', 'uAlphaTest', 'uMinLight']);
+  PROG.terrain = program(TERRAIN_VS, TERRAIN_FS, ['uViewProj', 'uOffset', 'uTime', 'uTex', 'uSkyLight', 'uSkyTint', 'uFogColor', 'uFog', 'uAlphaTest', 'uMinLight', 'uLumos']);
   PROG.entity = program(ENTITY_VS, ENTITY_FS, ['uViewProj', 'uModel', 'uTex', 'uBright', 'uTint', 'uColor', 'uFogColor', 'uFog', 'uAlpha']);
-  PROG.sky = program(SKY_VS, SKY_FS, ['uRight', 'uUp', 'uFwd', 'uTan', 'uZenith', 'uHorizon', 'uBottom', 'uSunDir', 'uGlow', 'uStars', 'uGlowAmt', 'uSunVis']);
+  PROG.sky = program(SKY_VS, SKY_FS, ['uRight', 'uUp', 'uFwd', 'uTan', 'uZenith', 'uHorizon', 'uBottom', 'uSunDir', 'uGlow', 'uStars', 'uGlowAmt', 'uSunVis', 'uEarth', 'uEarthDir']);
   PROG.cloud = program(CLOUD_VS, CLOUD_FS, ['uViewProj', 'uCam', 'uY', 'uExtent', 'uClouds', 'uTime', 'uColor', 'uFogColor', 'uFogEnd', 'uAlpha']);
   PROG.line = program(LINE_VS, LINE_FS, ['uViewProj', 'uOffset', 'uColor']);
   // one shared index buffer: every mesh is a list of quads
@@ -221,10 +242,11 @@ function initGL() {
 
 function buildTileTexture() {
   const n = TILE_DATA.length;
-  for (const nm of ['door_top', 'oak_leaves', 'birch_leaves', 'spruce_leaves', 'glass', 'torch', 'tall_grass', 'dandelion', 'poppy', 'cornflower', 'dead_bush', 'oak_sapling', 'birch_sapling', 'spruce_sapling', 'cactus_side', 'cactus_top', 'cactus_bottom', 'bed_side', 'bed_end', 'rail', 'rail_corner', 'lever', 'button', 'sugar_cane', 'ench_side', 'brewing_rod'])
+  for (const nm of ['door_top', 'oak_leaves', 'birch_leaves', 'spruce_leaves', 'glass', 'torch', 'tall_grass', 'dandelion', 'poppy', 'cornflower', 'dead_bush', 'oak_sapling', 'birch_sapling', 'spruce_sapling', 'cactus_side', 'cactus_top', 'cactus_bottom', 'bed_side', 'bed_end', 'rail', 'rail_corner', 'lever', 'button', 'sugar_cane', 'ench_side', 'brewing_rod', 'spawner', 'iron_bars'])
     CUTOUT_TILE[TILE[nm]] = 1;
   for (const nm of ['water', 'ice', 'nether_portal']) TRANS_TILE[TILE[nm]] = 1;   // see-through from far away too
   for (const nm of TILE_NAMES) if (TILE[nm] >= TILE.stick) CUTOUT_TILE[TILE[nm]] = 1;
+  for (const nm of ['rain', 'snowfall', 'bolt']) { CUTOUT_TILE[TILE[nm]] = 0; TRANS_TILE[TILE[nm]] = 1; }   // (see-through, like water)
   const tex = gl.createTexture();
   gl.bindTexture(gl.TEXTURE_2D_ARRAY, tex);
   const levels = 5;

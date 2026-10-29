@@ -274,7 +274,7 @@ SPECIAL_DRAW[B.ENCH_TABLE] = (w, x, y, z, data, s, t, cam) => {
 function mobFire(game, e, dt) {
   if (!(e.fireT > 0)) return;
   e.fireT -= dt;
-  if (e.inWater) e.fireT = 0;
+  if (e.inWater || wxWetAt(game.world, e.x, e.y + e.h, e.z)) e.fireT = 0;   // (rain puts it out)
   if (Math.random() < dt * 18 && PARTICLES.length < 1500) PARTICLES.push({ x: e.x + randRange(-e.w, e.w), y: e.y + Math.random() * e.h, z: e.z + randRange(-e.w, e.w), vx: 0, vy: 0.8, vz: 0, life: randRange(0.25, 0.5), tile: TILE.flame, u: 0, v: 0, us: 16, size: 0.12, grav: -0.5, bright: 1 });
   if (e.proxy) return;
   e.burnTick = (e.burnTick || 0) + dt;

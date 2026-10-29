@@ -78,7 +78,7 @@ const SPECIAL_SEEN = new Set();
 function drawSpecials(game, s, t, cam) {
   const w = game.world, seen = SPECIAL_SEEN;
   seen.clear();
-  dynFrame();
+  if (!CAMS.pass) dynFrame();
   const list = R.visO;
   for (let j = 0; j < list.length; j += 2) {
     const c = list[j];

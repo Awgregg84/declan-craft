@@ -2,7 +2,8 @@
    The host's iPad runs the world: creatures, falling sand, water, furnaces, time of day.
    Guests build the same terrain from the seed, send their own moves and block changes,
    and show the host's creatures. A guest's things are saved inside the host's world. */
-const MP_PROTO = 3;   // 2: bows, new TNT, endermen, ghasts, dispensers, minecarts and cars; 3: armor, enchanting, books, signs, potions, fish, boats, made characters, TVs, boards, Hardcore
+const MP_PROTO = 4;   // 2: bows, new TNT, endermen, ghasts, dispensers, minecarts and cars; 3: armor, enchanting, books, signs, potions, fish, boats, made characters, TVs, boards, Hardcore;
+                      // 4: weather, golems, Snorks, the flying car and broom, the rocket and the Moon, wands, Hogwarts, plans, cameras, dungeons, robots
 const MP_MAX_GUESTS = 3;
 const r2 = v => Math.round(v * 100) / 100;
 const okXYZ = a => Array.isArray(a) && a.length === 3 && a.every(v => typeof v === 'number' && isFinite(v));
@@ -35,8 +36,8 @@ const STATE_LEN = 13;
 function encodeState(p) {
   const rd = p.riding, aim = p.drawT > 0 || p.loadT > 0 || p.heldId() === I.CROSSBOW_LOADED, sh = shieldHand(p);
   const f = (p.sneaking ? 1 : 0) | (p.flying ? 2 : 0) | (p.alive ? 4 : 0) | (game.mode === 'creative' ? 8 : 0) | (game.sleeping > 0 ? 16 : 0) |
-    (rd ? 32 : 0) | (rd && rd.type === 'car' ? 64 : 0) | (aim ? 128 : 0) | (sh === 'off' ? 256 : 0) | (p.blocking ? 512 : 0) |
-    (rd && rd.type === 'boat' ? 1024 : 0) | (rd && rd.type === 'submarine' ? 2048 : 0);
+    (rd ? 32 : 0) | (rd && (rd.type === 'car' || rd.type === 'flycar') ? 64 : 0) | (aim ? 128 : 0) | (sh === 'off' ? 256 : 0) | (p.blocking ? 512 : 0) |
+    (rd && rd.type === 'boat' ? 1024 : 0) | (rd && rd.type === 'submarine' ? 2048 : 0) | (rd && rd.type === 'broom' ? 4096 : 0) | (rd && rd.type === 'rocket' ? 8192 : 0);
   const b = p.bobber && !p.bobber.removed ? [r2(p.bobber.x), r2(p.bobber.y), r2(p.bobber.z)] : 0;
   return [r2(p.x), r2(p.y), r2(p.z), r2(p.yaw), r2(p.pitch), r2(p.bodyYaw), f, p.heldId(), p.swings || 0, wornArmor(p), wornGlint(p), effectBits(p), b];
 }
@@ -48,7 +49,7 @@ function applyState(r, a) {
   const was = r.alive;
   r.sneaking = !!(f & 1); r.flying = !!(f & 2); r.alive = !!(f & 4); r.mode = (f & 8) ? 'creative' : 'survival';
   if (was && !r.alive) markOut(r);
-  r.riding = (f & 32) ? ((f & 64) ? 'car' : (f & 1024) ? 'boat' : (f & 2048) ? 'sub' : 'cart') : null; r.aiming = !!(f & 128);
+  r.riding = (f & 32) ? ((f & 64) ? 'car' : (f & 1024) ? 'boat' : (f & 2048) ? 'sub' : (f & 4096) ? 'broom' : (f & 8192) ? 'rocket' : 'cart') : null; r.aiming = !!(f & 128);
   const held = a[7] | 0;
   r.held = held > 0 && itemDef(held) ? held : 0;
   r.shield = r.held === I.SHIELD ? 'main' : (f & 256) ? 'off' : null; r.blocking = !!(f & 512) && !!r.shield;
@@ -84,17 +85,21 @@ function encodeEnt(e) {
     const extra = e.type === 'sheep' ? (e.wool | 0) : e.type === 'villager' ? VILLAGER_PROFS.indexOf(e.prof) * 100000 + ((e.vseed | 0) % 100000)
       : e.type === 'magma' ? (e.size || 1) : e.type === 'piglin' ? (e.angryT > 0 ? 1 : 0)
       : e.type === 'enderman' ? (e.carry | 0) + (e.angryT > 0 ? 1024 : 0) : e.type === 'ghast' ? (e.firing > 0 ? 1 : 0)
-      : e.type === 'tropical' ? (e.variant | 0) : e.type === 'pufferfish' ? Math.round((e.puff || 0) * 10) : 0;
-    return [e.nid, MOB_TYPES.indexOf(e.type), r2(e.x), r2(e.y), r2(e.z), r2(e.bodyYaw), r2(e.headYaw), r2(e.pitch), r2(e.walkAmt), flags, r2(e.fuse || 0), extra];
+      : e.type === 'tropical' ? (e.variant | 0) : e.type === 'pufferfish' ? Math.round((e.puff || 0) * 10) : e.type === 'golem' ? (e.rose > 0 ? 1 : 0)
+      : e.type === 'snork' ? (e.variant | 0) | (e.tootT > 0 ? 16 : 0) | (e.happy > 0 ? 32 : 0)
+      : e.type === 'robot' ? (e.variant | 0) | (Math.max(0, ROBOT_MODES.indexOf(e.mode)) << 3) : 0;
+    const a = [e.nid, MOB_TYPES.indexOf(e.type), r2(e.x), r2(e.y), r2(e.z), r2(e.bodyYaw), r2(e.headYaw), r2(e.pitch), r2(e.walkAmt), flags, r2(e.fuse || 0), extra];
+    if (e.type === 'robot') a.push(e.owner || '');   // (who it belongs to)
+    return a;
   }
   if (e.type === 'tnt') return [e.nid, -1, r2(e.x), r2(e.y), r2(e.z), r2(e.fuse), TNT_KINDS.indexOf(e.kind), e.small ? 1 : 0];
   if (e.type === 'falling') return [e.nid, -2, r2(e.x), r2(e.y), r2(e.z), e.id];
-  if (e.type === 'proj') return [e.nid, -3, r2(e.x), r2(e.y), r2(e.z), r2(e.vx), r2(e.vy), r2(e.vz), PROJ_KINDS.indexOf(e.kind), (e.stuck ? 1 : 0) | (e.crit ? 2 : 0), e.tok || ''];
-  if (e.vehicle) return [e.nid, VEHICLES[e.type].code, r2(e.x), r2(e.y), r2(e.z), r2(e.yaw), r2(e.slope || 0), e.rider ? 1 : 0, vehicleState(e)[5], e.hurt > 0 ? 1 : 0];
+  if (e.type === 'proj') return [e.nid, -3, r2(e.x), r2(e.y), r2(e.z), r2(e.vx), r2(e.vy), r2(e.vz), PROJ_KINDS.indexOf(e.kind), (e.stuck ? 1 : 0) | (e.crit ? 2 : 0), e.tok || '', e.pk | 0];
+  if (e.vehicle) return [e.nid, VEHICLES[e.type].code, r2(e.x), r2(e.y), r2(e.z), r2(e.yaw), r2(e.slope || 0), e.rider ? 1 : 0, vehicleState(e)[5], e.hurt > 0 ? 1 : 0, e.flying ? 1 : 0];
   if (e.type === 'xp') return [e.nid, -7, r2(e.x), r2(e.y), r2(e.z), e.value];
   return null;
 }
-const ENT_CODE = { '-1': 'tnt', '-2': 'falling', '-3': 'proj', '-5': 'minecart', '-6': 'car', '-7': 'xp', '-8': 'boat', '-9': 'submarine' };
+const ENT_CODE = { '-1': 'tnt', '-2': 'falling', '-3': 'proj', '-5': 'minecart', '-6': 'car', '-7': 'xp', '-8': 'boat', '-9': 'submarine', '-10': 'flycar', '-11': 'broom', '-12': 'rocket' };
 /* guest: creatures from the host glide to their latest positions */
 function updateProxy(e, dt) {
   e.age += dt;
@@ -142,8 +147,8 @@ function cleanGuestSave(d) {
   return {
     x: num(d.x, -1e6, 1e6, 0), y: num(d.y, -60, 300, 90), z: num(d.z, -1e6, 1e6, 0), yaw: num(d.yaw, -1e3, 1e3, 0), pitch: num(d.pitch, -1.6, 1.6, 0),
     health: num(d.health, 1, 20, 20), food: num(d.food, 0, 20, 20), air: num(d.air, 0, 10, 10), inv, sel: num(d.sel | 0, 0, 8, 0), spawn: sp,
-    mode: d.mode === 'creative' ? 'creative' : 'survival', flying: !!d.flying, dim: d.dim === 'nether' ? 'nether' : 'over',
-    xp: num(d.xp, 0, 1e7, 0), enchSeed: num(d.enchSeed, 0, 2147483647, 0) | 0,
+    mode: d.mode === 'creative' ? 'creative' : 'survival', flying: !!d.flying, dim: okDim(d.dim),
+    xp: num(d.xp, 0, 1e7, 0), enchSeed: num(d.enchSeed, 0, 2147483647, 0) | 0, kit: d.kit ? 1 : 0,
     effects: d.effects && typeof d.effects === 'object' ? Object.fromEntries(EFFECTS.filter(k => +d.effects[k] > 0).map(k => [k, Math.min(600, +d.effects[k])])) : {},
   };
 }
@@ -168,11 +173,11 @@ function cleanDataTiles(td) {
   }
   return out;
 }
-const FX_KINDS = ['break', 'place', 'door', 'boom', 'sfx', 'party', 'ice', 'tele', 'smoke', 'xpb', 'splash'];
-const SFX_NET = ['leverClick', 'buttonClick', 'honk', 'bowShoot', 'crossbowShoot', 'pearlThrow', 'dispense', 'dispenseFail', 'ghastShoot', 'endermanPortal', 'sonar', 'tvOn', 'tvOff'];
-const GUEST_SFX = new Set(['leverClick', 'buttonClick', 'honk', 'sonar', 'tvOn', 'tvOff']);   // the sounds a guest can send
+const FX_KINDS = ['break', 'place', 'door', 'boom', 'sfx', 'party', 'ice', 'tele', 'smoke', 'xpb', 'splash', 'spell', 'zap'];
+const SFX_NET = ['leverClick', 'buttonClick', 'honk', 'bowShoot', 'crossbowShoot', 'pearlThrow', 'dispense', 'dispenseFail', 'ghastShoot', 'endermanPortal', 'sonar', 'tvOn', 'tvOff', 'golemBuilt', 'snorkHappy', 'snorkToot', 'spellCast', 'patronus', 'camSwitch'];
+const GUEST_SFX = new Set(['leverClick', 'buttonClick', 'honk', 'sonar', 'tvOn', 'tvOff', 'snorkHappy', 'snorkToot', 'camSwitch']);   // the sounds a guest can send
 const LINK_FAIL = "Found the game, but the two iPads couldn't connect to each other. Put both on the same Wi-Fi, then try again.";
-const STALE_T = new Set(['st', 'set', 'open', 'tile', 'close', 'tnt', 'egg', 'portal', 'shoot', 'mount', 'veh', 'dismount', 'veh+', 'sign', 'board']);
+const STALE_T = new Set(['st', 'set', 'open', 'tile', 'close', 'tnt', 'egg', 'portal', 'shoot', 'mount', 'veh', 'dismount', 'veh+', 'sign', 'board', 'rocket', 'launch', 'snitch', 'robot+', 'robot']);
 
 const MP = {
   role: null, code: '', token: '', sig: null, roomOpen: false, hostLink: null, hostName: '', we: 0,
@@ -280,6 +285,7 @@ const MP = {
           }
           w.applyRemote(x, y, z, id, d & 255);
           if (old === B.UNLOADED) this.outBlocks.push(x, y, z, id, d & 255);   // not loaded here, so pass it on by hand
+          if (id === B.PUMPKIN || id === B.JACK_O_LANTERN) golemBuildCheck(game, x, y, z);   // they built an iron golem
         }
         this.takeFx(m.fx, r.id);
         break;
@@ -295,12 +301,25 @@ const MP = {
       }
       case 'tnt': if (tntKindOf(w.getBlock(m.x | 0, m.y | 0, m.z | 0))) igniteTNT(game, m.x | 0, m.y | 0, m.z | 0); break;
       case 'shoot': {   // a guest's arrow, pearl or fire charge: the real one is made here
-        const k = m.k === 'arrow' || m.k === 'pearl' || m.k === 'charge' || m.k === 'xpb' || m.k === 'potion' ? m.k : null;
+        const k = m.k === 'arrow' || m.k === 'pearl' || m.k === 'charge' || m.k === 'xpb' || m.k === 'potion' || m.k === 'spell' ? m.k : null;
         // (their position here can be a moment old: a guest falling fast is a few blocks further down by now)
         if (!k || !okXYZ(m.p) || !okXYZ(m.v) || Math.hypot(m.p[0] - r.tx, m.p[2] - r.tz) > 6 || Math.abs(m.p[1] - r.ty - 1.5) > 12 || Math.hypot(m.v[0], m.v[1], m.v[2]) > 70) break;
-        shootProjectile(game, k, m.p[0], m.p[1], m.p[2], m.v[0], m.v[1], m.v[2], { owner: r.id, dmg: k === 'arrow' ? clamp(+m.d || 0, 0, 25) : 0, crit: !!m.c, pickup: k === 'arrow' && r.mode === 'survival' && !m.np, tok: String(m.tok || '').slice(0, 12), kb: clamp(m.kb | 0, 0, 2), fire: m.fl ? 5 : 0, pk: clamp(m.pk | 0, 0, POTIONS.length - 1) });
+        shootProjectile(game, k, m.p[0], m.p[1], m.p[2], m.v[0], m.v[1], m.v[2], { owner: r.id, dmg: k === 'arrow' ? clamp(+m.d || 0, 0, 25) : 0, crit: !!m.c, pickup: k === 'arrow' && r.mode === 'survival' && !m.np, tok: String(m.tok || '').slice(0, 12), kb: clamp(m.kb | 0, 0, 2), fire: m.fl ? 5 : 0, pk: clamp(m.pk | 0, 0, (k === 'spell' ? SPELLS : POTIONS).length - 1) });
         const snd = SFX_NET.includes(m.s) ? m.s : k === 'pearl' ? 'pearlThrow' : k === 'charge' ? 'ghastShoot' : 'bowShoot';
         sfx(snd, m.p[0], m.p[1], m.p[2]); this.sfx(snd, m.p[0], m.p[1], m.p[2], r.id);
+        break;
+      }
+      case 'snitch': {   // a guest reached for the Golden Snitch
+        const v = game.entities.find(q => q.nid === m.e && q.type === 'snitch' && !q.removed);
+        if (v && Math.hypot(v.x - r.tx, v.y - (r.ty + 0.9), v.z - r.tz) < 4) catchSnitch(game, v, r);
+        break;
+      }
+      case 'launch': { const line = r.name + "'s rocket is blasting off " + (m.home ? 'for home' : 'to the Moon') + '! Everyone is coming along!'; chat(line, '#ffd24a'); this.broadcast({ t: 'chat', m: line, c: '#ffd24a' }, r.id); break; }
+      case 'rocket': {   // a guest's rocket has gone up out of sight: everyone goes
+        const v = game.entities.find(q => q.nid === m.e && q.type === 'rocket' && q.rider === r.id && !q.removed);
+        if (!v || game.dim === 'nether' || game.arrival) break;
+        if (game.state !== 'playing') { if (r.link) r.link.send({ t: 'chat', m: playerName() + " can't come just now. Try again in a moment!", c: '#ffd24a' }); break; }   // (the host is reading the death screen: the rocket comes back down)
+        game.rocketTravel(r.name, v);
         break;
       }
       case 'veh+': {   // a guest put down a minecart, a car, a boat or a submarine
@@ -324,6 +343,17 @@ const MP = {
         break;
       }
       case 'egg': if (isMobType(m.m) && isFinite(+m.x) && isFinite(+m.y) && isFinite(+m.z) && Math.hypot(+m.x - r.tx, +m.z - r.tz) < 12 && Math.abs(+m.y - r.ty) < 12) spawnMob(game, m.m, +m.x, +m.y, +m.z, { home: [+m.x, +m.z] }); break;
+      case 'robot+': {   // a guest let their robot out
+        const x = +m.x, y = +m.y, z = +m.z;
+        if (![x, y, z].every(isFinite) || Math.hypot(x - r.tx, z - r.tz) > 8 || Math.abs(y - r.ty) > 8 || game.entities.filter(e => e.type === 'robot' && !e.removed).length >= 32) break;
+        makeRobot(game, x, y, z, r.id, m.c | 0, 'follow', +m.yaw || 0);
+        break;
+      }
+      case 'robot': {   // a guest gave their robot a new job
+        const e = game.entities.find(q => q.nid === m.e && q.type === 'robot' && !q.removed);
+        if (e && e.owner === r.id && ROBOT_MODES.includes(m.m)) e.mode = m.m;
+        break;
+      }
       case 'trade': { const e = game.entities.find(q => q.nid === m.e && q.type === 'villager'); if (e) e.tradeT = m.end ? 0 : 20; break; }
       case 'sign': {   // a guest wrote on a sign: keep it, and show everyone else
         const x = m.x | 0, y = m.y | 0, z = m.z | 0;
@@ -405,8 +435,8 @@ const MP = {
     const players = [{ id: 'host', name: playerName(), skin: PROFILE.skin, look: myLook() }];
     for (const o of this.remotes.values()) if (o !== r) players.push({ id: o.id, name: o.name, skin: o.look ? 'declan' : o.skin, look: o.look });
     l.send({
-      t: 'welcome', v: MP_PROTO, map: game.mapId, hc: game.hardcore ? 1 : 0, seed: game.seed, vb: game.overVB, mode: game.mode, time: w.time, day: game.day, clock: w.clock,
-      spawn: game.worldSpawn, edits: w.serialize().edits, td: dataTiles(w), you, at, host: playerName(), players, dim: game.dim, we: this.we, ns: game.netherSpawn,
+      t: 'welcome', v: MP_PROTO, map: game.mapId, hc: game.hardcore ? 1 : 0, seed: game.seed, vb: game.overVB, mode: game.mode, time: w.time, day: game.day, clock: w.clock, wx: wxBits(),
+      spawn: game.worldSpawn, edits: w.serialize().edits, td: dataTiles(w), you, at, host: playerName(), players, dim: game.dim, we: this.we, ns: game.netherSpawn, ms: game.moonSpawn,
       wait: game.arrival ? 1 : 0,   // we are on the way through a portal: where to step out comes when we get there
     });
     this.broadcast({ t: 'pj', id: hi.pid, name: hi.name, skin: hi.skin, look: hi.look }, hi.pid);
@@ -449,14 +479,14 @@ const MP = {
   /* host: a chest or furnace a guest had open when we all went through a portal belongs to the world left behind
      (its saved copy holds the same chest), so the guest's last changes go there and nothing is lost or copied */
   staleTile(m, r) {
-    const left = game.dims[game.dim === 'nether' ? 'over' : 'nether'], t = left && left.tiles && left.tiles[tileKey(m.x | 0, m.y | 0, m.z | 0)];
+    const left = game.dims[game.prevDim], t = left && left.tiles && left.tiles[tileKey(m.x | 0, m.y | 0, m.z | 0)];
     if (!t || !t.viewers || !t.viewers.has(r.id)) return;
     if (m.t === 'close') t.viewers.delete(r.id);
     else this.applyTile(t, m);
   },
   /* a guest's words on a sign (or a board's picture) that were on the way when everyone went through a portal */
   staleData(m) {
-    const left = game.dims[game.dim === 'nether' ? 'over' : 'nether'], x = m.x | 0, y = m.y | 0, z = m.z | 0;
+    const left = game.dims[game.prevDim], x = m.x | 0, y = m.y | 0, z = m.z | 0;
     if (!left || y < 0 || y >= WH) return;
     const a = left.edits && left.edits[(x >> 4) + ',' + (z >> 4)], i = (x & 15) | ((z & 15) << 4) | (y << 8);
     let id = -1;
@@ -500,7 +530,7 @@ const MP = {
     this.send({ t: 'close', x: t.x, y: t.y, z: t.z });
     this.sendSave();
   },
-  sendDrops(r, loot, x, y, z) { if (r && r.link && loot.length) r.link.send({ t: 'drops', l: loot, x: r2(x), y: r2(y), z: r2(z) }); },
+  sendDrops(r, loot, x, y, z, give) { if (r && r.link && loot.length) r.link.send({ t: 'drops', l: loot, x: r2(x), y: r2(y), z: r2(z), g: give ? 1 : 0 }); },   // (give: straight into their bag if it fits)
   hurtRemote(r, dmg, cause, kx, ky, kz, src) {
     if (!r.link) return;
     if (dmg > 0) r.invuln = 0.5;
@@ -517,7 +547,7 @@ const MP = {
       this.hurtRemote(r, dmg, 'explosion', ((ex - x) / l) * imp * 14, Math.max(3, ((ey - y) / l) * imp * 10), ((ez - z) / l) * imp * 14);
     }
   },
-  syncTime() { if (this.role === 'host') this.broadcast({ t: 'time', w: game.world.time, day: game.day, c: Math.round(game.world.clock * 100) / 100 }); },
+  syncTime() { if (this.role === 'host') this.broadcast({ t: 'time', w: game.world.time, day: game.day, c: Math.round(game.world.clock * 100) / 100, wx: wxBits() }); },
   bedtime(name) {
     const w = game.world, night = w.time > 0.53 && w.time < 0.97;
     if (!night) return;
@@ -525,6 +555,7 @@ const MP = {
     const everyone = recent(this.hostSleep) && Array.from(this.remotes.values()).every(r => recent(r.sleepT) || !r.alive);
     if (everyone) {
       w.time = 0.01; game.day++;
+      if (WX.on) { WX.on = WX.thunder = WX.snowAll = false; WX.t = randRange(WX_CLEAR[0], WX_CLEAR[1]); }   // (sleeping through it clears the weather)
       this.hostSleep = 0; for (const r of this.remotes.values()) r.sleepT = 0;
       chat('Good morning! Day ' + game.day + '.');
       this.broadcast({ t: 'chat', m: 'Good morning! Day ' + game.day + '.' });
@@ -626,7 +657,7 @@ const MP = {
   sendSave() {
     if (this.role !== 'guest' || !this.welcomed) return;
     const pl = game.player, at = pl.alive ? restPos(pl) : game.spawnPos();
-    this.send({ t: 'save', d: { x: r2(at[0]), y: r2(at[1]), z: r2(at[2]), yaw: r2(pl.yaw), pitch: r2(pl.pitch), health: pl.alive ? pl.health : 20, food: pl.alive ? pl.food : 20, air: pl.air, inv: pl.inv, sel: pl.sel, spawn: pl.spawn, mode: game.mode, flying: pl.flying, dim: game.dim, xp: pl.xp, enchSeed: pl.enchSeed, effects: pl.alive ? saveEffects(pl) : {} } });
+    this.send({ t: 'save', d: { x: r2(at[0]), y: r2(at[1]), z: r2(at[2]), yaw: r2(pl.yaw), pitch: r2(pl.pitch), health: pl.alive ? pl.health : 20, food: pl.alive ? pl.food : 20, air: pl.air, inv: pl.inv, sel: pl.sel, spawn: pl.spawn, mode: game.mode, flying: pl.flying, dim: game.dim, xp: pl.xp, enchSeed: pl.enchSeed, effects: pl.alive ? saveEffects(pl) : {}, kit: game.stats.hogKit ? 1 : 0 } });
   },
   guestMsg(m) {
     if (this.role !== 'guest') return;
@@ -643,7 +674,7 @@ const MP = {
         for (const e of this.proxies.values()) e.removed = true;
         this.proxies.clear();
         for (const r of this.remotes.values()) { r.has = false; r.lastState = null; }
-        game.guestDim({ dim: m.dim, edits: m.edits && typeof m.edits === 'object' ? m.edits : {}, td: cleanDataTiles(m.td), at: m.at, time: m.time, clock: m.clock, ns: m.dim === 'nether' && okXYZ(m.ns) ? m.ns : null });
+        game.guestDim({ dim: m.dim, edits: m.edits && typeof m.edits === 'object' ? m.edits : {}, td: cleanDataTiles(m.td), at: m.at, time: m.time, clock: m.clock, ns: m.dim === 'nether' && okXYZ(m.ns) ? m.ns : null, ms: m.dim === 'moon' && okXYZ(m.ms) ? m.ms : null });
         break;
       }
       case 'tp': {   // where to step out of the portal
@@ -652,6 +683,7 @@ const MP = {
         [pl.x, pl.y, pl.z] = m.at; pl.vx = pl.vy = pl.vz = 0; pl.fallDist = 0; pl.portalLock = true;
         if (isFinite(+m.yaw)) pl.yaw = pl.bodyYaw = +m.yaw;
         if (game.dim === 'nether') game.netherSpawn = m.at.slice();
+        if (game.dim === 'moon') game.moonSpawn = m.at.slice();
         game.awaitTp = 0;
         break;
       }
@@ -666,7 +698,9 @@ const MP = {
       case 'time': if (game.world && isFinite(+m.w)) {
         game.world.time = +m.w; game.day = m.day | 0 || game.day;
         if (isFinite(+m.c) && +m.c >= 0 && Math.abs(game.world.clock - m.c) > 0.5) game.world.clock = +m.c;   // (TV shows change at the same moment everywhere)
+        if (m.wx !== undefined) wxSetBits(m.wx);
       } break;
+      case 'snitch': snitchCaught(game); break;   // we caught the Golden Snitch!
       case 'mount': {   // the host says whether we got in
         const v = this.proxies.get(m.e), pl = game.player;
         if (!m.ok) { if (v) toast('Someone is already in it.', 2); break; }
@@ -698,7 +732,14 @@ const MP = {
       case 'eff': if (game.state === 'playing' && POTIONS[m.k | 0]) potionOnPlayer(game.player, m.k | 0, clamp(+m.s || 0, 0, 1)); break;   // splashed by a potion
       case 'sign': if ((m.we | 0) === this.we && game.world && Array.isArray(m.l) && game.world.knownBlock(m.x | 0, m.y | 0, m.z | 0) === B.SIGN) setSignText(game.world, m.x | 0, m.y | 0, m.z | 0, m.l); break;
       case 'board': if ((m.we | 0) === this.we && game.world && cleanBoardPx(m.px) && game.world.knownBlock(m.x | 0, m.y | 0, m.z | 0) === B.BOARD) setBoard(game.world, m.x | 0, m.y | 0, m.z | 0, m.px, m.pic); break;
-      case 'drops': if (Array.isArray(m.l)) for (const it of m.l) { if (!Array.isArray(it)) continue; const s = cleanStack({ id: it[0], count: it[1], dmg: it[2], tag: it[3] }); if (s) dropItem(game, +m.x, +m.y, +m.z, s.id, s.count, true, s); } break;
+      case 'drops': if (Array.isArray(m.l)) for (const it of m.l) {
+        if (!Array.isArray(it)) continue;
+        const s = cleanStack({ id: it[0], count: it[1], dmg: it[2], tag: it[3] });
+        if (!s) continue;
+        const left = m.g ? game.giveItem(s.id, s.count, s) : s.count;   // (a robot hands things straight to you)
+        if (m.g && left < s.count) { sfx('pop'); if (s.id === I.ROBOT) toast('Your robot is back in your bag.', 2); }
+        if (left > 0) dropItem(game, +m.x, +m.y, +m.z, s.id, left, true, s);
+      } break;
       case 'tile': {   // what is inside a chest or furnace this device just opened (it then runs here until closed)
         const t = ui.inv && ui.inv.tile;
         if (!t || !t.remote || !t.loading || t.x !== m.x || t.y !== m.y || t.z !== m.z) break;
@@ -740,10 +781,10 @@ const MP = {
     const you = m.you ? cleanGuestSave(m.you) : null;
     const at = okXYZ(m.at) ? m.at : null;
     this.we = m.we | 0;
-    const ns = okXYZ(m.ns) ? m.ns : null;
+    const ns = okXYZ(m.ns) ? m.ns : null, ms = okXYZ(m.ms) ? m.ms : null;
     game.startGuestWorld({ map: m.map, seed: m.seed | 0, vb: Array.isArray(m.vb) ? m.vb.map(String) : [], edits: m.edits && typeof m.edits === 'object' ? m.edits : {}, td: cleanDataTiles(m.td), dim: m.dim, ns,
       time: +m.time || 0.02, clock: +m.clock || 0, day: m.day | 0 || 1, mode: m.mode === 'creative' ? 'creative' : 'survival',
-      spawn: Array.isArray(m.spawn) ? m.spawn : null, you, at, tpWait: !!m.wait, hc: m.hc === 1 });
+      spawn: Array.isArray(m.spawn) ? m.spawn : null, you, at, tpWait: !!m.wait, hc: m.hc === 1, wx: m.wx | 0, ms });
     this.hookWorld();
     this.updateUI();
     chat('You joined ' + this.hostName + "'s world!", '#ffff55'); sfx('join');
@@ -779,7 +820,7 @@ const MP = {
         e.proxy = true; e.nid = nid;
         if (ti >= 0) { const d = MOB_DEFS[type]; e.mob = true; e.w = d.w; e.h = d.h; e.hp = d.hp; e.bodyYaw = e.headYaw = +a[5] || 0; }
         else if (type === 'proj') {
-          e.kind = PROJ_KINDS[a[8] | 0] || 'arrow'; e.w = PROJ[e.kind].r; e.h = 0;
+          e.kind = PROJ_KINDS[a[8] | 0] || 'arrow'; e.w = PROJ[e.kind].r; e.h = 0; e.pk = a[11] | 0;
           if (a[10]) for (const g of game.entities) if (g.ghost && g.tok === a[10]) g.removed = true;   // our own shot: the real one takes over
         } else if (VEHICLES[type]) { e.vehicle = true; e.w = VEHICLES[type].w; e.h = VEHICLES[type].h; e.yaw = e.yawT = +a[5] || 0; e.wheel = 0; e.hits = 0; e.rider = null; }
         else if (type === 'xp') { e.w = 0.12; e.h = 0.25; e.value = clamp(a[5] | 0, 1, 40); e.spin = Math.random() * TAU; }
@@ -795,7 +836,7 @@ const MP = {
         e.vx = +a[5] || 0; e.vy = +a[6] || 0; e.vz = +a[7] || 0;
         continue;
       }
-      if (ti <= -5) { e.yawT = +a[5] || 0; e.slopeT = +a[6] || 0; e.rider = a[7] === 1 ? 'someone' : null; e.speed = +a[8] || 0; if (a[9]) e.hurt = 0.2; continue; }
+      if (ti <= -5) { e.yawT = +a[5] || 0; e.slopeT = +a[6] || 0; e.rider = a[7] === 1 ? 'someone' : null; e.speed = +a[8] || 0; if (a[9]) e.hurt = 0.2; e.flying = a[10] === 1; continue; }
       if (ti >= 0) {
         e.bodyT = +a[5] || 0; e.headT = +a[6] || 0; e.pitchT = +a[7] || 0; e.walkT = +a[8] || 0;
         const f = a[9] | 0;
@@ -813,6 +854,9 @@ const MP = {
         if (e.type === 'ghast') e.firing = x ? 0.5 : 0;
         if (e.type === 'tropical' && e.variant !== x) { e.variant = clamp(x, 0, TROPICAL_COLORS.length - 1); e.color = hexRGB(TROPICAL_COLORS[e.variant]).map(v => v / 255); }
         if (e.type === 'pufferfish') e.puff = clamp(x / 10, 0, 1);
+        if (e.type === 'golem') e.rose = x ? 1 : 0;
+        if (e.type === 'snork') { e.variant = clamp(x & 15, 0, SNORK_COLORS.length - 1); e.tootT = (x & 16) ? 0.3 : 0; e.happy = (x & 32) ? 0.3 : 0; }
+        if (e.type === 'robot') { if (e.variant !== (x & 7)) { e.variant = clamp(x & 7, 0, ROBOT_COLORS.length - 1); e.color = robotColor(e.variant); } if (!(e.modeT > game.t)) e.mode = ROBOT_MODES[(x >> 3) & 3]; e.owner = String(a[12] || ''); }
         e.frozen = (f & 16) ? 1 : 0;
         e.fireT = (f & 32) ? 0.3 : 0;
         e.invis = !!(f & 64); e.poisoned = !!(f & 128);
@@ -867,6 +911,8 @@ const MP = {
       else if (k === 'door') sfx('door', x + 0.5, y + 0.5, z + 0.5);
       else if (k === 'sfx') { if (SFX_NET[id]) sfx(SFX_NET[id], x, y, z); }
       else if (k === 'party') partyEffect(x, y, z);
+      else if (k === 'spell') { spellBurst(x, y, z, (SPELLS[id] || SPELLS[0]).tile, 16); sfx('spellHit', x, y, z); }
+      else if (k === 'zap') { const r = game.entities.find(q => q.nid === id && q.type === 'robot'); if (r) zapBeam(r.x, r.y + 1.05, r.z, x, y, z); sfx('robotZap', x, y, z); }
       else if (k === 'ice') iceEffect(x, y, z);
       else if (k === 'tele') { enderParticles(x, y, z, 20); sfx('endermanPortal', x, y + 1.4, z); }
       else if (k === 'smoke') smokeParticles(x, y, z, 5, 0.12, false);
@@ -1014,10 +1060,28 @@ const MP = {
     const w = game.world, pl = game.player, edits = w.serialize().edits;
     for (const r of this.remotes.values()) { r.lastState = null; r.has = false; r.sleepT = 0; r.tx = r.x = pl.x; r.ty = r.y = pl.y; r.tz = r.z = pl.z; }   // they are coming here
     for (const t of w.tiles.values()) if (t.viewers) t.viewers.clear();
-    const line = (who || playerName()) + (game.dim === 'nether' ? ' went into the Nether' : ' went back to ' + MAPS[game.mapId].name) + '. Everyone travels together!';
+    const line = (who || playerName()) + (game.dim === 'nether' ? ' went into the Nether' : game.dim === 'moon' ? ' blasted off to the Moon' : game.prevDim === 'moon' ? ' flew home to ' + MAPS[game.mapId].name : ' went back to ' + MAPS[game.mapId].name) + '. Everyone travels together!';
     chat(line, '#ff9966');
-    this.broadcast({ t: 'dim', dim: game.dim, we: this.we, edits, td: dataTiles(w), at: [r2(pl.x), r2(pl.y), r2(pl.z)], time: w.time, clock: w.clock, ns: game.netherSpawn });
+    this.broadcast({ t: 'dim', dim: game.dim, we: this.we, edits, td: dataTiles(w), at: [r2(pl.x), r2(pl.y), r2(pl.z)], time: w.time, clock: w.clock, ns: game.netherSpawn, ms: game.moonSpawn });
     this.broadcast({ t: 'chat', m: line, c: '#ff9966' });
+  },
+  /* a rocket's countdown has started: tell everyone (a guest asks the host to) */
+  rocketLaunch(home) {
+    if (this.role === 'guest') { this.send({ t: 'launch', home: home ? 1 : 0 }); return; }
+    if (this.role === 'host') this.broadcast({ t: 'chat', m: playerName() + "'s rocket is blasting off " + (home ? 'for home' : 'to the Moon') + '! Everyone is coming along!', c: '#ffd24a' });
+  },
+  /* host: the rocket is coming down here: everyone else waits round it, on the ground */
+  landed(x, y, z) {
+    if (this.role !== 'host') return;
+    const w = game.world;
+    let i = 0;
+    for (const l of this.links.values()) {
+      const a = Math.PI * 0.6 + i * 0.9, sx = x + Math.cos(a) * 2.8, sz = z + Math.sin(a) * 2.8, top = w.topSolid(Math.floor(sx), Math.floor(sz));
+      const at = [r2(sx), top >= 0 ? top + 1 : y, r2(sz)];
+      if (l.player) { const r = l.player; r.tx = r.x = at[0]; r.ty = r.y = at[1]; r.tz = r.z = at[2]; }
+      l.send({ t: 'tp', we: this.we, at, yaw: r2(Math.atan2(sx - x, sz - z)) });   // (facing the rocket)
+      i++;
+    }
   },
   /* host: the portal on the other side is ready: everyone steps out of it */
   arrived(p) {
@@ -1051,7 +1115,7 @@ const MP = {
 };
 function drawRemotePlayers(game, s, t, cam) {
   for (const r of MP.remotes.values()) {
-    if (!r.has || !r.alive) continue;
+    if (!r.has || !r.alive || r.riding === 'rocket') continue;   // (inside a rocket nobody can be seen)
     effectSwirls(r.x, r.y, r.z, r.fxBits || 0, 1 / 60, 1);
     const dx = r.x - cam.x, dz = r.z - cam.z;
     if (dx * dx + dz * dz > R.fogEnd * R.fogEnd) continue;

@@ -13,6 +13,8 @@ const B = {
   NETHERRACK: 80, SOUL_SAND: 81, NETHER_QUARTZ_ORE: 82, QUARTZ_BLOCK: 83, NETHER_BRICKS: 84, NETHER_PORTAL: 85,
   MEGA_TNT: 86, ICE_TNT: 87, DIG_TNT: 88, PARTY_TNT: 89, CLUSTER_TNT: 90, DISPENSER: 91, LEVER: 92, BUTTON: 93, RAIL: 94,
   LAPIS_ORE: 95, LAPIS_BLOCK: 96, SUGAR_CANE: 97, SIGN: 98, ENCH_TABLE: 99, BREWING_STAND: 100, TV: 101, BOARD: 102,
+  MOON_DUST: 103, MOON_ROCK: 104, MOON_CHEESE: 105, FLAG: 106, SLATE: 107, STAINED_GLASS: 108, CANDLE: 109, SORTING_HAT: 118,
+  CORAL_RED: 115, CORAL_YELLOW: 116, CORAL_BLUE: 117, CAMERA: 113, MONITOR: 114, SPAWNER: 110, CRACKED_BRICKS: 111, IRON_BARS: 112,
   UNLOADED: 255,
 };
 const I = {
@@ -27,12 +29,13 @@ const I = {
   MINECART: 321, CAR: 322, STRING: 323,
   SUGAR: 324, PAPER: 325, BOOK: 326, WRITABLE_BOOK: 327, WRITTEN_BOOK: 328, LAPIS: 329, GLASS_BOTTLE: 330, SHIELD: 331, FISHING_ROD: 332,
   COD: 333, COOKED_COD: 334, SALMON: 335, COOKED_SALMON: 336, TROPICAL_FISH: 337, PUFFERFISH: 338, BOAT: 339, SUBMARINE: 340, MAGMA_CREAM: 341, XP_BOTTLE: 342,
+  WAND: 402, BROOM: 403, FLYING_CAR: 404, ROCKET: 405, SPACE_HELMET: 406, PLAN_BOOK: 407, ROBOT: 408, CHEESE: 409,
   POTION: 370, // 370..381 potions, 390..401 splash potions, in POTIONS order
   SPLASH: 390,
   ARMOR: 350, // 350..365 = material*4 + slot
 };
-const EGG_MOBS = ['pig', 'cow', 'sheep', 'chicken', 'zombie', 'creeper', 'villager', 'piglin', 'magma', 'enderman', 'ghast', 'cod', 'salmon', 'tropical', 'pufferfish'];
-const MOB_NAMES = { piglin: 'Zombified Piglin', magma: 'Magma Cube', tropical: 'Tropical Fish' };
+const EGG_MOBS = ['pig', 'cow', 'sheep', 'chicken', 'zombie', 'creeper', 'villager', 'piglin', 'magma', 'enderman', 'ghast', 'cod', 'salmon', 'tropical', 'pufferfish', 'golem', 'snork'];   // (I.EGG + 16 is the last spare egg id)
+const MOB_NAMES = { piglin: 'Zombified Piglin', magma: 'Magma Cube', tropical: 'Tropical Fish', golem: 'Iron Golem' };
 const mobName = m => MOB_NAMES[m] || m[0].toUpperCase() + m.slice(1);
 const TOOL_MATS = ['wood', 'stone', 'iron', 'diamond'];
 const TOOL_MAT_NAMES = ['Wooden', 'Stone', 'Iron', 'Diamond'];
@@ -194,6 +197,32 @@ const boardBox = d => d < 16 ? [0.15, 0, 0.15, 0.85, 1, 0.85] : [[0, 0, 0, 1, 1,
 defBlock(B.BOARD, 'Coloring Board', { tex: 'board_item', solid: false, opaque: false, render: R_NONE, hardness: 1, tool: 'axe', sound: 'wood', plant: 'sign', ao: false, boxFn: boardBox, fuel: 10 });
 SPECIAL[B.BOARD] = 1;
 defBlock(B.SUGAR_CANE, 'Sugar Cane', { tex: 'sugar_cane', solid: false, opaque: false, render: R_CROSS, hardness: 0, sound: 'grass', box: [0.15, 0, 0.15, 0.85, 1, 0.85], plant: 'cane' });
+// the Moon: grey dust over moon rock, and (of course) cheese; and a flag to put up when you get there
+defBlock(B.MOON_DUST, 'Moon Dust', { tex: 'moon_dust', hardness: 0.5, tool: 'shovel', sound: 'sand' });
+defBlock(B.MOON_ROCK, 'Moon Rock', { tex: 'moon_rock', hardness: 1.5, tool: 'pickaxe', tier: 1 });
+defBlock(B.MOON_CHEESE, 'Moon Cheese', { tex: 'moon_cheese', hardness: 0.6, sound: 'wool', drop: I.CHEESE });
+defBlock(B.FLAG, 'Flag', { tex: 'flag_item', solid: false, opaque: false, render: R_NONE, hardness: 0.5, sound: 'wood', plant: 'sign', ao: false, box: [0.375, 0, 0.375, 0.625, 1, 0.625] });
+SPECIAL[B.FLAG] = 1;
+// Hogwarts: slate roofs, stained glass windows, candles that float in the air, and the Sorting Hat on its stool
+defBlock(B.SLATE, 'Slate', { tex: 'slate', hardness: 1.5, tool: 'pickaxe', tier: 1 });
+defBlock(B.STAINED_GLASS, 'Stained Glass', { tex: 'stained_glass', opaque: false, hardness: 0.3, sound: 'glass', cullSame: true });
+defBlock(B.CANDLE, 'Floating Candle', { tex: 'candle_item', solid: false, opaque: false, render: R_NONE, emit: 12, hardness: 0, sound: 'wool', ao: false, box: [0.35, 0, 0.35, 0.65, 0.6, 0.65] });
+defBlock(B.SORTING_HAT, 'Sorting Hat', { tex: 'sorting_hat_item', solid: false, opaque: false, render: R_NONE, hardness: 0.5, sound: 'wool', ao: false, box: [0.1, 0, 0.1, 0.9, 1.6, 0.9] });
+SPECIAL[B.CANDLE] = SPECIAL[B.SORTING_HAT] = 1;
+// security cameras (on a wall, or standing on a block) and the monitors that show what they see (see 09s-cameras.js)
+const camBox = d => d < 16 ? [0.3, 0, 0.3, 0.7, 0.75, 0.7] : [[0.3, 0.5, 0, 0.7, 0.85, 0.6], [0.4, 0.5, 0.3, 1, 0.85, 0.7], [0.3, 0.5, 0.4, 0.7, 0.85, 1], [0, 0.5, 0.3, 0.6, 0.85, 0.7]][d & 3];
+defBlock(B.CAMERA, 'Security Camera', { tex: 'camera_item', solid: false, opaque: false, render: R_NONE, hardness: 0.5, sound: 'metal', plant: 'sign', ao: false, boxFn: camBox });
+defBlock(B.MONITOR, 'Camera Monitor', { tex: { top: 'monitor_top', bottom: 'monitor_side', side: 'monitor_side', front: 'monitor_front', back: 'monitor_back' }, hardness: 1.5, sound: 'metal', facing: true });
+SPECIAL[B.CAMERA] = SPECIAL[B.MONITOR] = 1;
+// dungeons (see 02b-gen3.js and 09y-dungeons.js): monster spawners (a little monster turns inside: data 0 zombie, 1 magma cube), old cracked stone bricks and iron bars
+defBlock(B.SPAWNER, 'Monster Spawner', { tex: 'spawner', opaque: false, hardness: 5, tool: 'pickaxe', tier: 1, sound: 'metal', drop: null, xp: [15, 43] });
+defBlock(B.CRACKED_BRICKS, 'Cracked Stone Bricks', { tex: 'cracked_bricks', hardness: 1.5, tool: 'pickaxe', tier: 1 });
+defBlock(B.IRON_BARS, 'Iron Bars', { tex: 'iron_bars', opaque: false, hardness: 5, tool: 'pickaxe', tier: 1, sound: 'metal', cullSame: true });
+SPECIAL[B.SPAWNER] = 1;
+// coral reefs on the warm sea floor (where the Snorks live)
+defBlock(B.CORAL_RED, 'Red Coral Block', { tex: 'coral_red', hardness: 1.5, tool: 'pickaxe' });
+defBlock(B.CORAL_YELLOW, 'Yellow Coral Block', { tex: 'coral_yellow', hardness: 1.5, tool: 'pickaxe' });
+defBlock(B.CORAL_BLUE, 'Blue Coral Block', { tex: 'coral_blue', hardness: 1.5, tool: 'pickaxe' });
 defBlock(B.UNLOADED, 'Unloaded', { tex: 'stone', render: R_NONE, pass: 0, hardness: -1, creative: false, drop: null });
 TARGETABLE[B.UNLOADED] = 0;
 
@@ -236,6 +265,15 @@ defItem(I.MINECART, 'Minecart', { tex: 'minecart', stack: 1 });
 defItem(I.CAR, 'Car', { tex: 'car', stack: 1 });
 defItem(I.BOAT, 'Boat', { tex: 'boat', stack: 1 });
 defItem(I.SUBMARINE, 'Submarine', { tex: 'submarine', stack: 1 });
+defItem(I.FLYING_CAR, 'Flying Car', { tex: 'flycar', stack: 1 });
+defItem(I.BROOM, 'Broomstick', { tex: 'broom', stack: 1, fuel: 5 });
+defItem(I.ROCKET, 'Rocket', { tex: 'rocket', stack: 1 });
+defItem(I.WAND, 'Magic Wand', { tex: 'wand', stack: 1 });   // (see 09x-wand.js)
+defItem(I.PLAN_BOOK, 'Book of Building Plans', { tex: 'plan_book', stack: 1 });   // (see 09q-plans.js)
+defItem(I.ROBOT, 'Robot', { tex: 'robot', stack: 1 });   // (see 09z-robots.js)
+defItem(I.CHEESE, 'Moon Cheese', { tex: 'cheese', food: 4 });
+// (a helmet that lets you breathe on the Moon: see 09m-moon.js)
+defItem(I.SPACE_HELMET, 'Space Helmet', { tex: 'space_helmet', stack: 1, armor: { slot: 0, def: 2, mat: 2, model: 'space_helmet' }, tool: { kind: 'armor', tier: 0, speed: 1, dur: 240, dmg: 1, passive: true } });
 defItem(I.STRING, 'String', { tex: 'string' });
 defItem(I.SUGAR, 'Sugar', { tex: 'sugar' });
 defItem(I.PAPER, 'Paper', { tex: 'paper' });
@@ -374,6 +412,17 @@ shapeless(B.BUTTON, 1, [B.STONE]);
 shaped(B.RAIL, 16, ['I I', 'ISI', 'I I'], { I: I.IRON_INGOT, S: I.STICK });
 shaped(I.MINECART, 1, ['I I', 'III'], { I: I.IRON_INGOT });
 shaped(I.CAR, 1, [' G ', 'III', 'C C'], { G: B.GLASS, I: I.IRON_INGOT, C: I.COAL });
+shapeless(I.FLYING_CAR, 1, [I.CAR, I.FEATHER, I.FEATHER, I.FEATHER, I.FEATHER]);   // wings!
+shaped(I.BROOM, 1, ['  S', ' S ', 'F  '], { S: I.STICK, F: I.FEATHER });
+shaped(I.ROCKET, 1, [' I ', 'IGI', 'IFI'], { I: I.IRON_INGOT, G: B.GLASS, F: B.FURNACE });   // (the furnace is the engine)
+shapeless(I.WAND, 1, [I.STICK, I.FEATHER, I.GOLD_INGOT]);   // (a phoenix feather inside)
+shapeless(I.PLAN_BOOK, 1, [I.BOOK, I.PAPER]);
+shaped(I.ROBOT, 1, [' G ', 'III', 'I I'], { G: B.GLASS, I: I.IRON_INGOT });   // (a glass head, and an iron body and legs)
+shapeless(B.CAMERA, 1, [I.IRON_INGOT, B.GLASS, I.COAL]);   // (a lens, and a little computer inside)
+shapeless(B.MONITOR, 1, [B.TV, I.IRON_INGOT]);
+shaped(B.IRON_BARS, 16, ['III', 'III'], { I: I.IRON_INGOT });
+shaped(I.SPACE_HELMET, 1, ['III', 'IGI'], { I: I.IRON_INGOT, G: B.GLASS });
+shaped(B.FLAG, 1, ['SW', 'S '], { S: I.STICK, W: 'wool' });
 shaped(I.BOAT, 1, ['P P', 'PPP'], { P: 'planks' });
 shaped(I.SUBMARINE, 1, [' G ', 'ICI', 'III'], { G: B.GLASS, I: I.IRON_INGOT, C: I.COAL });
 [[I.LEATHER, 0], [I.GOLD_INGOT, 1], [I.IRON_INGOT, 2], [I.DIAMOND, 3]].forEach(([mat, m]) => {
@@ -452,7 +501,7 @@ const SMELT = {
   [B.IRON_ORE]: I.IRON_INGOT, [B.GOLD_ORE]: I.GOLD_INGOT, [B.SAND]: B.GLASS, [B.COBBLE]: B.STONE,
   [I.PORKCHOP]: I.COOKED_PORKCHOP, [I.BEEF]: I.STEAK, [I.CHICKEN]: I.COOKED_CHICKEN, [B.CLAY]: B.BRICKS,
   [B.OAK_LOG]: I.COAL, [B.BIRCH_LOG]: I.COAL, [B.SPRUCE_LOG]: I.COAL, [B.DIAMOND_ORE]: I.DIAMOND, [B.COAL_ORE]: I.COAL, [B.EMERALD_ORE]: I.EMERALD,
-  [B.MOSSY_COBBLE]: B.STONE, [B.NETHERRACK]: I.NETHER_BRICK, [B.NETHER_QUARTZ_ORE]: I.QUARTZ, [B.LAPIS_ORE]: I.LAPIS,
+  [B.MOSSY_COBBLE]: B.STONE, [B.STONE_BRICKS]: B.CRACKED_BRICKS, [B.NETHERRACK]: I.NETHER_BRICK, [B.NETHER_QUARTZ_ORE]: I.QUARTZ, [B.LAPIS_ORE]: I.LAPIS,
   [I.COD]: I.COOKED_COD, [I.SALMON]: I.COOKED_SALMON,
 };
 /* experience for each thing taken out of a furnace (as in Minecraft) */
@@ -462,25 +511,25 @@ const SMELT_TIME = 5;
 
 /* ---------- creative inventory order ---------- */
 const CREATIVE_LIST = [
-  B.GRASS, B.DIRT, B.STONE, B.COBBLE, B.MOSSY_COBBLE, B.STONE_BRICKS, B.BRICKS, B.SANDSTONE, B.SAND, B.GRAVEL, B.CLAY,
+  B.GRASS, B.DIRT, B.STONE, B.COBBLE, B.MOSSY_COBBLE, B.STONE_BRICKS, B.CRACKED_BRICKS, B.IRON_BARS, B.SPAWNER, B.BRICKS, B.SANDSTONE, B.SAND, B.GRAVEL, B.CLAY,
   B.OAK_LOG, B.BIRCH_LOG, B.SPRUCE_LOG, B.OAK_PLANKS, B.BIRCH_PLANKS, B.SPRUCE_PLANKS,
   B.OAK_LEAVES, B.BIRCH_LEAVES, B.SPRUCE_LEAVES, B.GLASS, B.ICE, B.SNOW, B.SNOWY_GRASS, B.OBSIDIAN, B.BEDROCK,
   B.COAL_ORE, B.IRON_ORE, B.GOLD_ORE, B.DIAMOND_ORE, B.EMERALD_ORE, B.LAPIS_ORE, B.COAL_BLOCK, B.IRON_BLOCK, B.GOLD_BLOCK, B.DIAMOND_BLOCK, B.EMERALD_BLOCK, B.LAPIS_BLOCK,
   B.NETHERRACK, B.SOUL_SAND, B.NETHER_QUARTZ_ORE, B.QUARTZ_BLOCK, B.NETHER_BRICKS,
   B.GLOWSTONE, B.TORCH, B.JACK_O_LANTERN, B.PUMPKIN, B.TNT, B.MEGA_TNT, B.ICE_TNT, B.DIG_TNT, B.PARTY_TNT, B.CLUSTER_TNT,
-  B.CRAFTING_TABLE, B.FURNACE, B.CHEST, B.BOOKSHELF, B.ENCH_TABLE, B.BREWING_STAND, B.SIGN, B.BOARD, B.TV, B.BED, I.DOOR, B.DISPENSER, B.LEVER, B.BUTTON, B.RAIL, I.MINECART, I.CAR, I.BOAT, I.SUBMARINE,
+  B.CRAFTING_TABLE, B.FURNACE, B.CHEST, B.BOOKSHELF, B.ENCH_TABLE, B.BREWING_STAND, B.SIGN, B.BOARD, B.TV, B.MONITOR, B.CAMERA, B.BED, I.DOOR, B.DISPENSER, B.LEVER, B.BUTTON, B.RAIL, I.MINECART, I.CAR, I.FLYING_CAR, I.BROOM, I.ROCKET, I.SPACE_HELMET, I.BOAT, I.SUBMARINE,
   B.CACTUS, B.SUGAR_CANE, B.TALL_GRASS, B.DANDELION, B.POPPY, B.CORNFLOWER, B.DEAD_BUSH, B.OAK_SAPLING, B.BIRCH_SAPLING, B.SPRUCE_SAPLING,
-  B.WATER, B.LAVA,
+  B.WATER, B.LAVA, B.CORAL_RED, B.CORAL_YELLOW, B.CORAL_BLUE, B.MOON_DUST, B.MOON_ROCK, B.MOON_CHEESE, B.FLAG, B.SLATE, B.STAINED_GLASS, B.CANDLE, B.SORTING_HAT,
   ...TAGS.wool,
   toolId(0, 0), toolId(0, 1), toolId(0, 2), toolId(0, 3), toolId(1, 0), toolId(1, 1), toolId(1, 2), toolId(1, 3),
   toolId(2, 0), toolId(2, 1), toolId(2, 2), toolId(2, 3), toolId(3, 0), toolId(3, 1), toolId(3, 2), toolId(3, 3), I.FLINT_AND_STEEL,
-  I.BOW, I.CROSSBOW, I.ARROW, I.FIRE_CHARGE, I.ENDER_PEARL, I.SHIELD, I.FISHING_ROD,
+  I.BOW, I.CROSSBOW, I.ARROW, I.FIRE_CHARGE, I.ENDER_PEARL, I.SHIELD, I.FISHING_ROD, I.WAND,
   ...[0, 1, 2, 3].flatMap(m => [0, 1, 2, 3].map(k => armorId(m, k))),
   I.STICK, I.COAL, I.IRON_INGOT, I.GOLD_INGOT, I.DIAMOND, I.EMERALD, I.LAPIS, I.FLINT, I.QUARTZ, I.NETHER_BRICK, I.GUNPOWDER, I.FEATHER, I.LEATHER, I.STRING, I.GHAST_TEAR,
-  I.PAPER, I.BOOK, I.WRITABLE_BOOK, I.SUGAR, I.XP_BOTTLE, I.MAGMA_CREAM, I.GLASS_BOTTLE,
+  I.PAPER, I.BOOK, I.WRITABLE_BOOK, I.PLAN_BOOK, I.ROBOT, I.SUGAR, I.XP_BOTTLE, I.MAGMA_CREAM, I.GLASS_BOTTLE,
   ...POTIONS.map((pt, k) => potionId(k, false)), ...POTIONS.map((pt, k) => potionId(k, true)),
   I.APPLE, I.BREAD, I.PORKCHOP, I.COOKED_PORKCHOP, I.BEEF, I.STEAK, I.CHICKEN, I.COOKED_CHICKEN, I.ROTTEN_FLESH,
-  I.COD, I.COOKED_COD, I.SALMON, I.COOKED_SALMON, I.TROPICAL_FISH, I.PUFFERFISH,
+  I.COD, I.COOKED_COD, I.SALMON, I.COOKED_SALMON, I.TROPICAL_FISH, I.PUFFERFISH, I.CHEESE,
   ...EGG_MOBS.map((m, i) => I.EGG + i),
 ];
 

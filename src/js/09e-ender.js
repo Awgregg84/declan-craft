@@ -62,6 +62,7 @@ function enderTick(game, e, dt) {
   if (e.screamT > 0) e.screamT -= dt;
   const wet = w.getBlock(Math.floor(e.x), Math.floor(e.y + 0.2), Math.floor(e.z)) === B.WATER || w.getBlock(Math.floor(e.x), Math.floor(e.y + 1.5), Math.floor(e.z)) === B.WATER;
   if (wet && e.tpT <= 0) { e.tpT = 0.5; hurtMob(game, e, 1, e.x, e.z, 'water'); if (!e.dead) enderTeleport(game, e, 'random'); return; }
+  if (!wet && e.tpT <= 0 && wxWetAt(w, e.x, e.y + 2.9, e.z)) { e.tpT = 2; enderTeleport(game, e, 'random'); return; }   // out of the rain!
   if (e.angryT > 0) {
     const tg = angryTarget(game, e);
     if (tg && tg.dist > 10 && e.tpT <= 0 && Math.random() < dt * 0.8) { e.tpT = 2; enderTeleport(game, e, 'toward'); }

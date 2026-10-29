@@ -155,15 +155,15 @@ class Player {
       }
       physicsStep(world, this, dt, 30);
       if (this.landed) {
-        const safe = hasEffect(this, 'leaping') ? 5.5 : 3.5;   // (leaping: a softer landing too)
-        if (this.fallDist > safe && !creative && !(this.partyT > 0)) this.damage(Math.floor(this.fallDist - safe + 0.5), 'fall');
+        const safe = hasEffect(this, 'leaping') ? 5.5 : 3.5, fall = this.fallDist * (world.map === 'moon' ? MOON_G : 1);   // (leaping: a softer landing too; on the Moon, much softer)
+        if (fall > safe && !creative && !(this.partyT > 0)) this.damage(Math.floor(fall - safe + 0.5), 'fall');
         if (this.fallDist > 1.2) sfx('step_' + SOUND_OF(world.getBlock(Math.floor(this.x), Math.floor(this.y - 0.2), Math.floor(this.z))), this.x, this.y, this.z, 0.6);
         this.fallDist = 0;
       }
       if (this.onGround) this.fallDist = 0;
       if (game.settings.autoJump && this.onGround && this.collidedH && len > 0.3) {
         const dirx = wx / (speed || 1), dirz = wz / (speed || 1);
-        if (boxFree(world, this.x + dirx * 0.45, this.y + 1.05, this.z + dirz * 0.45, this.w, this.h)) this.vy = 8.7;
+        if (boxFree(world, this.x + dirx * 0.45, this.y + 1.05, this.z + dirz * 0.45, this.w, this.h)) this.vy = world.map === 'moon' ? 5.2 : 8.7;   // (just up the step, even on the Moon)
       }
     }
     }
@@ -188,7 +188,11 @@ class Player {
     if (Math.abs(d) > 0.9) this.bodyYaw = this.yaw - Math.sign(d) * 0.9;
     if (this.swingP < 1) this.swingP = Math.min(1, this.swingP + dt * 3.3);
     const hid = this.heldId(), fam = hid === I.CROSSBOW_LOADED ? I.CROSSBOW : hid;
-    if (fam !== this.lastHeld) { this.equip = 0; this.lastHeld = fam; this.drawT = 0; this.loadT = 0; heldTip(fam); }
+    if (fam !== this.lastHeld) { this.equip = 0; this.lastHeld = fam; this.drawT = 0; this.loadT = 0; heldTip(fam); wandHeld(this, fam); }
+    if (this.lumos && game.view === 0 && Math.random() < 0.7 && PARTICLES.length < 1500) {   // the tip of the wand glows (Lumos)
+      const [dx, dy, dz] = this.lookDir(), rx = Math.cos(this.yaw), rz = -Math.sin(this.yaw), [ex, ey, ez] = this.eyePos();
+      PARTICLES.push({ x: ex + dx * 0.55 + rx * 0.22, y: ey + dy * 0.55 - 0.12, z: ez + dz * 0.55 + rz * 0.22, vx: 0, vy: 0, vz: 0, life: 0.05, tile: TILE.spark_yellow, u: 0, v: 0, us: 16, size: 0.035, grav: 0, bright: 1 });
+    }
     this.equip = Math.min(1, this.equip + dt * 5);
     this.vitals(dt, creative);
     this.interact(dt, creative);
@@ -214,9 +218,12 @@ class Player {
         }
       }
     }
-    if (this.headInWater && !hasEffect(this, 'water_breathing') && !inSubmarine(this)) {
+    const space = !canBreatheHere(this);   // (on the Moon without a space helmet)
+    if ((this.headInWater && !hasEffect(this, 'water_breathing') && !inSubmarine(this)) || space) {
       this.airT += dt;
-      if (this.airT > 1.5 * (1 + enchLvl(this.inv[ARMOR_INV], 'respiration'))) { this.airT = 0; if (this.air > 0) this.air--; else this.damage(2, 'drown'); }
+      if (this.airT > 1.5 * (1 + enchLvl(this.inv[ARMOR_INV], 'respiration'))) { this.airT = 0; if (this.air > 0) this.air--; else this.damage(2, space ? 'space' : 'drown'); }
+      if (this.air <= 3 && !space) snorkShareAir(game, this);   // (a Snork close by gives you some of its air)
+      if (space && !this.toldSpace) { this.toldSpace = true; toast('There is no air on the Moon! Put on your space helmet, or get back in the rocket.', 4); }
     } else { this.airT = 0; if (this.air < 10) { this.regAirT = (this.regAirT || 0) + dt; if (this.regAirT > 0.2) { this.regAirT = 0; this.air++; } } }
     const diff = difficulty();
     const moving = Math.hypot(this.vx, this.vz) > 0.5;
@@ -262,7 +269,7 @@ class Player {
     const held = this.held(), hid = held ? held.id : 0;
     // a raised shield: held in the hand, or in the off-hand slot while the hand has nothing else to do
     const shield = shieldHand(this), tgtUse = this.target && !this.sneaking && this.isInteractive(this.target.id);
-    const tEnt0 = this.targetEnt, entUse = tEnt0 && (tEnt0.type === 'villager' || (tEnt0.vehicle && !this.riding));
+    const tEnt0 = this.targetEnt, entUse = tEnt0 && (tEnt0.type === 'villager' || tEnt0.type === 'snork' || (tEnt0.vehicle && !this.riding));
     if (inp.use && shield && !this.riding && !tgtUse && !entUse && (shield === 'main' || offhandFree(this, hid))) {
       this.blockT += dt;
       this.blocking = this.blockT >= 0.15;
@@ -316,9 +323,27 @@ class Player {
       inp.use = false; inp.usePressed = false;
       return;
     }
+    // tap your robot: it does the next thing (follow, guard, collect, stay)
+    if (inp.use && inp.usePressed && tEnt && tEnt.type === 'robot' && this.useCd <= 0 && !tEnt.dead) {
+      this.swing(); robotTap(game, this, tEnt); this.useCd = 0.3;
+      inp.use = false; inp.usePressed = false;
+      return;
+    }
+    // give a Snork a fish: it gives you a present back
+    if (inp.use && inp.usePressed && tEnt && tEnt.type === 'snork' && this.useCd <= 0 && !tEnt.dead) {
+      this.swing(); snorkGift(game, this, tEnt, hid, creative); this.useCd = 0.4;
+      inp.use = false; inp.usePressed = false;
+      return;
+    }
+    // in a rocket: a tap starts the countdown
+    if (this.riding && this.riding.type === 'rocket' && inp.use) {
+      if (inp.usePressed && this.useCd <= 0) { this.useCd = 0.5; rocketLaunch(game, this, this.riding); }
+      inp.usePressed = false;
+      return;
+    }
     // get into a minecart or car; in the car, a tap honks the horn
     if (inp.use && inp.usePressed && tEnt && tEnt.vehicle && !this.riding) { this.swing(); mountVehicle(game, tEnt); inp.use = false; inp.usePressed = false; return; }
-    if (this.riding && (this.riding.type === 'car' || this.riding.type === 'submarine') && inp.use) {   // (in a submarine: a sonar ping)
+    if (this.riding && (this.riding.type === 'car' || this.riding.type === 'flycar' || this.riding.type === 'submarine') && inp.use) {   // (in a submarine: a sonar ping)
       if (inp.usePressed && this.useCd <= 0) {
         this.useCd = 0.5;
         if (this.riding.type === 'submarine') sonarPing(game, this);
@@ -328,6 +353,10 @@ class Player {
       return;
     }
     const interactive = this.target && !this.sneaking && this.isInteractive(this.target.id);
+    // a book of building plans: open it
+    if (hid === I.PLAN_BOOK && inp.use && inp.usePressed && this.useCd <= 0 && !interactive) { inp.usePressed = false; inp.use = false; this.useCd = 0.3; this.swing(); openPlans(); return; }
+    // a magic wand: tap to cast its spell
+    if (hid === I.WAND && inp.use && inp.usePressed && this.useCd <= 0 && !interactive) { inp.usePressed = false; this.useCd = castSpell(game, this); return; }
     // bows and crossbows
     const rtool = toolOf(hid);
     if (rtool && rtool.ranged && !(interactive && inp.usePressed && !this.drawT && !this.loadT)) { this.useRanged(inp, hid, rtool, dt, creative); inp.usePressed = false; return; }
@@ -398,7 +427,7 @@ class Player {
   }
   isInteractive(id) {
     return id === B.DOOR || id === B.CRAFTING_TABLE || id === B.FURNACE || id === B.FURNACE_LIT || id === B.CHEST || id === B.BED || !!(BLOCKS[id] && BLOCKS[id].tnt) ||
-      id === B.LEVER || id === B.BUTTON || id === B.DISPENSER || id === B.ENCH_TABLE || id === B.SIGN || id === B.BREWING_STAND || id === B.TV || id === B.BOARD;
+      id === B.LEVER || id === B.BUTTON || id === B.DISPENSER || id === B.ENCH_TABLE || id === B.SIGN || id === B.BREWING_STAND || id === B.TV || id === B.BOARD || id === B.SORTING_HAT || id === B.MONITOR;
   }
   /* bows: hold to pull back and let go to shoot (a quick tap is a quick shot); crossbows: tap to load, tap to fire */
   useRanged(inp, hid, tool, dt, creative) {
@@ -471,7 +500,9 @@ class Player {
       if (t.id === B.ENCH_TABLE) { this.swing(); openEnchant(t.x, t.y, t.z); return true; }
       if (t.id === B.BREWING_STAND) { this.swing(); const tile = MP.useTile(t.x, t.y, t.z, 'brew'); if (tile) game.openScreen('brew', tile); return true; }
       if (t.id === B.SIGN) { this.swing(); openSign(t.x, t.y, t.z); return true; }
+      if (t.id === B.SORTING_HAT) { this.swing(); sortingHat(game, t.x, t.y, t.z); return true; }
       if (t.id === B.TV) { this.swing(); useTV(game, t.x, t.y, t.z); return true; }
+      if (t.id === B.MONITOR) { this.swing(); useMonitor(game, t.x, t.y, t.z); return true; }
       if (t.id === B.BOARD) { this.swing(); openBoard(t.x, t.y, t.z); return true; }
       if (t.id === B.DISPENSER) { this.swing(); const tile = MP.useTile(t.x, t.y, t.z, 'dispenser'); if (tile) { sfx('chest', t.x + 0.5, t.y + 0.5, t.z + 0.5); game.openScreen('dispenser', tile); } return true; }
       if (t.id === B.DOOR) {
@@ -489,9 +520,18 @@ class Player {
       sfx('flint', fx + 0.5, fy + 0.5, fz + 0.5);
       const p = lightPortalAt(game, fx, fy, fz);
       if (p) sfx('portalLight', fx + 0.5, fy + 0.5, fz + 0.5);
+      else if (game.dim === 'moon' && findPortalFrame(game.world, fx, fy, fz)) toast("A portal won't light on the Moon. Fly home in the rocket!", 4);
       else if (this.inv[this.sel] && !this.usedFlint) { this.usedFlint = true; toast('Build an obsidian frame (at least 4 wide and 5 tall), then light it inside.', 4); }
       smokeParticles(fx + 0.5, fy + 0.3, fz + 0.5, p ? 14 : 4, p ? 0.8 : 0.15, false);
       if (!creative) this.damageTool(1);
+      return true;
+    }
+    if (hid === I.ROBOT && t.face === 2) {   // let your robot out (on top of a block)
+      const rx = t.x + 0.5, ry = t.y + 1, rz = t.z + 0.5;
+      if (!boxFree(world, rx, ry, rz, 0.3, 1.15)) return false;
+      placeRobot(game, this, this.inv[this.sel], rx, ry, rz);
+      this.swing();
+      if (!creative) this.consumeHeld(1);
       return true;
     }
     const egg = hid >= 256 && ITEMS[hid] && ITEMS[hid].egg;
@@ -519,8 +559,8 @@ class Player {
       if (!creative) this.consumeHeld(1);
       return true;
     }
-    if ((hid === I.MINECART || hid === I.CAR || hid === I.BOAT || hid === I.SUBMARINE) && t.face >= 0) {
-      const type = hid === I.CAR ? 'car' : hid === I.BOAT ? 'boat' : hid === I.SUBMARINE ? 'submarine' : 'minecart';
+    if ((hid === I.MINECART || hid === I.CAR || hid === I.BOAT || hid === I.SUBMARINE || hid === I.FLYING_CAR || hid === I.BROOM || hid === I.ROCKET) && t.face >= 0) {
+      const type = hid === I.CAR ? 'car' : hid === I.BOAT ? 'boat' : hid === I.SUBMARINE ? 'submarine' : hid === I.FLYING_CAR ? 'flycar' : hid === I.BROOM ? 'broom' : hid === I.ROCKET ? 'rocket' : 'minecart';
       let vx = t.x + 0.5, vy = t.y + 1, vz = t.z + 0.5;
       if (hid === I.MINECART) {
         if (t.id !== B.RAIL) { if (!this.toldRails) { this.toldRails = true; toast('Minecarts go on rails. Put some rails down first.', 3); } return false; }
@@ -539,6 +579,33 @@ class Player {
     if (!hid || hid >= 256) return false;
     let px = t.x + DX[t.face], py = t.y + DY[t.face], pz = t.z + DZ[t.face];
     if (t.face < 0) return false;
+    if (hid === B.FLAG) {   // a flag stands on top of a block, turned toward you
+      if (t.face !== 2 && !BLOCKS[t.id].replaceable) return false;
+      if (BLOCKS[t.id].replaceable && !LIQUID[t.id]) { px = t.x; py = t.y; pz = t.z; }
+      const cur = world.getBlock(px, py, pz), data = Math.round(this.yaw / (Math.PI / 8)) & 15;
+      if (py < 0 || py >= WH || cur === B.UNLOADED || !(cur === B.AIR || BLOCKS[cur].replaceable) || !world.canStay(px, py, pz, hid, data)) return false;
+      world.setBlock(px, py, pz, hid, data, true);
+      sfx('place_wood', px + 0.5, py + 0.5, pz + 0.5);
+      if (game.net) MP.localFx('place', px, py, pz, hid);
+      this.swing();
+      if (!creative) this.consumeHeld(1);
+      if (game.dim === 'moon' && !game.stats.moonFlag) { game.stats.moonFlag = 1; chat(playerName() + ' put up a flag on the Moon!', '#ffd24a'); sfx('levelUp'); if (game.net) MP.system(playerName() + ' put up a flag on the Moon!'); }
+      return true;
+    }
+    if (hid === B.CAMERA) {   // on top of a block: on its stand, looking at you; on a side: out from the wall, looking away from it
+      if (t.face === 3) return false;
+      const onTop = t.face === 2 || (BLOCKS[t.id].replaceable && !LIQUID[t.id]);
+      if (BLOCKS[t.id].replaceable && !LIQUID[t.id]) { px = t.x; py = t.y; pz = t.z; }
+      const cur = world.getBlock(px, py, pz), data = onTop ? Math.round(this.yaw / (Math.PI / 8)) & 15 : 16 + FRONT_FACE.indexOf(t.face);
+      if (py < 0 || py >= WH || cur === B.UNLOADED || !(cur === B.AIR || BLOCKS[cur].replaceable) || !world.canStay(px, py, pz, hid, data)) return false;
+      world.setBlock(px, py, pz, hid, data, true);
+      sfx('place_metal', px + 0.5, py + 0.5, pz + 0.5);
+      if (game.net) MP.localFx('place', px, py, pz, hid);
+      this.swing();
+      if (!creative) this.consumeHeld(1);
+      if (!game.stats.camera) { game.stats.camera = 1; toast('Camera up! Watch it on a Camera Monitor (make one from a TV and an iron ingot).', 5); }
+      return true;
+    }
     if (hid === B.SIGN || hid === B.BOARD) {   // on top of a block: standing, turned toward you; on a side: hung on the wall
       if (t.face === 3) return false;
       if (BLOCKS[t.id].replaceable && !LIQUID[t.id]) { px = t.x; py = t.y; pz = t.z; }
@@ -583,6 +650,7 @@ class Player {
     else world.setBlock(px, py, pz, hid, data, true);
     if (hid === B.CHEST) world.getTile(px, py, pz, 'chest');
     if (hid === B.FURNACE) world.getTile(px, py, pz, 'furnace');
+    if (hid === B.PUMPKIN || hid === B.JACK_O_LANTERN) golemBuildCheck(game, px, py, pz);   // on a T of iron blocks: an iron golem
     sfx('place_' + SOUND_OF(hid), px + 0.5, py + 0.5, pz + 0.5);
     if (game.net) MP.localFx('place', px, py, pz, hid);
     this.swing();
@@ -607,8 +675,9 @@ class Player {
     if (drops) {
       const st = this.held(), got = blockDrops(id, hid, st);
       for (const [did, n] of got) dropItem(game, x + 0.5, y + 0.4, z + 0.5, did, n);
-      const xp = BLOCKS[id].xp;   // ores give experience (not when Silk Touch keeps the ore whole)
-      if (xp && got.length && got[0][0] !== id) dropXp(game, x + 0.5, y + 0.5, z + 0.5, randInt(xp[0], xp[1]));
+      const xp = BLOCKS[id].xp;   // ores give experience (not when Silk Touch keeps the ore whole), and so does breaking a monster spawner
+      if (xp && (id === B.SPAWNER || (got.length && got[0][0] !== id))) dropXp(game, x + 0.5, y + 0.5, z + 0.5, randInt(xp[0], xp[1]));
+      if (id === B.SPAWNER) toast('You broke the monster spawner: no more monsters from it!', 3);
       const tool = toolOf(hid);
       if (wearsOnHit(tool) && BLOCKS[id].hardness > 0) this.damageTool(tool.kind === 'sword' ? 2 : 1);
       this.addFoodExhaust(0.1);
@@ -742,6 +811,11 @@ const HELD_TIPS = {
   [I.FISHING_ROD]: ['Tap to cast into water. When the float dips under with a splash, tap again quickly to reel in!', 'Right-click to cast into water. When the float dips under with a splash, right-click again quickly to reel in!'],
   [I.BOAT]: ['Tap some water to put the boat on it, then tap the boat to get in.', 'Right-click some water to put the boat on it, then right-click the boat to get in.'],
   [I.SUBMARINE]: ['Tap some water to put the submarine in it, then tap it to get in.', 'Right-click some water to put the submarine in it, then right-click it to get in.'],
+  [I.PLAN_BOOK]: ['Tap to open the book and pick something to build.', 'Right-click to open the book and pick something to build.'],
+  [I.ROBOT]: ['Tap the ground to let your robot out. Tap it to change what it does; hit it to put it back in your bag.', 'Right-click the ground to let your robot out. Right-click it to change what it does; hit it to put it back in your bag.'],
+  [B.CAMERA]: ['Put the camera up on a wall: it looks out from the wall. On top of a block, it looks back at you.', 'Put the camera up on a wall: it looks out from the wall. On top of a block, it looks back at you.'],
+  [B.MONITOR]: ['A monitor shows what your cameras see. Tap it to switch cameras.', 'A monitor shows what your cameras see. Right-click it to switch cameras.'],
+  [I.WAND]: ['Tap to cast a spell! The Spell button (at the top) picks a different one.', 'Right-click to cast a spell! Press F to pick a different one.'],
   [I.SHIELD]: ['Hold Place to hide behind the shield. Put it in the slot beside your armor to use it with a sword.', 'Hold the right mouse button to hide behind the shield. Put it in the slot beside your armor to use it with a sword.'],
 };
 function heldTip(id) {
@@ -778,13 +852,14 @@ function playerPose(pl, t) {
     pose.rleg = [-1.4, 0.15, 0]; pose.lleg = [-1.4, -0.15, 0];
     if (ride === 'car' || ride === 'sub') { pose.rarm = [-0.95, 0.25, 0]; pose.larm = [-0.95, -0.25, 0]; }
     else if (ride === 'boat') { const p = (pl.riding && pl.riding.wheel) || 0, sw = Math.sin(p) * 0.3; pose.rarm = [-1.05 + Math.cos(p) * 0.3, 0.25 + sw, 0]; pose.larm = [-1.05 + Math.cos(p) * 0.3, -0.25 - sw, 0]; }
+    else if (ride === 'broom') { pose.rleg = [-0.55, 0.1, 0.12]; pose.lleg = [-0.55, -0.1, -0.12]; pose.rarm = [-1.2, -0.15, 0]; pose.larm = [-1.2, 0.15, 0]; }   // astride it, holding on in front
   }
   if (pl.drawT > 0 || pl.loadT > 0 || pl.aiming) { const up = -1.45 - pl.pitch; pose.rarm = [up, -0.1, 0]; pose.larm = [up, 0.5, 0]; }   // aiming a bow or crossbow
   const sh = shieldOf(pl);
   if (sh && pl.blocking) { if (sh === 'main') pose.rarm = [-0.95, -0.45, 0]; else pose.larm = [-0.95, 0.45, 0]; }   // holding a shield up
   return pose;
 }
-function drawPlayerModel(game, s, t, cam) { drawHumanoid(game.player, playerModelFor(PROFILE.skin), game.player.heldId(), s, t, cam); }
+function drawPlayerModel(game, s, t, cam) { if (!inRocket(game.player)) drawHumanoid(game.player, playerModelFor(PROFILE.skin), game.player.heldId(), s, t, cam); }   // (inside a rocket you can't be seen)
 function drawHumanoid(pl, model, heldId, s, t, cam) {
   const P = PROG.entity, sc = model.scale;
   gl.uniform1f(P.u.uBright, brightAt(game.world, pl.x, pl.y + 1.2, pl.z, s));

@@ -813,7 +813,7 @@ const want = process.argv.slice(2), on = k => !want.length || want.includes(k);
     await p.click('#btn-play');
     await sleep(400);
     const wc = await E(() => [...document.querySelectorAll('#world-cards .card')].map(c => ({ h: c.querySelector('h3').textContent, modes: c.querySelectorAll('.modes .btn').length, hc: c.classList.contains('hardcore') })));
-    check('there are three worlds to pick: Sunny Valley, Sky Islands and Hardcore (no Creative there)', wc.length === 3 && wc[2].h === 'Hardcore' && wc[2].hc && wc[2].modes === 0, wc);
+    check('there are four worlds to pick: Sunny Valley, Sky Islands, Hogwarts and Hardcore (no Creative there)', wc.length === 4 && wc[2].h === 'Hogwarts' && wc[3].h === 'Hardcore' && wc[3].hc && wc[3].modes === 0, wc);
     await shot('worlds');
     await p.click('#world-cards .card.hardcore .actions .btn');
     await waitFor(() => game.state === 'playing', 90000);

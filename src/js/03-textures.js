@@ -590,8 +590,10 @@ function buildTiles() {
     }
   });
   buildNewBlockTiles();
+  buildBlockTiles3();
   buildItemTiles();
   buildNewItemTiles();
+  buildItemTiles3();
 }
 
 /* ---------- item sprites ---------- */
@@ -666,7 +668,7 @@ function buildItemTiles() {
   addTile('nether_brick', p => ingot(p, [C('#5a2226'), C('#843e40'), C('#381216'), C('#180608')]));
   const EGG_PAL = { pig: ['#f0a5a2', '#db635f'], cow: ['#443626', '#a1a1a1'], sheep: ['#e7e7e7', '#ffb5b5'], chicken: ['#a1a1a1', '#ff3030'],
     zombie: ['#00afaf', '#799c65'], creeper: ['#0da70b', '#1a1a1a'], villager: ['#563c33', '#bd8b72'], piglin: ['#ea9393', '#4c7129'], magma: ['#340000', '#fcfc00'],
-    enderman: ['#161616', '#000000'], ghast: ['#f9f9f9', '#bcbcbc'], cod: ['#c1a76a', '#e5c48b'], salmon: ['#a00f10', '#0e8474'], tropical: ['#ef6915', '#fff9ef'], pufferfish: ['#f6b201', '#37c3f2'] };
+    enderman: ['#161616', '#000000'], ghast: ['#f9f9f9', '#bcbcbc'], cod: ['#c1a76a', '#e5c48b'], salmon: ['#a00f10', '#0e8474'], tropical: ['#ef6915', '#fff9ef'], pufferfish: ['#f6b201', '#37c3f2'], golem: ['#d8d0c4', '#74a332'], snork: ['#f2c81e', '#e8402a'] };
   for (const m of EGG_MOBS) {
     addTile('egg_' + m, p => {
       const base = C(EGG_PAL[m][0]), spot = C(EGG_PAL[m][1]);
@@ -1171,6 +1173,7 @@ function buildSkins() {
     paintBox(S, 30, 0, 2, 6, 6, () => S.jit(C('#5a3a1e'), 6));   // the handle
   });
   buildNewSkins();
+  buildSkins3();
   addSkin('item_glint', S => { /* reserved */ });
 }
 /* a player's face as a small picture, for menus */

@@ -14,12 +14,12 @@ function savedSpots(data) {
 function loadSaveMeta(map) {
   const s = store.get(saveKey(map));
   if (!s) return null;
-  try { const d = JSON.parse(s); return { mode: d.mode, day: d.day, seed: d.seed, nether: d.dim === 'nether' }; } catch (e) { return null; }
+  try { const d = JSON.parse(s); return { mode: d.mode, day: d.day, seed: d.seed, nether: d.dim === 'nether', moon: d.dim === 'moon' }; } catch (e) { return null; }
 }
 const LOAD_TIPS = ['Punch a tree to collect wood.', 'Press E to open your inventory and turn logs into planks.', 'A crafting table lets you make tools.',
   'Torches keep monsters away at night.', 'Sleep in a bed to skip the night.', 'Creepers hiss before they explode. Run!', 'Cook food in a furnace to fill up more hunger.',
   'Sneak to stop yourself falling off edges.', 'In Creative, double-tap jump to fly.', 'Press V to see yourself from behind.', 'Diamonds hide deep underground near lava.',
-  'Villagers trade emeralds for tools, food and more.', 'A Mason gives an emerald for 16 cobblestone.', 'Type /locate village to find the nearest village.',
+  'Villagers trade emeralds for tools, food and more.', 'A Mason gives an emerald for 16 cobblestone.', 'Type /locate village to find the nearest village.', 'A little old stone tower has stairs inside that go down to a dungeon.', 'Type /locate dungeon to find the nearest dungeon.',
   'Play Together lets two iPads share one world.', 'An obsidian frame lit with flint and steel opens a portal to the Nether.',
   'Flint comes from breaking gravel. Add an iron ingot to make flint and steel.', 'Zombified piglins are peaceful unless you hit one.',
   'In the Nether, 1 block is 8 blocks back home.', 'Hold the place button with a bow to pull it back, then let go to shoot.',
@@ -29,14 +29,27 @@ const LOAD_TIPS = ['Punch a tree to collect wood.', 'Press E to open your invent
   'Armor makes monsters hurt less. A shield blocks hits from the front.', 'Bookshelves around an enchanting table make better enchantments.',
   'Fill a glass bottle at some water, then brew it into a potion.', 'When the fishing float dips under, tap quickly to reel in!',
   'A pufferfish puffs up when you get close. Watch out!', 'In a submarine you can breathe under water.', "You can't pick what's on the TV.",
-  'In Hardcore you only get one life!', 'A coloring board can stand like an easel or hang on a wall.'];
+  'In Hardcore you only get one life!', 'A coloring board can stand like an easel or hang on a wall.',
+  'Four iron blocks in a T with a pumpkin on top make an iron golem.', 'Give a Snork a fish and it gives you a present.', 'Rain puts out fires, and zombies do not burn in it.',
+  'Press Jump in the flying car to take off.', 'Wear a space helmet on the Moon: there is no air there!', 'On the Moon you can jump really high.',
+  'The Spell button picks your wand\'s spell.', 'Expecto Patronum chases monsters away.', 'Sit under the Sorting Hat to find your Hogwarts house.',
+  'A Book of Building Plans shows you where every block goes.', 'Put a security camera on a wall and watch it on a monitor.', 'Tap your robot to change what it does.',
+  'A robot on guard zaps monsters.', 'Hit your robot to put it back in your bag.', 'Treasure Vaults have the best treasure of all.',
+  'Fish bite sooner in the rain.', "Zombies don't burn in the rain, and endermen hate getting wet.", 'In cold places it snows instead of raining. Try /weather snow!',
+  'Snorks love fish. Give one a fish and it gives you a present!', 'Running out of air? A Snork will share its air with you.',
+  'A rocket takes everyone to the Moon. Tap it to get in, then tap again: 3, 2, 1, blast off!', 'On the Moon you can jump really high.',
+  'There is no air on the Moon: keep your space helmet on!', 'The Moon is made of cheese. Well, some of it.', 'Put a flag up on the Moon!',
+  'A magic wand knows six spells. Lumos lights up dark caves!', 'Expecto Patronum sends a silver stag to chase monsters away.'];
 const DEATH_MSG = {
   fall: 'fell from a high place', lava: 'tried to swim in lava', drown: 'ran out of air', zombie: 'was caught by a Zombie',
   explosion: 'was blown up', cactus: 'hugged a cactus', starve: 'got too hungry', void: 'fell out of the world',
   piglin: 'was chased by a Zombified Piglin', magma: 'was squashed by a Magma Cube',
   arrow: 'was shot by an arrow', fireball: 'was hit by a fireball', enderman: 'annoyed an Enderman', ghast: 'was blown up by a Ghast',
   party: 'partied too hard', ice: 'froze solid', poison: 'was poisoned', magic: 'was hit by a potion', pufferfish: 'was stung by a pufferfish',
+  golem: 'was flung by an Iron Golem', space: 'forgot to wear a space helmet',
 };
+const DIMS = ['over', 'nether', 'moon'];   // the Overworld (whichever map it is), the Nether and the Moon
+const okDim = d => (DIMS.includes(d) ? d : 'over');
 
 const game = {
   state: 'boot', world: null, player: new Player(), entities: [], mode: 'survival', mapId: null, seed: 0, slot: null, hardcore: false, hcOver: false, hcOut: [],
@@ -45,8 +58,9 @@ const game = {
   view: 0, uiOpen: false, paused: false, pool: null, sky: null, t: 0, lastT: 0, hurtFlash: 0, hurtTilt: 0, shake: 0, stats: {}, day: 1,
   ui, gen: null, locked: false, dragLook: false, hideHud: false, debug: false, saveT: 0, spawnT: 0, debugT: 0, loadT: 0, sleeping: 0,
   lastJumpT: 0, lastFwdT: 0, touchOn: false, fov: 70, warnedSave: false, titleYaw: 0, menuSpawn: [0, 80, 0], net: null, hostAfterLoad: false,
-  // dimensions: the live world is this.dim ('over' or 'nether'); the other one waits here, saved as block changes
-  dim: 'over', dims: { over: null, nether: null }, portals: [], netherSpawn: null, arrival: null, overVB: [],
+  // dimensions: the live world is this.dim ('over', 'nether' or 'moon'); the others wait here, saved as block changes
+  dim: 'over', dims: { over: null, nether: null, moon: null }, portals: [], netherSpawn: null, arrival: null, overVB: [],
+  moonSpawn: null, rocketPad: null, prevDim: 'over', viewBefore: undefined,   // where you landed on the Moon, and where you took off from at home
   carry: [], awaitTp: 0,   // things that didn't fit in the inventory on the way through a portal; a guest waiting for the host's way out
 
   giveItem(id, n, ex) { return this.player.give(id, n, ex); },
@@ -95,6 +109,7 @@ const game = {
   closeUI() {
     if (!this.uiOpen) return;
     if (ui.screen === 'scr-book') { closeBook(null); return; }
+    if (ui.screen === 'scr-plans') { closePlans(); return; }
     if (ui.screen === 'scr-sign') { closeSign(); return; }
     if (ui.screen === 'scr-board') { closeBoard(); return; }
     closeInv();
@@ -104,7 +119,7 @@ const game = {
   },
   pause() {
     if (this.state !== 'playing' || this.paused) return;
-    if (this.uiOpen) { if (ui.screen === 'scr-book') closeBook(null); else if (ui.screen === 'scr-sign') closeSign(); else if (ui.screen === 'scr-board') closeBoard(); else closeInv(); }
+    if (this.uiOpen) { if (ui.screen === 'scr-book') closeBook(null); else if (ui.screen === 'scr-sign') closeSign(); else if (ui.screen === 'scr-board') closeBoard(); else if (ui.screen !== 'scr-plans') closeInv(); }
     this.uiOpen = false;
     this.paused = true;
     this.releaseKeys();
@@ -124,6 +139,7 @@ const game = {
   releaseKeys() { const i = this.input; i.fwd = i.back = i.left = i.right = i.jump = i.sneak = i.sprint = i.mine = i.use = false; i.lookX = i.lookY = 0; },
   cycleView() { this.view = (this.view + 1) % 3; toast(['First person', 'Behind ' + playerName(), 'Facing ' + playerName()][this.view], 1.2); },
   onJumpPress() {
+    if (this.player.riding) return;   // (Jump makes a flying car or a broom go up)
     const t = nowS();
     if (this.mode === 'creative' && t - this.lastJumpT < 0.3) { this.player.flying = !this.player.flying; this.lastJumpT = 0; }
     else this.lastJumpT = t;
@@ -138,6 +154,7 @@ const game = {
     this.world.time = 0.06;
     this.menuSpawn = this.gen.spawnPoint('valley', seed);
     this.entities = []; PARTICLES.length = 0;
+    wxLoad(null); setPlan(null);
     this.state = 'title';
   },
   startWorld(slot, mode, fresh) {
@@ -152,15 +169,23 @@ const game = {
     this.hcOut = data && Array.isArray(data.out) ? data.out.filter(s => typeof s === 'string').slice(0, 50) : [];
     this.mapId = mapId;
     this.seed = data ? data.seed : ((Math.random() * 2147483647) | 0);
-    this.dim = data && data.dim === 'nether' ? 'nether' : 'over';
-    this.dims = { over: data ? data.world || null : null, nether: data ? data.nether || null : null };
+    this.dim = okDim(data && data.dim);
+    this.dims = { over: data ? data.world || null : null, nether: data ? data.nether || null : null, moon: data ? data.moon || null : null };
+    const xyz = a => (Array.isArray(a) && a.length === 3 && a.every(n => typeof n === 'number' && isFinite(n)) ? a : null);
+    this.moonSpawn = data ? xyz(data.moonSpawn) : null;
+    this.rocketPad = data && Array.isArray(data.rocketPad) && data.rocketPad.length === 2 && data.rocketPad.every(n => typeof n === 'number' && isFinite(n)) ? data.rocketPad : null;
+    this.prevDim = 'over'; this.viewBefore = undefined;
     this.portals = data && Array.isArray(data.portals) ? data.portals.filter(okPortal).slice(-64) : [];
     this.netherSpawn = data && Array.isArray(data.netherSpawn) && data.netherSpawn.length === 3 ? data.netherSpawn : null;
-    this.arrival = null; this.carry = []; this.awaitTp = 0;
+    this.arrival = null; this.carry = []; this.awaitTp = 0; this.robotsAlong = null;
     // worlds saved before villages existed: no village may appear where anything was already changed
-    this.overVB = !data ? [] : data.villages && Array.isArray(data.villages.blocked) ? data.villages.blocked.slice()
-      : this.gen.villagesTouching(mapId, this.seed, Object.keys((data.world && data.world.edits) || {}).map(k => k.split(',').map(Number)).concat(savedSpots(data)));
+    const built = data ? Object.keys((data.world && data.world.edits) || {}).map(k => k.split(',').map(Number)).concat(savedSpots(data)) : [];
+    this.overVB = !data ? [] : data.villages && Array.isArray(data.villages.blocked) ? data.villages.blocked.slice() : this.gen.villagesTouching(mapId, this.seed, built);
+    if (data && !data.dungeons) this.overVB = this.overVB.concat(this.gen.dungeonsTouching(mapId, this.seed, built));   // (worlds from before there were dungeons: none where anything was built)
     this.makeWorld();
+    wxLoad(data && data.weather);
+    const pd = data && data.plan;   // (a plan you were building)
+    setPlan(pd && PLANS.some(p => p.key === pd.key) && [pd.x, pd.y, pd.z].every(n => typeof n === 'number' && isFinite(n)) ? { key: pd.key, x: pd.x | 0, y: pd.y | 0, z: pd.z | 0, rot: pd.rot & 3, dim: okDim(pd.dim) } : null);
     const pl = this.player = new Player();
     this.stats = data && data.stats ? data.stats : {};
     this.day = data ? data.day || 1 : 1;
@@ -192,12 +217,13 @@ const game = {
     if (this.world) this.world.destroy();
     this.pool.cancelAll();
     this.entities = []; PARTICLES.length = 0;
-    const w = this.world = new World(this.dim === 'nether' ? 'nether' : this.mapId, this.seed);
+    const w = this.world = new World(this.dim === 'over' ? this.mapId : this.dim, this.seed);
     w.remote = !!remote;
     if (this.dim === 'over') w.villageBlock = this.overVB;
     w.load(this.dims[this.dim]);
-    if (!remote && this.dims[this.dim]) loadVehicles(this, this.dims[this.dim].vehicles);
+    if (!remote && this.dims[this.dim]) { loadVehicles(this, this.dims[this.dim].vehicles); loadRobots(this, this.dims[this.dim].robots); }
     this.dims[this.dim] = null;   // the live world holds them now
+    wxNewWorld();
     this.wireWorld();
     return w;
   },
@@ -252,9 +278,10 @@ const game = {
     this.save();   // closing the app on the way loses nothing
     if (MP.role === 'host') MP.flush();   // changes in the world being left go out first
     const time = this.world.time, clock = this.world.clock;
+    this.robotsAlong = takeRobots(this);
     this.dims[from] = this.world.serialize();
-    this.dims[from].vehicles = saveVehicles(this);
-    this.dim = to;
+    this.dims[from].vehicles = saveVehicles(this); this.dims[from].robots = saveRobots(this);
+    this.prevDim = from; this.dim = to;
     this.makeWorld();
     this.world.time = time; this.world.clock = clock;
     const pl = this.player;
@@ -266,11 +293,50 @@ const game = {
     sfx('portalTravel');
     this.beginLoading(this.travelTitle());
   },
-  travelTitle() { return this.dim === 'nether' ? 'Entering the Nether' : 'Back to ' + MAPS[this.mapId].name; },
+  travelTitle() { return this.dim === 'nether' ? 'Entering the Nether' : this.dim === 'moon' ? 'Flying to the Moon' : 'Back to ' + MAPS[this.mapId].name; },
+  /* a rocket blasted off: everyone goes to the Moon (or home from it). It comes along, and lands with them. */
+  rocketTravel(who, rocket) {
+    const from = this.dim, to = from === 'moon' ? 'over' : 'moon', pl = this.player;
+    const x = Math.floor(rocket ? rocket.x : pl.x), z = Math.floor(rocket ? rocket.z : pl.z);
+    if (from === 'over') this.rocketPad = [x, z];   // (the way home comes down here)
+    const [tx, tz] = to === 'over' && this.rocketPad ? this.rocketPad : [x, z];
+    const ride = !!(rocket && rocket.rider === 'me');
+    if (rocket) {   // in the save made on the way, it is still standing where it took off (and its rider steps out beside it)
+      const gy = rocket.padY !== undefined ? rocket.padY : groundUnder(this.world, rocket.x, rocket.y, rocket.z);
+      if (gy >= 0) { rocket.y = gy; rocket.vy = 0; }
+      rocket.launchT = 0; rocket.lifted = false;
+    }
+    this.closeForTravel();
+    this.save();   // (closing the app on the way loses nothing: you are beside your rocket, ready to go again)
+    if (rocket) rocket.removed = true;
+    if (MP.role === 'host') MP.flush();
+    const time = this.world.time, clock = this.world.clock;
+    this.robotsAlong = takeRobots(this);
+    this.dims[from] = this.world.serialize();
+    this.dims[from].vehicles = saveVehicles(this); this.dims[from].robots = saveRobots(this);
+    this.prevDim = from; this.dim = to;
+    this.makeWorld();
+    this.world.time = time; this.world.clock = clock;
+    Object.assign(pl, { x: tx + 0.5, y: WH - 8, z: tz + 0.5, vx: 0, vy: 0, vz: 0, fallDist: 0 });
+    this.arrival = { rocket: true, tx, tz, ride };
+    if (MP.role) MP.hookWorld();
+    if (MP.role === 'host') MP.dimChanged(who);
+    this.beginLoading(this.travelTitle());
+  },
   /* after the other side has loaded: use the linked portal, or build one */
   arrive() {
     const a = this.arrival, w = this.world, pl = this.player;
     this.arrival = null;
+    if (a.rocket) {   // the rocket comes down out of the sky (with you in it, if you were) and everyone else waits beside the landing spot
+      const top = w.topSolid(a.tx, a.tz), gy = (top >= 0 ? top : 60) + 1, r = spawnVehicle(this, 'rocket', a.tx + 0.5, gy + 24, a.tz + 0.5, pl.yaw);
+      r.landing = true; r.vy = -14;
+      const st = w.topSolid(a.tx + 2, a.tz), spot = [a.tx + 2.5, (st >= 0 ? st + 1 : gy), a.tz + 0.5];
+      if (a.ride) { this.viewBefore = this.viewBefore === undefined ? 0 : this.viewBefore; boardVehicle(this, r); this.view = 1; }
+      else { [pl.x, pl.y, pl.z] = spot; pl.yaw = pl.bodyYaw = Math.PI / 2; pl.pitch = 0.3; }
+      if (this.dim === 'moon') this.moonSpawn = spot.slice();
+      if (MP.role === 'host') MP.landed(a.tx + 0.5, gy, a.tz + 0.5);
+      return true;
+    }
     let p = a.portal && portalIntact(w, a.portal) ? a.portal : null;
     if (!p && a.portal) {
       this.portals = this.portals.filter(q => q !== a.portal);
@@ -297,16 +363,19 @@ const game = {
     this.slot = null; this.hardcore = !!m.hc; this.hcOver = false;
     this.seed = m.seed;
     this.overVB = m.vb;
-    this.dim = m.dim === 'nether' ? 'nether' : 'over';
-    this.dims = { over: null, nether: null };
+    this.dim = okDim(m.dim);
+    this.dims = { over: null, nether: null, moon: null };
     this.dims[this.dim] = { edits: m.edits, tiles: m.td };
-    this.portals = []; this.arrival = null; this.carry = [];
+    this.portals = []; this.arrival = null; this.carry = []; this.robotsAlong = null;
+    this.moonSpawn = m.ms || null; this.rocketPad = null; this.prevDim = 'over'; this.viewBefore = undefined;
     this.awaitTp = m.tpWait ? performance.now() : 0;   // the host is on the way through a portal: wait to be shown where to come out
     this.netherSpawn = m.ns;
     this.makeWorld(true);
     this.world.time = m.time; this.world.clock = m.clock;
+    wxLoad(null); wxSetBits(m.wx); setPlan(null);
     const pl = this.player = new Player();
     this.stats = {}; this.day = m.day; this.hostAfterLoad = false;
+    if (m.you && m.you.kit) this.stats.hogKit = 1;   // (already given a wand and a broom at Hogwarts here)
     this.worldSpawn = m.spawn && m.spawn.length === 3 ? m.spawn.slice() : this.gen.spawnPoint(this.mapId, this.seed);
     const you = m.you;
     this.setMode(you ? you.mode : m.mode);
@@ -323,8 +392,8 @@ const game = {
   },
   /* guest: the host went through a portal, so we all did */
   guestDim(m) {
-    this.dim = m.dim === 'nether' ? 'nether' : 'over';
-    this.dims = { over: null, nether: null };
+    this.prevDim = this.dim; this.dim = okDim(m.dim);
+    this.dims = { over: null, nether: null, moon: null };
     this.dims[this.dim] = { edits: m.edits, tiles: m.td };
     const time = this.world.time;
     this.closeForTravel();
@@ -336,6 +405,7 @@ const game = {
     pl.vx = pl.vy = pl.vz = 0; pl.fallDist = 0; pl.portalT = 0; pl.portalLock = true;
     if (this.state === 'dead' && !this.hardcore) { pl.alive = true; pl.health = 20; }
     if (m.ns) this.netherSpawn = m.ns.slice();
+    if (m.ms) this.moonSpawn = m.ms.slice();
     this.awaitTp = performance.now();   // m.at is only a first guess: the host says where to step out once it is there
     sfx('portalTravel');
     this.beginLoading(this.travelTitle());
@@ -394,8 +464,10 @@ const game = {
       }
       pl.pitch = -0.1;
       if (vyaw !== null && off(pl.yaw) < 0.3) pl.pitch = clamp(Math.atan2(v[1] + 2 - (pl.y + 1.6), vd), -0.15, 0.2);
+      if (this.mapId === 'hogwarts') { pl.yaw = 0; pl.pitch = 0.15; }   // (facing the Great Hall)
       pl.bodyYaw = pl.yaw;
-      if (this.mode === 'survival') chat('Welcome to ' + MAPS[this.mapId].name + '! Punch a tree to get started.', '#ffff55');
+      if (this.mapId === 'hogwarts') { /* (the welcome to Hogwarts comes below) */ }
+      else if (this.mode === 'survival') chat('Welcome to ' + MAPS[this.mapId].name + '! Punch a tree to get started.', '#ffff55');
       else chat('Creative mode: every block is in your inventory (E). Double-tap jump to fly.', '#ffff55');
       if (vyaw !== null) {
         const rel = ((vyaw - pl.yaw + Math.PI) % TAU + TAU) % TAU - Math.PI;   // turning left makes yaw bigger
@@ -410,6 +482,9 @@ const game = {
     el('click-hint').hidden = this.touchOn || this.dragLook;
     ui.dirty = true;
     for (const c of this.carry.splice(0)) dropItem(this, pl.x, pl.y + 0.5, pl.z, c.id, c.count, false, c);
+    if (this.robotsAlong) { if (MP.role !== 'guest') bringRobots(this, this.robotsAlong); this.robotsAlong = null; }   // (robots that came along with you)
+    if (this.dim === 'moon') moonArrival(this);
+    if (atHogwarts()) hogwartsWelcome(this);
     if (came) this.save();
     if (this.hostAfterLoad) { this.hostAfterLoad = false; MP.startHosting(); }
     MP.updateUI();
@@ -435,14 +510,16 @@ const game = {
       v: 1, map: this.mapId, seed: this.seed, mode: this.mode, time: this.world.time, day: this.day, clock: this.world.clock,
       worldSpawn: this.worldSpawn, stats: this.stats,
       player: { x: at[0], y: at[1], z: at[2], yaw: pl.yaw, pitch: pl.pitch, health: pl.alive ? pl.health : 20, food: pl.alive ? pl.food : 20, air: pl.air, inv: pl.inv, sel: pl.sel, spawn: pl.spawn, flying: pl.flying, xp: pl.xp || 0, enchSeed: pl.enchSeed, effects: pl.alive ? saveEffects(pl) : {} },
-      villages: { v: 1, blocked: this.overVB }, players: MP.guestSaves,
-      dim: this.dim, portals: this.portals, netherSpawn: this.netherSpawn,
+      villages: { v: 1, blocked: this.overVB }, dungeons: 1, players: MP.guestSaves,
+      dim: this.dim, portals: this.portals, netherSpawn: this.netherSpawn, weather: wxSave(), moonSpawn: this.moonSpawn, rocketPad: this.rocketPad, plan: PLAN.cur,
     };
     if (this.hardcore) { data.hardcore = true; data.out = this.hcOut; }
-    const cur = this.world.serialize(), other = this.dim === 'over' ? 'nether' : 'over';
-    cur.vehicles = saveVehicles(this);
-    data.world = this.dim === 'over' ? cur : this.dims.over || { edits: {}, tiles: {} };
-    if (this.dim === 'nether' || this.dims.nether) data.nether = this.dim === 'nether' ? cur : this.dims[other];
+    const cur = this.world.serialize();
+    cur.vehicles = saveVehicles(this); cur.robots = saveRobots(this);
+    const all = Object.assign({}, this.dims, { [this.dim]: cur });   // (the live world, and the others as they were left)
+    data.world = all.over || { edits: {}, tiles: {} };
+    if (all.nether) data.nether = all.nether;
+    if (all.moon) data.moon = all.moon;
     if (!pl.alive) { const sp = this.spawnPos(); data.player.x = sp[0]; data.player.y = sp[1]; data.player.z = sp[2]; }
     const ok = store.set(saveKey(this.slot), JSON.stringify(data));
     if (!ok && !this.warnedSave) { this.warnedSave = true; toast("This browser won't let the game save, so your world will reset when you leave.", 6); }
@@ -450,6 +527,7 @@ const game = {
   spawnPos() {
     const pl = this.player;
     if (this.dim === 'nether') return this.netherSpawn ? this.netherSpawn.slice() : [0.5, 64, 0.5];
+    if (this.dim === 'moon') return this.moonSpawn ? this.moonSpawn.slice() : this.gen.spawnPoint('moon', this.seed);
     if (pl.spawn) return [pl.spawn[0] + 0.5, pl.spawn[1] + 0.6, pl.spawn[2] + 0.5];
     return this.worldSpawn.slice();
   },
@@ -507,10 +585,11 @@ const game = {
     el('click-hint').hidden = this.touchOn || this.dragLook;
     if (!this.touchOn && !this.dragLook) this.requestPointer();
     ui.hearts = ui.food = ui.armor = -2;
+    if (this.dim === 'moon') moonArrival(this);
   },
   trySleep(x, y, z) {
     const pl = this.player, t = this.world.time;
-    if (this.dim === 'nether') { chat("Beds don't work in the Nether. Sleep in the Overworld."); return; }
+    if (this.dim !== 'over') { chat(this.dim === 'moon' ? "Beds don't work on the Moon. Sleep at home." : "Beds don't work in the Nether. Sleep in the Overworld."); return; }
     pl.spawn = [x, y, z];
     const night = t > 0.53 && t < 0.97;
     if (!night) { chat('Respawn point set. You can only sleep at night.'); return; }
@@ -549,13 +628,13 @@ const game = {
     const remote = !!origin, pl = origin || this.player, w = this.world;
     const a = text.slice(1).trim().split(/\s+/), cmd = (a[0] || '').toLowerCase();
     const say = m => (remote ? MP.tell(origin, m, '#aaaaff') : chat(m, '#aaaaff'));
-    const shared = cmd === 'time' || cmd === 'summon';
-    if (this.hardcore && ['gamemode', 'gm', 'give', 'tp', 'teleport', 'summon', 'difficulty', 'heal', 'xp', 'experience', 'time'].includes(cmd)) { say('Not in Hardcore! You have to do it the hard way.'); return; }
+    const shared = cmd === 'time' || cmd === 'summon' || cmd === 'weather';
+    if (this.hardcore && ['gamemode', 'gm', 'give', 'tp', 'teleport', 'summon', 'difficulty', 'heal', 'xp', 'experience', 'time', 'weather'].includes(cmd)) { say('Not in Hardcore! You have to do it the hard way.'); return; }
     if (MP.role === 'guest' && shared) { MP.send({ t: 'cmd', c: text }); return; }
     if (remote && !shared) return;
     const num = (s, base) => s === undefined ? NaN : s.startsWith('~') ? base + (parseFloat(s.slice(1)) || 0) : parseFloat(s);
     switch (cmd) {
-      case 'help': say('Commands: /time set day|night, /gamemode survival|creative, /give <item> [count], /tp x y z, /summon <mob>, /locate village, /spawnpoint, /seed, /difficulty peaceful|easy|normal, /xp <levels>, /kill, /clear'); break;
+      case 'help': say('Commands: /time set day|night, /weather clear|rain|thunder|snow, /gamemode survival|creative, /give <item> [count], /tp x y z, /summon <mob>, /locate village|dungeon, /spawnpoint, /seed, /difficulty peaceful|easy|normal, /xp <levels>, /kill, /clear'); break;
       case 'time': {
         const v = (a[2] || a[1] || '').toLowerCase();
         const map = { day: 0.04, morning: 0.02, noon: 0.25, sunset: 0.47, night: 0.56, midnight: 0.75 };
@@ -591,9 +670,20 @@ const game = {
         break;
       }
       case 'locate': {
-        if ((a[1] || 'village').toLowerCase() !== 'village') { say('Try /locate village'); break; }
+        const what = (a[1] || 'village').toLowerCase();
+        if (what === 'dungeon') {
+          if (this.dim !== 'over' || this.mapId !== 'valley') { say('Dungeons are only under Sunny Valley.'); break; }
+          const d = this.gen.findDungeon(this.mapId, this.seed, pl.x, pl.z, w.villageBlock);
+          if (!d) { say('No dungeon found nearby.'); break; }
+          const dx = d.x - pl.x, dz = d.z - pl.z, dist = Math.round(Math.hypot(dx, dz));
+          const dir = (dz < -Math.abs(dx) * 0.4 ? 'north' : dz > Math.abs(dx) * 0.4 ? 'south' : '') + (dx > Math.abs(dz) * 0.4 ? 'east' : dx < -Math.abs(dz) * 0.4 ? 'west' : '');
+          say('The nearest dungeon (a ' + d.name + ') is ' + dist + ' blocks ' + (dir || 'away') + ', at x ' + d.x + ', z ' + d.z + '. Look for a little stone tower with stairs inside.');
+          break;
+        }
+        if (what !== 'village') { say('Try /locate village or /locate dungeon'); break; }
         const v = this.gen.findVillage(this.mapId, this.seed, pl.x, pl.z, w.villageBlock);
         if (this.dim === 'nether') { say('There are no villages in the Nether. Go back through the portal to find one.'); break; }
+        if (this.dim === 'moon') { say('There are no villages on the Moon. Fly home in the rocket to find one.'); break; }
         if (!v) { say(this.mapId === 'sky' ? 'Villages are only in Sunny Valley. Use a villager spawn egg or /summon villager here.' : 'No village found nearby.'); break; }
         const dx = v[0] - pl.x, dz = v[2] - pl.z, dist = Math.round(Math.hypot(dx, dz));
         const dir = (dz < -Math.abs(dx) * 0.4 ? 'north' : dz > Math.abs(dx) * 0.4 ? 'south' : '') + (dx > Math.abs(dz) * 0.4 ? 'east' : dx < -Math.abs(dz) * 0.4 ? 'west' : '');
@@ -602,6 +692,7 @@ const game = {
       }
       case 'spawnpoint': case 'setspawn':
         if (this.dim === 'nether') { this.netherSpawn = [pl.x, pl.y, pl.z]; say('Nether spawn point set here'); break; }   // the Overworld one stays as it was
+        if (this.dim === 'moon') { this.moonSpawn = [pl.x, pl.y, pl.z]; say('Moon spawn point set here'); break; }
         this.worldSpawn = [pl.x, pl.y, pl.z]; pl.spawn = null; say('Spawn point set here'); break;
       case 'seed': say('Seed: ' + this.seed); break;
       case 'kill': pl.invuln = 0; if (this.mode === 'creative') say('You cannot be hurt in Creative'); else pl.damage(1000, 'void'); break;
@@ -611,7 +702,14 @@ const game = {
         if (v < 0) { say('Try /difficulty peaceful, easy or normal'); break; }
         this.settings.difficulty = v; this.applySettings(); say('Difficulty set to ' + a[1]); break;
       }
-      case 'weather': say('The weather is always lovely in Declan-craft.'); break;
+      case 'weather': {
+        const v = (a[1] || '').toLowerCase();
+        const k = ['clear', 'sun', 'sunny'].includes(v) ? 'clear' : v === 'rain' ? 'rain' : ['thunder', 'storm'].includes(v) ? 'thunder' : v === 'snow' ? 'snow' : null;
+        if (!k) { say('Try /weather clear, rain, thunder or snow'); break; }
+        wxSet(k);
+        say({ clear: 'The sun is coming out.', rain: 'Here comes the rain! (It snows where it is cold.)', thunder: 'A thunderstorm is coming!', snow: 'Let it snow!' }[k] + (this.dim === 'nether' ? ' (Not in the Nether, though.)' : this.dim === 'moon' ? ' (Not on the Moon, though: back home.)' : ''));
+        break;
+      }
       case 'heal': pl.health = 20; pl.food = 20; say('Healed'); break;
       case 'xp': case 'experience': {   // /xp 10 gives 10 levels; /xp 50 points gives 50 points
         const n = parseInt(a[1], 10);
@@ -660,6 +758,7 @@ function setupInput() {
       case 'ShiftLeft': case 'ShiftRight': inp.sneak = true; break;
       case 'KeyE': openInv('inv'); break;
       case 'KeyQ': game.player.dropHeld(e.shiftKey); break;
+      case 'KeyF': nextSpell(game); break;
       case 'KeyV': case 'F5': game.cycleView(); break;
       case 'F3': game.debug = !game.debug; el('debug').hidden = !game.debug; break;
       case 'F1': game.hideHud = !game.hideHud; el('hud').hidden = game.hideHud; break;
@@ -795,21 +894,23 @@ function pickBlock() {
 /* ---------- main loop ---------- */
 const TITLE_CAM = { x: 0, y: 90, z: 0, yaw: 0, pitch: -0.18, fov: 70 * Math.PI / 180, roll: 0 };
 const GAME_CAM = { x: 0, y: 0, z: 0, yaw: 0, pitch: 0, fov: 70 * Math.PI / 180, roll: 0 };
-function renderWorld(cam, dt, withEntities) {
+function renderWorld(cam, dt, withEntities, camPass) {   // (camPass: what a security camera sees, small, for a monitor)
   const w = game.world, pl = game.player, S = game.settings;
   R.cam = cam;
   setupCamera(cam);
   const under = withEntities && game.view === 0 ? (pl.headInWater ? 'water' : pl.headInLava ? 'lava' : null) : null;
   const s = skyState(w.time, w.map, under);
+  wxSky(s, under);   // (rain darkens the sky; lightning lights it up)
   game.sky = s;
   if (withEntities && hasEffect(pl, 'night_vision')) { s.minLight = [0.8, 0.8, 0.8]; s.nightVision = true; }   // everything as if lit
   else if (withEntities && inSubmarine(pl) && pl.headInWater) { s.minLight = [0.5, 0.56, 0.6]; s.subLight = true; }   // a submarine's lamps
-  const rd = S.renderDist, clearWater = withEntities && (hasEffect(pl, 'night_vision') || hasEffect(pl, 'water_breathing') || (pl.riding && pl.riding.type === 'submarine'));
+  if (withEntities && pl.lumos) s.lumos = 1;   // (a wand lit with Lumos lights up all around)
+  const rd = camPass ? Math.min(S.renderDist, S.quality ? 3 : 2) : S.renderDist, clearWater = withEntities && (hasEffect(pl, 'night_vision') || hasEffect(pl, 'water_breathing') || (pl.riding && pl.riding.type === 'submarine'));
   R.fogColor = s.fog;
   if (under === 'water') { R.fogStart = 0; R.fogEnd = clearWater ? 56 : 22; }
   else if (under === 'lava') { R.fogStart = 0; R.fogEnd = 3; }
   else if (s.nether) { R.fogEnd = Math.min(rd * 16 - 6, 84); R.fogStart = R.fogEnd * 0.2; }
-  else { R.fogEnd = rd * 16 - 6; R.fogStart = R.fogEnd * 0.55; }
+  else { R.fogEnd = rd * 16 - 6; R.fogStart = R.fogEnd * 0.55; wxFog(); }
   gl.viewport(0, 0, R.width, R.height);
   gl.clearColor(s.fog[0], s.fog[1], s.fog[2], 1);
   gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
@@ -819,9 +920,11 @@ function renderWorld(cam, dt, withEntities) {
   collectVisible(w, rd);
   terrainUniforms(s, game.t, 0.5);
   drawTerrainList(R.visO, false);
-  if (withEntities) {
+  if (withEntities || camPass) {
     drawEntities(game, s, game.t, cam);
     drawSpecials(game, s, game.t, cam);
+  }
+  if (withEntities) {
     drawFishingLines(game, s, cam);
     const tg = pl.target;
     if (tg && pl.alive && !game.uiOpen && game.view !== 2) {
@@ -830,13 +933,15 @@ function renderWorld(cam, dt, withEntities) {
     }
   }
   gl.disable(gl.CULL_FACE);
-  drawParticles(PARTICLES, w, s);
+  if (!camPass) drawParticles(PARTICLES, w, s);
   gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
   gl.depthMask(false);
   terrainUniforms(s, game.t, 0.02);
   drawTerrainList(R.visT, true);
   drawQueuedGlass();   // (a submarine's dome: the water behind it shows through)
-  if (S.clouds && !under && !s.nether) {
+  if (withEntities) { drawPlan(s, cam); drawWeather(s, cam); }
+  if (withEntities || camPass) drawPatronuses(s);
+  if (S.clouds && !under && !s.nether && !s.moon) {
     if (w.map === 'sky') { drawClouds(s, game.t, 26); drawClouds(s, game.t + 400, 126); }
     else drawClouds(s, game.t, 110);
   }
@@ -876,9 +981,9 @@ function debugText() {
   const tg = pl.target;
   return 'Declan-craft  ' + game.fps + ' fps\n' +
     'XYZ: ' + pl.x.toFixed(1) + ' / ' + pl.y.toFixed(1) + ' / ' + pl.z.toFixed(1) + '\n' +
-    'Chunk: ' + (x >> 4) + ', ' + (z >> 4) + '   Facing: ' + f + (game.dim === 'nether' ? '   (the Nether)' : '') + '\n' +
+    'Chunk: ' + (x >> 4) + ', ' + (z >> 4) + '   Facing: ' + f + (game.dim === 'nether' ? '   (the Nether)' : game.dim === 'moon' ? '   (the Moon)' : '') + '\n' +
     'Light: sky ' + (L >> 4) + ', block ' + (L & 15) + '\n' +
-    'Day ' + game.day + '  ' + String(hrs).padStart(2, '0') + ':' + String(mins).padStart(2, '0') + '\n' +
+    'Day ' + game.day + '  ' + String(hrs).padStart(2, '0') + ':' + String(mins).padStart(2, '0') + '   Weather: ' + (!WX.on ? 'clear' : (WX.thunder ? 'thunder, ' : '') + ['dry here', 'rain', 'snow'][WX.kind]) + '\n' +
     'Chunks: ' + w.chunks.size + '  Mobs: ' + game.entities.filter(e => e.mob).length + '\n' +
     (tg ? 'Looking at: ' + itemName(tg.id) + ' (' + tg.x + ', ' + tg.y + ', ' + tg.z + ')' : 'Looking at: sky');
 }
@@ -897,6 +1002,7 @@ function frame(ts) {
   resizeGL();
   const w = game.world, S = game.settings;
   if (!w) return;
+  wxSound(game, dt);
   if (game.state === 'title') {
     const sp = game.menuSpawn;
     w.stream(game.pool, sp[0], sp[2], Math.min(S.renderDist, 6));
@@ -948,11 +1054,14 @@ function frame(ts) {
     w.tick(dt, pl.x, pl.z);
     updateEntities(game, dt);
     updateParticles(w, dt);
+    wxTick(game, dt);
+    if (atHogwarts()) hogwartsTick(game, dt);
+    planTick(game, dt);
     game.spawnT -= dt;
-    if (game.spawnT <= 0) { game.spawnT = 1; spawnTick(game); }
+    if (game.spawnT <= 0) { game.spawnT = 1; spawnTick(game); dungeonTick(game); }
     if (game.sleeping > 0) {
       game.sleeping -= dt;
-      if (!game.net && game.sleeping <= 0.9 && w.time > 0.5) { w.time = 0.01; game.day++; chat('Good morning! Day ' + game.day + '.'); }
+      if (!game.net && game.sleeping <= 0.9 && w.time > 0.5) { w.time = 0.01; game.day++; chat('Good morning! Day ' + game.day + '.'); if (WX.on) wxSet('clear'); }
       if (game.sleeping <= 0) el('fx-fade').style.opacity = 0;
     } else {
       w.time += dt / DAY_LENGTH;
@@ -979,6 +1088,7 @@ function frame(ts) {
       drawPreview(r, { head: [clamp(my, -0.6, 0.6), clamp(mx, -0.9, 0.9), 0], rarm: [Math.sin(game.t * 1.3) * 0.06, 0, 0.06], larm: [-Math.sin(game.t * 1.3) * 0.06, 0, -0.06] }, 0.3, game.t, ce);
     }
   }
+  renderCameras();   // (a monitor's picture, now and then)
   renderWorld(GAME_CAM, dt, true);
   if (MP.remotes.size) MP.updateTags();
   if (ui.inv) updateFurnaceUI();
@@ -996,6 +1106,9 @@ function wireButtons() {
   click('btn-play', () => { ui.hostMode = false; buildWorldCards(); showScreen('scr-worlds'); });
   click('btn-worlds-back', () => { showScreen(ui.hostMode ? 'scr-mp' : 'scr-title'); ui.hostMode = false; });
   click('btn-together', () => showScreen('scr-mp'));
+  click('btn-plan-prev', () => planTurn(-1)); click('btn-plan-next', () => planTurn(1));
+  click('btn-plan-build', () => planHere(false)); click('btn-plan-all', () => planHere(true));
+  click('btn-plan-stop', () => { setPlan(null); closePlans(); toast('Plan put away.', 2); }); click('btn-plan-done', () => closePlans());
   click('btn-char', () => showCharScreen('scr-title'));
   click('btn-mp-char', () => showCharScreen('scr-mp'));
   click('btn-mp-back', () => showScreen('scr-title'));

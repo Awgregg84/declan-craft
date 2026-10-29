@@ -18,6 +18,7 @@ function initDyn() {
 /* the layer with key's picture, painted by paint(ctx) when it isn't there yet or ver has changed (ver: anything,
    compared with ===; signs and boards pass their tile, which is a new object whenever the picture changes) */
 function dynLayer(key, ver, paint) {
+  if (CAMS.pass) return -1;   // (drawing what a security camera sees: no pictures in pictures)
   let e = DYN.map.get(key);
   if (!e) {
     let best = 0;
@@ -54,6 +55,7 @@ function dynQuad(layer, u0, v0, u1, v1) {
 }
 /* draw layer's picture as a w x h rectangle with matrix m (already placed, rotated and scaled to blocks) */
 function drawDyn(layer, m, u0, v0, u1, v1, bright) {
+  if (CAMS.pass || layer < 0) return;
   const P = PROG.entity;
   entityBegin(DYN.tex);
   gl.uniform1f(P.u.uBright, bright);
