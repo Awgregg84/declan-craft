@@ -895,7 +895,8 @@ const B = {
   CHEST: 39, BOOKSHELF: 40, PUMPKIN: 41, JACK_O_LANTERN: 42, IRON_BLOCK: 43, GOLD_BLOCK: 44, DIAMOND_BLOCK: 45,
   COAL_BLOCK: 46, TORCH: 47, TALL_GRASS: 48, DANDELION: 49, POPPY: 50, CORNFLOWER: 51, DEAD_BUSH: 52,
   OAK_SAPLING: 53, BIRCH_SAPLING: 54, SPRUCE_SAPLING: 55, BED: 56,
-  DOOR: 57, EMERALD_ORE: 58, EMERALD_BLOCK: 59,
+  DOOR: 57, EMERALD_ORE: 58, EMERALD_BLOCK: 59, BIRCH_DOOR: 60, SPRUCE_DOOR: 61, IRON_DOOR: 62, GLASS_DOOR: 63,
+  AIRLOCK: 119, GARAGE_DOOR: 120, GARAGE_OPEN: 121,
   WOOL: 64, // 64..79
   NETHERRACK: 80, SOUL_SAND: 81, NETHER_QUARTZ_ORE: 82, QUARTZ_BLOCK: 83, NETHER_BRICKS: 84, NETHER_PORTAL: 85,
   MEGA_TNT: 86, ICE_TNT: 87, DIG_TNT: 88, PARTY_TNT: 89, CLUSTER_TNT: 90, DISPENSER: 91, LEVER: 92, BUTTON: 93, RAIL: 94,
@@ -917,6 +918,7 @@ const I = {
   SUGAR: 324, PAPER: 325, BOOK: 326, WRITABLE_BOOK: 327, WRITTEN_BOOK: 328, LAPIS: 329, GLASS_BOTTLE: 330, SHIELD: 331, FISHING_ROD: 332,
   COD: 333, COOKED_COD: 334, SALMON: 335, COOKED_SALMON: 336, TROPICAL_FISH: 337, PUFFERFISH: 338, BOAT: 339, SUBMARINE: 340, MAGMA_CREAM: 341, XP_BOTTLE: 342,
   WAND: 402, BROOM: 403, FLYING_CAR: 404, ROCKET: 405, SPACE_HELMET: 406, PLAN_BOOK: 407, ROBOT: 408, CHEESE: 409,
+  BIRCH_DOOR: 410, SPRUCE_DOOR: 411, IRON_DOOR: 412, GLASS_DOOR: 413, AIRLOCK: 414, PLANE: 415, JET: 416, AIRLINER: 417,
   POTION: 370, // 370..381 potions, 390..401 splash potions, in POTIONS order
   SPLASH: 390,
   ARMOR: 350, // 350..365 = material*4 + slot
@@ -943,7 +945,7 @@ const armorId = (mat, slot) => I.ARMOR + mat * 4 + slot;
 // the inventory: 0-8 hotbar, 9-35 bag, 36-39 armor (helmet to boots), 40 the off-hand (shield) slot
 const INV_SIZE = 41, ARMOR_INV = 36, OFFHAND = 40;
 
-const R_NONE = 0, R_CUBE = 1, R_CROSS = 2, R_TORCH = 3, R_LIQUID = 4, R_CACTUS = 5, R_BED = 6, R_DOOR = 7, R_PORTAL = 8, R_RAIL = 9, R_LEVER = 10, R_BUTTON = 11, R_LOW = 12, R_BREW = 13;
+const R_NONE = 0, R_CUBE = 1, R_CROSS = 2, R_TORCH = 3, R_LIQUID = 4, R_CACTUS = 5, R_BED = 6, R_DOOR = 7, R_PORTAL = 8, R_RAIL = 9, R_LEVER = 10, R_BUTTON = 11, R_LOW = 12, R_BREW = 13, R_GARAGE = 14;
 const DOOR_BOXES = [[0, 0, 13 / 16, 1, 1, 1], [0, 0, 0, 3 / 16, 1, 1], [0, 0, 0, 1, 1, 3 / 16], [13 / 16, 0, 0, 1, 1, 1]];
 const doorBox = d => DOOR_BOXES[((d & 3) + ((d & 4) ? 1 : 0)) & 3];
 const BLOCKS = new Array(256).fill(null);
@@ -1026,7 +1028,28 @@ defBlock(B.SPRUCE_SAPLING, 'Spruce Sapling', { tex: 'spruce_sapling', solid: fal
 defBlock(B.BED, 'Bed', { tex: { top: 'bed_top', bottom: 'oak_planks', side: 'bed_side', front: 'bed_end', back: 'bed_end' }, opaque: false, render: R_BED, hardness: 0.2, sound: 'wool', facing: true, ao: false, box: [0, 0, 0, 1, 9 / 16, 1] });
 defBlock(B.EMERALD_ORE, 'Emerald Ore', { tex: 'emerald_ore', hardness: 3, tool: 'pickaxe', tier: 3, drop: I.EMERALD, xp: [3, 7] });
 defBlock(B.EMERALD_BLOCK, 'Block of Emerald', { tex: 'emerald_block', hardness: 5, tool: 'pickaxe', tier: 3, sound: 'metal' });
-defBlock(B.DOOR, 'Oak Door', { tex: 'door_bottom', opaque: false, render: R_DOOR, hardness: 3, tool: 'axe', sound: 'wood', drop: I.DOOR, creative: false, ao: false, boxFn: doorBox });
+defBlock(B.DOOR, 'Oak Door', { tex: 'door_bottom', opaque: false, render: R_DOOR, hardness: 3, tool: 'axe', sound: 'wood', drop: I.DOOR, creative: false, ao: false, boxFn: doorBox, doorTex: ['door_bottom', 'door_top'] });
+// more doors (see 09i-doors.js): each is two blocks tall like the oak door (data & 3 facing, & 4 open, & 8 the top half).
+// An iron door only opens with a lever or a button; an airlock door goes in underwater, keeps the water out, and pumps
+// the water out of the room behind it when it shuts.
+const IS_DOOR = new Uint8Array(256);
+for (const [id, name, item, tex, o] of [
+  [B.DOOR, 'Oak Door', I.DOOR, 'door'], [B.BIRCH_DOOR, 'Birch Door', I.BIRCH_DOOR, 'birch_door'], [B.SPRUCE_DOOR, 'Spruce Door', I.SPRUCE_DOOR, 'spruce_door'],
+  [B.IRON_DOOR, 'Iron Door', I.IRON_DOOR, 'iron_door', { hardness: 5, tool: 'pickaxe', tier: 1, sound: 'metal', iron: true }],
+  [B.GLASS_DOOR, 'Glass Door', I.GLASS_DOOR, 'glass_door', { hardness: 0.5, tool: null, sound: 'glass' }],
+  [B.AIRLOCK, 'Airlock Door', I.AIRLOCK, 'airlock', { hardness: 5, tool: 'pickaxe', tier: 1, sound: 'metal', airlock: true, blast: 1e9 }],
+]) {
+  IS_DOOR[id] = 1;
+  if (id !== B.DOOR) defBlock(id, name, Object.assign({ tex: tex + '_bottom', opaque: false, render: R_DOOR, hardness: 3, tool: 'axe', sound: 'wood', drop: item, creative: false, ao: false, boxFn: doorBox, doorTex: [tex + '_bottom', tex + '_top'] }, o));
+  BLOCKS[id].doorItem = item;
+}
+// garage doors: thin panels, put up side by side and one above another; tapping one rolls them all up together (data & 3
+// facing, & 4 open). Rolled up, a panel is a different block that you can walk (or drive, or fly) through.
+const garageBox = d => (d & 1) ? [7 / 16, 0, 0, 9 / 16, 1, 1] : [0, 0, 7 / 16, 1, 1, 9 / 16];
+const garageRollBox = d => (d & 1) ? [5 / 16, 10 / 16, 0, 11 / 16, 1, 1] : [0, 10 / 16, 5 / 16, 1, 1, 11 / 16];
+defBlock(B.GARAGE_DOOR, 'Garage Door', { tex: 'garage_door', opaque: false, render: R_GARAGE, hardness: 3, tool: 'pickaxe', sound: 'metal', ao: false, boxFn: garageBox });
+defBlock(B.GARAGE_OPEN, 'Garage Door', { tex: 'garage_door', solid: false, opaque: false, render: R_GARAGE, hardness: 3, tool: 'pickaxe', sound: 'metal', drop: B.GARAGE_DOOR, creative: false, ao: false, boxFn: garageRollBox });
+const isGarage = b => b === B.GARAGE_DOOR || b === B.GARAGE_OPEN;
 for (let i = 0; i < 16; i++) defBlock(B.WOOL + i, WOOL_NAMES[i] + ' Wool', { tex: 'wool_' + i, hardness: 0.8, sound: 'wool' });
 defBlock(B.NETHERRACK, 'Netherrack', { tex: 'netherrack', hardness: 0.4, tool: 'pickaxe', tier: 1 });
 defBlock(B.SOUL_SAND, 'Soul Sand', { tex: 'soul_sand', hardness: 0.5, tool: 'shovel', sound: 'sand', slow: 0.45 });
@@ -1132,7 +1155,12 @@ defItem(I.ROTTEN_FLESH, 'Rotten Flesh', { tex: 'rotten_flesh', food: 4 });
 defItem(I.GUNPOWDER, 'Gunpowder', { tex: 'gunpowder' });
 defItem(I.FEATHER, 'Feather', { tex: 'feather' });
 defItem(I.LEATHER, 'Leather', { tex: 'leather' });
-defItem(I.DOOR, 'Oak Door', { tex: 'door_item', fuel: 10 });
+defItem(I.DOOR, 'Oak Door', { tex: 'door_item', fuel: 10, door: B.DOOR });
+defItem(I.BIRCH_DOOR, 'Birch Door', { tex: 'birch_door_item', fuel: 10, door: B.BIRCH_DOOR });
+defItem(I.SPRUCE_DOOR, 'Spruce Door', { tex: 'spruce_door_item', fuel: 10, door: B.SPRUCE_DOOR });
+defItem(I.IRON_DOOR, 'Iron Door', { tex: 'iron_door_item', door: B.IRON_DOOR });
+defItem(I.GLASS_DOOR, 'Glass Door', { tex: 'glass_door_item', door: B.GLASS_DOOR });
+defItem(I.AIRLOCK, 'Airlock Door', { tex: 'airlock_item', door: B.AIRLOCK });
 defItem(I.EMERALD, 'Emerald', { tex: 'emerald' });
 defItem(I.BREAD, 'Bread', { tex: 'bread', food: 5 });
 EGG_MOBS.forEach((m, i) => defItem(I.EGG + i, mobName(m) + ' Spawn Egg', { tex: 'egg_' + m, egg: m }));
@@ -1155,6 +1183,10 @@ defItem(I.SUBMARINE, 'Submarine', { tex: 'submarine', stack: 1 });
 defItem(I.FLYING_CAR, 'Flying Car', { tex: 'flycar', stack: 1 });
 defItem(I.BROOM, 'Broomstick', { tex: 'broom', stack: 1, fuel: 5 });
 defItem(I.ROCKET, 'Rocket', { tex: 'rocket', stack: 1 });
+// planes (see 09l-planes.js)
+defItem(I.PLANE, 'Propeller Plane', { tex: 'plane', stack: 1 });
+defItem(I.JET, 'Jet', { tex: 'jet', stack: 1 });
+defItem(I.AIRLINER, 'Passenger Plane', { tex: 'airliner', stack: 1 });
 defItem(I.WAND, 'Magic Wand', { tex: 'wand', stack: 1 });   // (see 09x-wand.js)
 defItem(I.PLAN_BOOK, 'Book of Building Plans', { tex: 'plan_book', stack: 1 });   // (see 09q-plans.js)
 defItem(I.ROBOT, 'Robot', { tex: 'robot', stack: 1 });   // (see 09z-robots.js)
@@ -1265,7 +1297,13 @@ shaped(B.CRAFTING_TABLE, 1, ['PP', 'PP'], { P: 'planks' });
 shaped(B.TORCH, 4, ['C', 'S'], { C: I.COAL, S: I.STICK });
 shaped(B.FURNACE, 1, ['CCC', 'C C', 'CCC'], { C: 'stone' });
 shaped(B.CHEST, 1, ['PPP', 'P P', 'PPP'], { P: 'planks' });
-shaped(I.DOOR, 3, ['PP', 'PP', 'PP'], { P: 'planks' });
+shaped(I.DOOR, 3, ['PP', 'PP', 'PP'], { P: B.OAK_PLANKS });
+shaped(I.BIRCH_DOOR, 3, ['PP', 'PP', 'PP'], { P: B.BIRCH_PLANKS });
+shaped(I.SPRUCE_DOOR, 3, ['PP', 'PP', 'PP'], { P: B.SPRUCE_PLANKS });
+shaped(I.IRON_DOOR, 3, ['II', 'II', 'II'], { I: I.IRON_INGOT });
+shaped(I.GLASS_DOOR, 3, ['GG', 'GG', 'GG'], { G: B.GLASS });
+shaped(I.AIRLOCK, 2, ['II', 'GI', 'II'], { I: I.IRON_INGOT, G: B.GLASS });   // (a round window in it)
+shaped(B.GARAGE_DOOR, 4, ['PPP', 'PIP', 'PPP'], { P: 'planks', I: I.IRON_INGOT });
 [['planks', 0], ['stone', 1], [I.IRON_INGOT, 2], [I.DIAMOND, 3]].forEach(([mat, m]) => {
   shaped(toolId(m, 0), 1, ['MMM', ' S ', ' S '], { M: mat, S: I.STICK });
   shaped(toolId(m, 1), 1, ['MM', 'MS', ' S'], { M: mat, S: I.STICK });
@@ -1300,6 +1338,9 @@ shaped(B.RAIL, 16, ['I I', 'ISI', 'I I'], { I: I.IRON_INGOT, S: I.STICK });
 shaped(I.MINECART, 1, ['I I', 'III'], { I: I.IRON_INGOT });
 shaped(I.CAR, 1, [' G ', 'III', 'C C'], { G: B.GLASS, I: I.IRON_INGOT, C: I.COAL });
 shapeless(I.FLYING_CAR, 1, [I.CAR, I.FEATHER, I.FEATHER, I.FEATHER, I.FEATHER]);   // wings!
+shaped(I.PLANE, 1, [' I ', 'WIW', ' I '], { I: I.IRON_INGOT, W: 'wool' });   // (wool wings, as the Wright brothers' were cloth)
+shapeless(I.JET, 1, [I.PLANE, I.GUNPOWDER, I.GUNPOWDER, I.IRON_INGOT, I.IRON_INGOT]);
+shapeless(I.AIRLINER, 1, [I.PLANE, I.PLANE, B.IRON_BLOCK]);
 shaped(I.BROOM, 1, ['  S', ' S ', 'F  '], { S: I.STICK, F: I.FEATHER });
 shaped(I.ROCKET, 1, [' I ', 'IGI', 'IFI'], { I: I.IRON_INGOT, G: B.GLASS, F: B.FURNACE });   // (the furnace is the engine)
 shapeless(I.WAND, 1, [I.STICK, I.FEATHER, I.GOLD_INGOT]);   // (a phoenix feather inside)
@@ -1404,7 +1445,7 @@ const CREATIVE_LIST = [
   B.COAL_ORE, B.IRON_ORE, B.GOLD_ORE, B.DIAMOND_ORE, B.EMERALD_ORE, B.LAPIS_ORE, B.COAL_BLOCK, B.IRON_BLOCK, B.GOLD_BLOCK, B.DIAMOND_BLOCK, B.EMERALD_BLOCK, B.LAPIS_BLOCK,
   B.NETHERRACK, B.SOUL_SAND, B.NETHER_QUARTZ_ORE, B.QUARTZ_BLOCK, B.NETHER_BRICKS,
   B.GLOWSTONE, B.TORCH, B.JACK_O_LANTERN, B.PUMPKIN, B.TNT, B.MEGA_TNT, B.ICE_TNT, B.DIG_TNT, B.PARTY_TNT, B.CLUSTER_TNT,
-  B.CRAFTING_TABLE, B.FURNACE, B.CHEST, B.BOOKSHELF, B.ENCH_TABLE, B.BREWING_STAND, B.SIGN, B.BOARD, B.TV, B.MONITOR, B.CAMERA, B.BED, I.DOOR, B.DISPENSER, B.LEVER, B.BUTTON, B.RAIL, I.MINECART, I.CAR, I.FLYING_CAR, I.BROOM, I.ROCKET, I.SPACE_HELMET, I.BOAT, I.SUBMARINE,
+  B.CRAFTING_TABLE, B.FURNACE, B.CHEST, B.BOOKSHELF, B.ENCH_TABLE, B.BREWING_STAND, B.SIGN, B.BOARD, B.TV, B.MONITOR, B.CAMERA, B.BED, I.DOOR, I.BIRCH_DOOR, I.SPRUCE_DOOR, I.GLASS_DOOR, I.IRON_DOOR, I.AIRLOCK, B.GARAGE_DOOR, B.DISPENSER, B.LEVER, B.BUTTON, B.RAIL, I.MINECART, I.CAR, I.FLYING_CAR, I.BROOM, I.ROCKET, I.PLANE, I.JET, I.AIRLINER, I.SPACE_HELMET, I.BOAT, I.SUBMARINE,
   B.CACTUS, B.SUGAR_CANE, B.TALL_GRASS, B.DANDELION, B.POPPY, B.CORNFLOWER, B.DEAD_BUSH, B.OAK_SAPLING, B.BIRCH_SAPLING, B.SPRUCE_SAPLING,
   B.WATER, B.LAVA, B.CORAL_RED, B.CORAL_YELLOW, B.CORAL_BLUE, B.MOON_DUST, B.MOON_ROCK, B.MOON_CHEESE, B.FLAG, B.SLATE, B.STAINED_GLASS, B.CANDLE, B.SORTING_HAT,
   ...TAGS.wool,
@@ -3962,6 +4003,7 @@ function buildSkins() {
   });
   buildNewSkins();
   buildSkins3();
+  buildSkins4();
   addSkin('item_glint', S => { /* reserved */ });
 }
 /* a player's face as a small picture, for menus */
@@ -4400,8 +4442,94 @@ function buildBlockTiles3() {
       return p.jit(C('#f2c84a'), 6);
     });
   });
+  // more doors: birch and spruce (like the oak door, in their own wood), iron with rivets, glass in a thin white frame,
+  // and the airlock door: steel with a round window at the top and yellow and black stripes at the bottom
+  const woodDoor = (p, top, frame, cross, b1, b2, line) => {
+    p.fill((x, y) => {
+      if (x === 0 || x === 15 || (top && y === 0) || (!top && y === 15)) return p.jit(C(frame), 4);
+      if (top && x > 2 && x < 13 && y > 2 && y < 13 && x !== 7 && x !== 8 && y !== 7 && y !== 8) return null;
+      if (top && (x === 7 || x === 8 || y === 7 || y === 8) && x > 1 && x < 14 && y > 1 && y < 14) return p.jit(C(cross), 4);
+      return p.jit(x % 4 === 0 ? C(b1) : C(b2), 5);
+    });
+    if (!top) { p.px(12, 2, C('#3a3a3a')); p.px(12, 3, C('#5a5a5a')); for (let y = 5; y < 13; y += 7) for (let x = 2; x < 14; x++) p.px(x, y, C(line)); }
+  };
+  addTile('birch_door_top', p => woodDoor(p, true, '#b8a46a', '#c9b882', '#d2c393', '#e2d6ad', '#a8955f'));
+  addTile('birch_door_bottom', p => { woodDoor(p, false, '#b8a46a', '#c9b882', '#d2c393', '#e2d6ad', '#a8955f'); for (const [x, y] of [[4, 9], [9, 3], [10, 10]]) { p.px(x, y, C('#3a3226')); p.px(x + 1, y, C('#3a3226')); } });
+  addTile('spruce_door_top', p => woodDoor(p, true, '#3f2b16', '#5a3e22', '#684828', '#76542f', '#4e361d'));
+  addTile('spruce_door_bottom', p => woodDoor(p, false, '#3f2b16', '#5a3e22', '#684828', '#76542f', '#4e361d'));
+  const ironDoor = (p, top) => {
+    p.fill((x, y) => {
+      if (x === 0 || x === 15 || (top && y === 0) || (!top && y === 15)) return C('#7a8088');
+      if (top && x > 2 && x < 13 && y > 2 && y < 9 && x !== 7 && x !== 8) return null;   // two little windows
+      if ((x === 2 || x === 13) && y % 4 === 2) return C('#e8ecf0');   // rivets
+      return p.jit(y % 5 === 4 ? C('#aeb3ba') : C('#c8ccd2'), 4);
+    });
+    if (!top) p.rect(11, 1, 2, 3, C('#5a5f68'));   // the handle
+  };
+  addTile('iron_door_top', p => ironDoor(p, true));
+  addTile('iron_door_bottom', p => ironDoor(p, false));
+  const glassDoor = (p, top) => {
+    p.fill((x, y) => (x <= 1 || x >= 14 || (top && y <= 1) || (!top && y >= 14)) ? ((x + y) % 6 === 0 ? C('#ffffff') : C('#dfe8ee')) : null);
+    (top ? [[4, 9], [5, 8], [6, 7], [7, 6], [5, 10], [10, 4], [11, 3]] : [[4, 12], [5, 11], [6, 10], [9, 7], [10, 6], [11, 5]]).forEach(([x, y]) => p.px(x, y, C('#f4fbff')));
+    if (!top) p.rect(11, 1, 1, 3, C('#9aa4ac'));   // the handle
+  };
+  addTile('glass_door_top', p => glassDoor(p, true));
+  addTile('glass_door_bottom', p => glassDoor(p, false));
+  addTile('airlock_top', p => p.fill((x, y) => {
+    const d = Math.hypot(x - 7.5, y - 8.5);
+    if (d < 3.6) return null;   // the round window
+    if (d < 5) return d < 4.3 ? C('#3a3f45') : C('#d8a020');   // its rim
+    if (x === 0 || x === 15 || y === 0) return C('#3a3f45');
+    if ((x === 2 || x === 13) && (y === 2 || y === 14)) return C('#c8ccd2');   // bolts
+    return p.jit(C('#6e767f'), 4);
+  }));
+  addTile('airlock_bottom', p => p.fill((x, y) => {
+    if (x === 0 || x === 15 || y === 15) return C('#3a3f45');
+    if (y >= 11) return ((x + y) >> 1) % 2 ? C('#1e1e1e') : C('#f2c418');   // warning stripes
+    const d = Math.hypot(x - 7.5, y - 5.5);
+    if (Math.abs(d - 3) < 0.7 || (d < 3 && (Math.abs(x - 7.5) < 0.6 || Math.abs(y - 5.5) < 0.6))) return C('#c43a2a');   // the wheel that seals it
+    return p.jit(C('#6e767f'), 4);
+  }));
+  // a garage door panel: painted metal slats
+  addTile('garage_door', p => p.fill((x, y) => y % 4 === 3 ? C('#a9b0b6') : y % 4 === 0 ? C('#f2f4f5') : p.jit(C('#dfe3e6'), 3)));
 }
 function buildItemTiles3() {
+  // the new doors, as items
+  const doorItem = (name, pal, win) => addTile(name, p => {
+    shadeMask(p, mask(poly([[4.5, 1], [11.5, 1], [11.5, 15], [4.5, 15]])), pal.map(C), true);
+    if (win) win(p);
+  });
+  doorItem('birch_door_item', ['#d8cba0', '#efe6c8', '#b0a070', '#5a4a2a'], p => { p.rect(6, 3, 4, 4, C('#bcd8ea')); p.px(10, 9, C('#3a3a3a')); p.px(6, 11, C('#3a3226')); });
+  doorItem('spruce_door_item', ['#6a4a2a', '#8a6a42', '#4a321a', '#24160a'], p => { p.rect(6, 3, 4, 4, C('#bcd8ea')); p.px(10, 9, C('#c8c8c8')); });
+  doorItem('iron_door_item', ['#c8ccd2', '#eef0f2', '#8e959e', '#3a3f45'], p => { p.rect(6, 3, 1, 3, C('#3a3f45')); p.rect(9, 3, 1, 3, C('#3a3f45')); p.px(10, 9, C('#5a5f68')); });
+  doorItem('glass_door_item', ['#cfe8f2', '#f4fbff', '#9ac0d0', '#4a6a7a'], p => { p.px(6, 6, C('#ffffff')); p.px(7, 5, C('#ffffff')); p.px(8, 10, C('#ffffff')); p.px(10, 9, C('#9aa4ac')); });
+  doorItem('airlock_item', ['#6e767f', '#9aa2ab', '#4a5058', '#1e2226'], p => {
+    shadeMask(p, mask(circle(8, 5, 2.2)), [C('#9fd4ee'), C('#e0f4ff'), C('#5a9ab8'), C('#d8a020')], true);
+    for (let x = 5; x < 12; x++) p.px(x, 13, (x % 2) ? C('#1e1e1e') : C('#f2c418'));
+  });
+  // the planes, from the side: a propeller plane, a jet, and a big passenger plane with a row of windows
+  addTile('plane', p => {
+    shadeMask(p, mask(poly([[2, 6], [13, 7], [14.5, 8.5], [13, 10.5], [3, 10], [1, 8]])), [C('#e8402a'), C('#ff7a5a'), C('#a82a1a'), C('#3a0a04')], true);
+    shadeMask(p, mask(poly([[1, 3], [3.5, 3], [4.5, 7], [2, 7]])), [C('#e8402a'), C('#ff7a5a'), C('#a82a1a'), C('#3a0a04')], true);   // the tail
+    shadeMask(p, mask(poly([[6, 8], [11, 8], [10, 9.5], [5, 9.5]])), [C('#f4f4f4'), C('#ffffff'), C('#c8c8c8'), C('#4a4a4a')], true);   // a wing
+    p.rect(9, 6, 2, 1, C('#bfe8ff'));
+    p.rect(15, 5, 1, 7, C('#5a5a5a')); p.px(15, 8, C('#2a2a2a'));   // the propeller
+    p.px(7, 12, C('#2a2a2a')); p.px(11, 12, C('#2a2a2a'));
+  });
+  addTile('jet', p => {
+    shadeMask(p, mask(poly([[1, 7], [11, 7], [15, 8.5], [11, 10], [1, 10]])), [C('#8e98a6'), C('#c8d0dc'), C('#5a6472'), C('#1e2430')], true);
+    shadeMask(p, mask(poly([[1, 2], [3, 2], [5.5, 7], [2.5, 7]])), [C('#8e98a6'), C('#c8d0dc'), C('#5a6472'), C('#1e2430')], true);   // the tail
+    shadeMask(p, mask(poly([[4, 9], [9, 9], [5, 14], [3, 14]])), [C('#7a8492'), C('#aab4c0'), C('#4a5462'), C('#1e2430')], true);   // a swept wing
+    p.rect(10, 7, 2, 1, C('#ffd060'));   // the cockpit
+    p.px(0, 8, C('#ffb030')); p.px(0, 9, C('#ff7020'));   // flames
+  });
+  addTile('airliner', p => {
+    shadeMask(p, mask(capsule([[1.5, 8.5], [14.5, 8.5]], 2.6)), [C('#f4f4f4'), C('#ffffff'), C('#c8c8c8'), C('#3a4a5a')], true);
+    shadeMask(p, mask(poly([[0.5, 3], [2.5, 3], [4.5, 7], [1.5, 7]])), [C('#2a6ae0'), C('#6a9aff'), C('#1a4aa8'), C('#0a1a4a')], true);   // the tail
+    for (let x = 4; x < 13; x += 2) p.px(x, 8, C('#3a7ac8'));   // windows
+    p.rect(3, 10, 11, 1, C('#2a6ae0'));   // a stripe
+    shadeMask(p, mask(poly([[6, 9.5], [10, 9.5], [8, 13.5], [6, 13.5]])), [C('#d8d8d8'), C('#f0f0f0'), C('#a8a8a8'), C('#3a4a5a')], true);   // a wing
+  });
   // the weather: rain streaks and snowflakes (drawn on sheets that scroll down, so they wrap around top to bottom),
   // the glow of a lightning bolt, and a splash of rain on the ground
   addTile('rain', p => {   // (half a block wide and one block tall: each drop is a thin streak)
@@ -5452,6 +5580,7 @@ class World {
     }
     this.markAround(x, y, z, urgent);
     if (this.onChange) this.onChange(x, y, z, id, data, old);
+    if (!this.remote && (id === B.AIRLOCK || old === B.AIRLOCK)) airlockChanged(this, x, y, z, old, od, id, data);
     if (!this.remote && (POWER_SRC[old] || POWER_SRC[id] || (old !== id && POWER_DEV[id]))) this.powerQ.push(x, y, z, old, od, id, data);   // levers, buttons and machines
     if (old !== id) {
       const tileOld = old === B.CHEST || old === B.FURNACE || old === B.FURNACE_LIT || old === B.DISPENSER || old === B.BREWING_STAND;
@@ -5525,7 +5654,8 @@ class World {
     const id = this.getBlock(x, y, z);
     for (const dy of [-1, 1]) {
       const ny = y + dy;
-      if (this.getBlock(x, ny, z) === B.DOOR && id !== B.DOOR) {
+      const nb = this.getBlock(x, ny, z);
+      if (IS_DOOR[nb] && id !== nb) {
         const nd = this.getData(x, ny, z);
         if ((dy === 1 && (nd & 8)) || (dy === -1 && !(nd & 8))) this.setBlock(x, ny, z, B.AIR, 0, true);
       }
@@ -5569,7 +5699,7 @@ class World {
     const lava = this.getBlock(x, y, z) === B.LAVA;
     this.liquidQ.push({ x, y, z, k, t: this.clock + (lava ? 1.2 : 0.25) });
   }
-  flowable(b) { return b === B.AIR || (!SOLID[b] && !LIQUID[b] && b !== B.UNLOADED && b !== B.DOOR && b !== B.NETHER_PORTAL); }
+  flowable(b) { return b === B.AIR || (!SOLID[b] && !LIQUID[b] && b !== B.UNLOADED && !IS_DOOR[b] && b !== B.GARAGE_OPEN && b !== B.NETHER_PORTAL); }
   flowInto(x, y, z, id, data) {
     const b = this.getBlock(x, y, z);
     if (b !== B.AIR && this.onBreak) this.onBreak(x, y, z, b, true);
@@ -5820,8 +5950,13 @@ function buildBlockTiles() {
     for (let f = 0; f < 6; f++) BT[id * 6 + f] = TILE[tt[f]];
     if (typeof t === 'object' && t.front) FRONT_T[id] = TILE[t.front];
     if (typeof t === 'object' && t.back) BACK_T[id] = TILE[t.back];
+    if (d.doorTex) {   // (a door's two halves)
+      for (const n of d.doorTex) if (!(TILE[n] < 256)) console.error('The picture ' + n + ' is number ' + TILE[n] + ': block pictures must be under 256');
+      DOOR_T[id * 2] = TILE[d.doorTex[0]]; DOOR_T[id * 2 + 1] = TILE[d.doorTex[1]];
+    }
   }
 }
+const DOOR_T = new Uint8Array(512);
 const UPDOWN = new Uint8Array(256);   // facing blocks that can also point up (data 4) or down (data 5)
 UPDOWN[B.DISPENSER] = UPDOWN[B.DIG_TNT] = 1;
 function tileFor(id, d, data) {
@@ -6036,8 +6171,14 @@ function meshSection(world, c, s) {
         for (let f = 0; f < 6; f++) _tiles6[f] = BT[id * 6 + f];
         emitBox(WO, x, y, z, pi, 1, 0, 1, 15, 16, 15, _tiles6, SIX_FULL, faces, 0, 0);
       } else if (r === R_DOOR) {
-        const data = padD[pi], bb = doorBox(data), t = (data & 8) ? TILE.door_top : TILE.door_bottom;
+        const data = padD[pi], bb = doorBox(data), t = DOOR_T[id * 2 + ((data & 8) ? 1 : 0)];
         for (let f = 0; f < 6; f++) _tiles6[f] = t;
+        emitBox(WO, x, y, z, pi, bb[0] * 16, bb[1] * 16, bb[2] * 16, bb[3] * 16, bb[4] * 16, bb[5] * 16, _tiles6, SIX_FULL, 63, 0, 0);
+      } else if (r === R_GARAGE) {   // a garage door panel; rolled up, the top one of a door is a drum and the rest are out of the way
+        const data = padD[pi];
+        if (id === B.GARAGE_OPEN && isGarage(padB[pi + 324])) continue;
+        const bb = id === B.GARAGE_OPEN ? garageRollBox(data) : garageBox(data);
+        for (let f = 0; f < 6; f++) _tiles6[f] = BT[id * 6];
         emitBox(WO, x, y, z, pi, bb[0] * 16, bb[1] * 16, bb[2] * 16, bb[3] * 16, bb[4] * 16, bb[5] * 16, _tiles6, SIX_FULL, 63, 0, 0);
       } else if (r === R_PORTAL) {
         // a glowing sheet in the middle of the block; edges only where the portal ends
@@ -6236,6 +6377,7 @@ function buildModels() {
   ]);
   buildNewModels();
   buildModels3();
+  buildModels4();
   defModel('pig', 'pig', 1 / 16, [
     { name: 'head', box: [-4, 8, 6, 8, 8, 8], uv: [0, 0], pivot: [0, 12, 6] },
     { name: 'snout', box: [-2, 9, 14, 4, 3, 1], uv: [32, 0], pivot: [0, 12, 6], follow: 'head' },
@@ -6575,6 +6717,123 @@ function buildModels3() {
     { name: 'rarm', box: [-6.5, 2, -1.5, 2, 15, 3], uv: [0, 24], pivot: [-5.5, 16, 0] },
     { name: 'larm', box: [4.5, 2, -1.5, 2, 15, 3], uv: [10, 24], pivot: [5.5, 16, 0] },
   ]);
+}
+
+/* ---- 07d-models4.js ---- */
+/* ===================== Models and skins for the fourth wish list: planes and a parachute ===================== */
+// Each plane is built a quarter of a block to a skin pixel (the passenger plane's long body and wings are a few boxes
+// that share one picture). The front is +z.
+function buildModels4() {
+  // the propeller plane: red, with white wings, an open cockpit (a seat behind it for a friend) and a propeller
+  defModel('plane', 'plane', 4 / 16, [
+    { name: 'body', boxes: [
+      [-2.5, 2, -10, 5, 5, 16, 0, 0],   // the body
+      [-2, 2.5, 6, 4, 4, 2, 44, 0],   // the engine
+      [-2, 7, 3, 4, 2, 1, 44, 7],   // the windscreen
+      [2.5, 4.5, -1, 12, 1, 5, 0, 22], [-14.5, 4.5, -1, 12, 1, 5, 0, 22],   // the wings
+      [-6, 5.5, -10, 12, 1, 3, 0, 29],   // the tail
+      [-0.5, 7, -10, 1, 5, 3, 32, 29],   // the fin
+      [-3.5, 0, 2, 1, 2, 2, 44, 12], [2.5, 0, 2, 1, 2, 2, 44, 12], [-0.5, 1, -9.5, 1, 1, 1, 52, 12],   // wheels
+    ] },
+    { name: 'prop', boxes: [[-5, 4, 8, 10, 1, 1, 0, 42], [-1, 3.5, 8.2, 2, 2, 1, 24, 42]], pivot: [0, 4.5, 8.5] },
+  ]);
+  // the jet: sleek and grey, with swept-back wings, a golden canopy and its engine at the back
+  defModel('jet', 'jet', 4 / 16, [
+    { name: 'body', boxes: [
+      [-2, 2, -12, 4, 4, 20, 0, 0],   // the body
+      [-1.5, 2.5, 8, 3, 3, 4, 48, 0],   // the pointed nose
+      [-1.5, 6, 0, 3, 2, 5, 48, 8],   // the canopy
+      [2, 3, -6, 6, 1, 8, 0, 25], [-8, 3, -6, 6, 1, 8, 0, 25], [8, 3, -7, 5, 1, 4, 28, 25], [-13, 3, -7, 5, 1, 4, 28, 25],   // the wings
+      [-0.5, 6, -12, 1, 6, 4, 46, 25],   // the fin
+      [-6, 3.5, -12, 12, 1, 3, 0, 35],   // the tail
+      [-1.5, 2.5, -13, 3, 3, 1, 32, 35],   // the engine
+      [-2.5, 0, 3, 1, 2, 2, 40, 35], [1.5, 0, 3, 1, 2, 2, 40, 35], [-0.5, 0, -8, 1, 2, 2, 40, 35],   // wheels
+    ] },
+  ]);
+  // the passenger plane: a long white body with a row of windows, big wings with an engine under each, and a tall fin
+  defModel('airliner', 'airliner', 4 / 16, [
+    { name: 'body', boxes: [
+      [-5, 2, -24, 10, 10, 16, 0, 0], [-5, 2, -8, 10, 10, 16, 0, 0], [-5, 2, 8, 10, 10, 16, 0, 0],   // the body
+      [-4, 3, 24, 8, 8, 4, 0, 27],   // the nose (the pilot's windows)
+      [-4, 4, -28, 8, 7, 4, 24, 27],   // the tail end
+      [5, 4, -2, 14, 1, 10, 0, 40], [19, 4, -2, 14, 1, 10, 0, 40], [-19, 4, -2, 14, 1, 10, 0, 40], [-33, 4, -2, 14, 1, 10, 0, 40],   // the wings
+      [0, 9, -28, 12, 1, 6, 0, 52], [-12, 9, -28, 12, 1, 6, 0, 52],   // the tail
+    ] },
+    { name: 'parts', skin: 'airliner2', boxes: [
+      [-0.5, 12, -28, 1, 12, 8, 0, 0],   // the fin
+      [9, 0.5, 2, 4, 4, 8, 20, 0], [-13, 0.5, 2, 4, 4, 8, 20, 0],   // the engines
+      [-1, 0, 18, 2, 2, 2, 0, 22], [-4, 0, -6, 2, 2, 2, 0, 22], [2, 0, -6, 2, 2, 2, 0, 22],   // wheels
+    ] },
+  ]);
+  // a parachute: a striped canopy on strings, above whoever is floating down
+  defModel('parachute', 'parachute', 2 / 16, [{ name: 'c', boxes: [
+    [-8, 20, -8, 16, 2, 16, 0, 0],
+    [-7.5, 12, -7.5, 1, 8, 1, 0, 20], [6.5, 12, -7.5, 1, 8, 1, 0, 20], [-7.5, 12, 6.5, 1, 8, 1, 0, 20], [6.5, 12, 6.5, 1, 8, 1, 0, 20],
+  ] }]);
+}
+function buildSkins4() {
+  addSkin('plane', S => {
+    const red = C('#d8302a'), redL = C('#f05a48'), redD = C('#a82018'), white = C('#f4f4f4');
+    paintBox(S, 0, 0, 5, 5, 16, (f, x, y, fw, fh) => {
+      if (f === 'top') return x === 2 && y > 6 && y < 12 ? C('#2a2a2a') : S.jit(redL, 4);   // (the cockpit opening)
+      if (f === 'bottom') return redD;
+      if ((f === 'left' || f === 'right') && y === 2) return white;   // a white stripe down each side
+      if ((f === 'left' || f === 'right') && y === 1 && (x === 6 || x === 7 || x === 9)) return C('#1e1e1e');   // its number
+      return S.jit(red, 4);
+    });
+    paintBox(S, 44, 0, 4, 4, 2, (f, x, y) => f === 'front' ? ((x + y) % 3 ? C('#3a3a3a') : C('#5a5a5a')) : C('#4a4a4a'));
+    paintBox(S, 44, 7, 4, 2, 1, () => C('#bfe8ff'));
+    paintBox(S, 0, 22, 12, 1, 5, (f, x, y, fw) => (f === 'top' || f === 'bottom') && (x === fw - 1 || x === 0) ? red : S.jit(white, 3));
+    paintBox(S, 0, 29, 12, 1, 3, (f, x, y, fw) => (f === 'top' || f === 'bottom') && (x <= 1 || x >= fw - 2) ? red : S.jit(white, 3));
+    paintBox(S, 32, 29, 1, 5, 3, (f, x, y) => y === 1 ? white : S.jit(red, 4));
+    paintBox(S, 44, 12, 1, 2, 2, (f, x, y) => (f === 'left' || f === 'right') && x === 1 && y === 1 ? C('#c8c8c8') : C('#1a1a1a'));
+    paintBox(S, 52, 12, 1, 1, 1, () => C('#1a1a1a'));
+    paintBox(S, 0, 42, 10, 1, 1, (f, x, y, fw) => x === 0 || x === fw - 1 ? C('#f2d21e') : C('#5a4630'));
+    paintBox(S, 24, 42, 2, 2, 1, () => C('#c8c8c8'));
+  });
+  addSkin('jet', S => {
+    const g = C('#8e98a6'), gL = C('#b8c0cc'), gD = C('#5a6472');
+    paintBox(S, 0, 0, 4, 4, 20, (f, x, y) => f === 'top' ? S.jit(gL, 4) : f === 'bottom' ? gD : (f === 'left' || f === 'right') && y === 1 && x > 3 && x < 8 ? C('#2a6ae0') : S.jit(g, 4));
+    paintBox(S, 48, 0, 3, 3, 4, f => f === 'front' ? C('#2a2e36') : S.jit(gD, 4));
+    paintBox(S, 48, 8, 3, 2, 5, (f, x, y) => f === 'bottom' ? gD : (x + y) % 4 === 0 ? C('#fff0a0') : C('#e8b030'));
+    paintBox(S, 0, 25, 6, 1, 8, (f, x, y) => S.jit(f === 'bottom' ? gD : g, 4));
+    paintBox(S, 28, 25, 5, 1, 4, (f, x, y, fw) => (f === 'top' && x === fw - 1) ? C('#e8402a') : S.jit(g, 4));
+    paintBox(S, 46, 25, 1, 6, 4, (f, x, y) => y <= 1 ? C('#2a6ae0') : S.jit(g, 4));
+    paintBox(S, 0, 35, 12, 1, 3, () => S.jit(g, 4));
+    paintBox(S, 32, 35, 3, 3, 1, (f, x, y) => f === 'back' ? (x === 1 && y === 1 ? C('#ffb030') : C('#1a1a1a')) : gD);
+    paintBox(S, 40, 35, 1, 2, 2, () => C('#1a1a1a'));
+  });
+  addSkin('airliner', S => {
+    const white = C('#f4f4f4'), whiteD = C('#d8d8d8'), blue = C('#2a6ae0'), win = C('#3a5a80');
+    paintBox(S, 0, 0, 10, 10, 16, (f, x, y) => {
+      if (f === 'top') return S.jit(white, 3);
+      if (f === 'bottom') return C('#b8bcc4');
+      if (f === 'left' || f === 'right') {
+        if (y === 3 && x % 2 === 0) return win;   // the windows
+        if (y === 6) return blue;   // a stripe
+        if (y >= 8) return whiteD;
+      }
+      return S.jit(white, 3);
+    });
+    paintBox(S, 0, 27, 8, 8, 4, (f, x, y, fw) => f === 'front' && y >= 1 && y <= 2 && x >= 1 && x <= fw - 2 && x !== 3 && x !== 4 ? C('#1e2a3a') : f === 'front' && y === 5 ? blue : y >= 6 ? whiteD : S.jit(white, 3));
+    paintBox(S, 24, 27, 8, 7, 4, (f, x, y) => f === 'back' && y === 4 ? blue : S.jit(white, 3));
+    paintBox(S, 0, 40, 14, 1, 10, (f, x, y) => f === 'bottom' ? C('#a8acb4') : (x + y) % 7 === 0 ? C('#b8bcc4') : S.jit(C('#d0d4da'), 3));
+    paintBox(S, 0, 52, 12, 1, 6, () => S.jit(C('#d0d4da'), 3));
+  });
+  addSkin('airliner2', S => {
+    const blue = C('#2a6ae0'), blueL = C('#5a8ef0');
+    paintBox(S, 0, 0, 1, 12, 8, (f, x, y) => {
+      if ((f === 'left' || f === 'right') && Math.abs(x - 4.5) + Math.abs(y - 5.5) < 2.2) return C('#f2d21e');   // a star
+      return y < 2 ? blueL : S.jit(blue, 4);
+    });
+    paintBox(S, 20, 0, 4, 4, 8, (f, x, y) => f === 'front' ? (x >= 1 && x <= 2 && y >= 1 && y <= 2 ? C('#1a1a1a') : C('#c0c4cc')) : f === 'back' ? C('#4a4e56') : S.jit(C('#9aa0a8'), 4));
+    paintBox(S, 0, 22, 2, 2, 2, () => C('#1a1a1a'));
+  });
+  addSkin('parachute', S => {
+    const cols = [C('#e8402a'), C('#f4f4f4'), C('#2a6ae0'), C('#f4f4f4')];
+    paintBox(S, 0, 0, 16, 2, 16, (f, x, y) => f === 'bottom' ? mulc(cols[(x >> 2) & 3], 0.8) : cols[(x >> 2) & 3]);
+    paintBox(S, 0, 20, 1, 8, 1, () => C('#d8d8d8'));
+  });
 }
 
 /* ---- 08-render.js ---- */
@@ -7270,6 +7529,8 @@ function updateEntities(game, dt) {
     if (e.vehicle) { updateVehicle(game, e, dt); continue; }
     if (e.mob) updateMob(game, e, dt);
   }
+  if (pl.riding && pl.seat) sitPassenger(pl, pl.riding);   // (a passenger: wherever the plane has got to)
+  tickAirlocks(game, dt);
   if (!world.remote) { tickDiggers(game, dt); tickPower(game, dt); }
   let j = 0;
   for (const e of game.entities) if (!e.removed) game.entities[j++] = e;
@@ -8112,6 +8373,9 @@ const VEHICLES = {
   flycar: { w: 0.8, h: 1.0, item: I.FLYING_CAR, hits: 4, code: -10, wheel: 0.19 },   // (see 09j-flying.js)
   broom: { w: 0.35, h: 0.9, item: I.BROOM, hits: 2, code: -11, wheel: 1, wood: true },
   rocket: { w: 0.55, h: 4, item: I.ROCKET, hits: 5, code: -12, wheel: 1 },   // (see 09m-moon.js)
+  plane: { w: 0.9, h: 1.3, item: I.PLANE, hits: 4, code: -13, wheel: 0.12 },   // (see 09l-planes.js)
+  jet: { w: 0.9, h: 1.2, item: I.JET, hits: 4, code: -14, wheel: 0.1 },
+  airliner: { w: 1.4, h: 2.2, item: I.AIRLINER, hits: 6, code: -15, wheel: 0.15 },
 };
 const VEHICLE_TYPES = Object.keys(VEHICLES);
 const isVehicleType = t => typeof t === 'string' && Object.prototype.hasOwnProperty.call(VEHICLES, t);   // (not "constructor" and the like)
@@ -8125,6 +8389,7 @@ function spawnVehicle(game, type, x, y, z, yaw) {
 /* where the rider sits, and how high their feet are */
 function seatOf(v) {
   if (v.type === 'car' || v.type === 'flycar') { const b = 0.25; return [v.x + Math.sin(v.yaw) * b, v.y - 0.15, v.z + Math.cos(v.yaw) * b]; }
+  if (isPlane(v)) return planeSeat(v, 0);
   if (v.type === 'broom') return [v.x, v.y + 0.05, v.z];
   if (v.type === 'rocket') return [v.x, v.y + 0.6, v.z];   // (inside, looking out of the window)
   if (v.type === 'boat') return [v.x, v.y - 0.64, v.z];
@@ -8135,11 +8400,15 @@ function updateVehicle(game, e, dt) {
   const w = game.world;
   if (e.hurt > 0) e.hurt -= dt;
   if (w.getBlock(Math.floor(e.x), Math.floor(e.y + 0.3), Math.floor(e.z)) === B.UNLOADED) return;   // wait for the ground to load
-  if (e.rider && e.rider !== 'me' && !e.local) { e.age += dt; return; }   // a guest is driving it on their iPad
+  if (e.rider && e.rider !== 'me' && !e.local) {   // a guest is driving it on their iPad
+    e.age += dt;
+    if (isPlane(e)) { e.x += e.vx * dt; e.y += (e.vy || 0) * dt; e.z += e.vz * dt; e.prop = (e.prop || 0) + dt * 30; e.sndT = (e.sndT || 0) - dt; if (e.sndT <= 0) planeSounds(e); }   // (a plane keeps going between its updates)
+    return;
+  }
   if (e.rider === 'me' && game.player.riding !== e) e.rider = null;
   if (e.rider === 'me' && (game.paused || game.uiOpen || game.state !== 'playing')) { e.ctrlX = e.ctrlZ = 0; e.push = null; }   // the menu is open: let go of the wheel
   const steps = Math.max(1, Math.ceil(Math.hypot(e.vx, e.vy, e.vz) * dt / 0.3));
-  const step = e.type === 'car' ? carStep : e.type === 'boat' ? boatStep : e.type === 'submarine' ? subStep : isFlyer(e) ? flyStep : e.type === 'rocket' ? rocketStep : cartStep;
+  const step = e.type === 'car' ? carStep : e.type === 'boat' ? boatStep : e.type === 'submarine' ? subStep : isFlyer(e) ? flyStep : isPlane(e) ? planeStep : e.type === 'rocket' ? rocketStep : cartStep;
   for (let i = 0; i < steps; i++) step(game, e, dt / steps);
   if (e.y < -40) { e.removed = true; return; }
   if (e.rider === 'me') sitRider(game.player, e);
@@ -8147,6 +8416,7 @@ function updateVehicle(game, e, dt) {
   const sp = Math.hypot(e.vx, e.vz);
   if (e.sndT <= 0 && (e.type === 'boat' || e.type === 'submarine')) boatSounds(e, sp);
   else if (e.sndT <= 0 && isFlyer(e)) flySounds(e, sp);
+  else if (e.sndT <= 0 && isPlane(e)) planeSounds(e);
   else if (e.sndT <= 0 && sp > 0.5) {
     if (e.type === 'car' && e.rider) { e.sndT = 0.16; sfx('carEngine', e.x, e.y, e.z, clamp(0.4 + sp / 12, 0.4, 1)); }
     else if (e.type === 'minecart' && e.onRail) { e.sndT = 0.32 - Math.min(0.2, sp * 0.02); sfx('minecartRoll', e.x, e.y, e.z, clamp(sp / 8, 0.25, 1)); }
@@ -8159,7 +8429,7 @@ function sitRider(pl, v) {
     const d = ((v.yaw - (v.lastYaw === undefined ? v.yaw : v.lastYaw) + Math.PI) % TAU + TAU) % TAU - Math.PI;
     pl.yaw += d;
     pl.bodyYaw = v.yaw;
-  } else if (v.type === 'submarine' || isFlyer(v)) pl.bodyYaw = v.yaw;   // (a submarine, a flying car or a broom turns to where you look)
+  } else if (v.type === 'submarine' || isFlyer(v) || isPlane(v)) pl.bodyYaw = v.yaw;   // (a submarine, a flying car or a broom turns to where you look)
   else pl.bodyYaw = pl.yaw;
   v.lastYaw = v.yaw;
 }
@@ -8254,8 +8524,9 @@ function hitVehicle(game, e, mode, by) {
 function mountVehicle(game, v) {
   const pl = game.player;
   if (v.removed || pl.riding) return;
-  if (v.rider) { toast('Someone is already in it.', 2); return; }
+  if (v.rider && !isPlane(v)) { toast('Someone is already in it.', 2); return; }
   if (MP.role === 'guest') { if (!v.askT || performance.now() - v.askT > 1500) { v.askT = performance.now(); MP.send({ t: 'mount', e: v.nid }); } return; }   // the host says yes or no
+  if (v.rider) { const k = freeSeat(v); if (k) boardSeat(game, v, k); else toast('This plane is full.', 2); return; }   // (a plane's pilot is already in: a passenger seat)
   boardVehicle(game, v);
 }
 function boardVehicle(game, v) {
@@ -8276,18 +8547,23 @@ const RIDE_TIPS = {
   flycar: 'Drive with the joystick. Press Jump to fly! In the air it goes where you look: Jump goes up, Sneak goes down. Land, then Sneak to get out.',
   broom: 'Push forward to fly where you look! Jump goes up, Sneak goes down. Land, then Sneak to get off.',
   rocket: 'Tap to blast off! Everyone comes along. Press Sneak to get out.',
+  plane: 'Push the joystick forward to speed along the ground. When it is fast enough, look up to take off! Left and right turn. Let go to slow down and glide in to land.',
+  jet: 'Push forward and speed down a long runway, then look up to take off! Jets go very fast. Let go to slow down and glide in to land.',
+  airliner: 'Push forward and speed down a long runway, then look up to take off! Friends can sit in the seats behind you.',
 };
 /* host: where a guest's vehicle has got to */
 function applyVehState(v, s) {
-  const sp = clamp(s[5], -12, 12);
+  const sp = clamp(s[5], -12, isPlane(v) ? 45 : 12);
   v.x = s[0]; v.y = s[1]; v.z = s[2]; v.yaw = s[3] % TAU; v.slope = clamp(s[4], -1, 1);
-  if (isFlyer(v)) v.flying = s[6] === 1;
+  if (isFlyer(v) || isPlane(v)) v.flying = s[6] === 1;
+  if (isPlane(v)) { v.bank = clamp(+s[7] || 0, -1, 1); v.vy = clamp(+s[8] || 0, -60, 60); v.spd = Math.abs(sp); v.slope = clamp(s[4], -1, 1); }
   v.vx = -Math.sin(v.yaw) * sp; v.vz = -Math.cos(v.yaw) * sp;
   v.wheel += sp * 0.1 / VEHICLES[v.type].wheel;
 }
 function dismountVehicle(game) {
   const pl = game.player, v = pl.riding;
   if (!v) return;
+  if (pl.seat) { leaveSeat(game, pl, v); return; }
   pl.riding = null;
   if (MP.role === 'guest') { if (v.local) { MP.send({ t: 'dismount', e: v.nid, s: vehicleState(v) }); v.local = false; v.tx = v.x; v.ty = v.y; v.tz = v.z; } }
   else if (v.rider === 'me') v.rider = null;
@@ -8313,10 +8589,11 @@ const restPos = pl => {
   const gy = groundUnder(w, v.x, v.y, v.z);   // (flying: down on the ground below, or over nothing at all, back at the spawn point)
   return gy < 0 ? game.spawnPos() : dismountSpot(w, { x: v.x, y: gy, z: v.z, yaw: v.yaw, w: v.w, h: v.h, type: v.type });
 };
-const vehicleState = v => [r2(v.x), r2(v.y), r2(v.z), r2(v.yaw), r2(v.slope || 0), r2(Math.hypot(v.vx, v.vz) * (v.vx * -Math.sin(v.yaw) + v.vz * -Math.cos(v.yaw) < 0 ? -1 : 1)), v.flying ? 1 : 0];
+const vehicleState = v => [r2(v.x), r2(v.y), r2(v.z), r2(v.yaw), r2(v.slope || 0), r2(Math.hypot(v.vx, v.vz) * (v.vx * -Math.sin(v.yaw) + v.vz * -Math.cos(v.yaw) < 0 ? -1 : 1)), v.flying ? 1 : 0, r2(v.bank || 0), r2(v.vy || 0)];
 /* what the rider does each frame (before the vehicle moves) */
 function rideControls(game, pl, fx, fz, inp, dt) {
   const v = pl.riding;
+  if (pl.seat) { passengerControls(game, pl, v, inp); return; }   // (a passenger in a plane)
   if (!v || v.removed || (MP.role === 'guest' && !v.local)) {
     if (v && v.removed && v.local && MP.role === 'guest') MP.send({ t: 'dismount', e: v.nid });   // it fell out of the world here: free it on the host
     if (v) {   // (it's gone from under you: step out beside where it was, not into the ground)
@@ -8326,6 +8603,7 @@ function rideControls(game, pl, fx, fz, inp, dt) {
     return;
   }
   if (isFlyer(v)) { flyControls(game, pl, v, fx, fz, inp); return; }
+  if (isPlane(v)) { planeControls(game, pl, v, fx, fz, inp); return; }
   if (v.type === 'rocket') {   // nothing to steer; you can get out unless it is taking off or landing
     if (inp.sneak && !pl.sneakHeld && !(v.launchT > 0) && !v.landing) { pl.sneakHeld = true; dismountVehicle(game); return; }
     pl.sneakHeld = !!inp.sneak;
@@ -8364,6 +8642,7 @@ function drawVehicle(game, e, dx, dy, dz, s) {
   const fold = (1 - (e.wing || 0)) * 1.35;   // (folded down along its sides)
   drawModel(model, _eb, e.type === 'car' ? { wfl: [wr, st, 0], wfr: [wr, st, 0], wbl: [wr, 0, 0], wbr: [wr, 0, 0] }
     : e.type === 'flycar' ? { wfl: [wr, 0, 0], wfr: [wr, 0, 0], wbl: [wr, 0, 0], wbr: [wr, 0, 0], lwing: [0, 0, -fold], rwing: [0, 0, fold] }
+    : isPlane(e) ? { prop: [0, 0, e.prop || 0] }
     : e.type === 'minecart' || e.type === 'broom' || e.type === 'rocket' ? null : boatPose(e));
   if (e.type === 'submarine') drawSubGlass(_eb, bright);
 }
@@ -8374,7 +8653,7 @@ function drawVehicle(game, e, dx, dy, dz, s) {
 // with it. On land a boat only shuffles along. A submarine goes where you look when you push forward (up, down,
 // anywhere), and left and right turn it. Inside a submarine you never run out of air, its lamps light up the
 // water, and a tap sends out a sonar ping. Sneak gets out of either.
-const RIDE_KIND = { car: 'car', minecart: 'cart', boat: 'boat', submarine: 'sub', flycar: 'car', broom: 'broom', rocket: 'rocket' };
+const RIDE_KIND = { car: 'car', minecart: 'cart', boat: 'boat', submarine: 'sub', flycar: 'car', broom: 'broom', rocket: 'rocket', plane: 'car', jet: 'car', airliner: 'car' };
 const rideKind = v => v ? (typeof v === 'string' ? v : RIDE_KIND[v.type] || 'cart') : null;
 const inSubmarine = pl => !!(pl.riding && pl.riding.type === 'submarine');
 
@@ -9177,6 +9456,219 @@ function snorkSpawnTick(game) {
   }
 }
 
+/* ---- 09i-doors.js ---- */
+/* ===================== Doors: wooden, glass, iron, airlocks and garage doors ===================== */
+// Every door is two blocks tall (data & 3 facing, & 4 open, & 8 the top half). Iron doors only open with a lever or a
+// button. Airlock doors go in underwater (no water ever comes through a door), and when one shuts it pumps the water out
+// of the closed room behind it; they shut by themselves a few seconds after opening. A small room with an airlock door
+// at each end is an airlock: go in, the door shuts behind you, it pumps, and then the inside door opens.
+// Garage doors are panels put up side by side: a tap rolls the whole door up (or down) at once.
+const DOOR_SFX = ['door', 'ironDoor', 'garageDoor', 'airlockDoor'];   // (a door's sound when playing together: its number)
+const doorSfx = id => id === B.IRON_DOOR ? 1 : isGarage(id) ? 2 : id === B.AIRLOCK ? 3 : 0;
+function doorSound(id, x, y, z) {
+  const k = doorSfx(id);
+  sfx(DOOR_SFX[k], x + 0.5, y + 0.5, z + 0.5);
+  if (game.net) MP.localFx('door', x, y, z, k);
+}
+/* set a door's two halves open or shut (returns false if it already was) */
+function setDoorOpen(w, x, y, z, open) {
+  const id = w.getBlock(x, y, z);
+  if (!IS_DOOR[id]) return false;
+  const ly = (w.getData(x, y, z) & 8) ? y - 1 : y;
+  if (w.getBlock(x, ly, z) !== id) return false;
+  const ld = w.getData(x, ly, z), want = open ? ld | 4 : ld & ~4;
+  if (want === ld) return false;
+  w.setBlock(x, ly, z, id, want, true);
+  if (w.getBlock(x, ly + 1, z) === id) w.setBlock(x, ly + 1, z, id, want | 8, true);
+  return true;
+}
+/* a tap on a door */
+function useDoor(game, pl, t) {
+  const w = game.world;
+  if (isGarage(t.id)) { toggleGarage(w, t.x, t.y, t.z); doorSound(t.id, t.x, t.y, t.z); return; }
+  if (BLOCKS[t.id].iron) {
+    if (!pl.ironTipT || game.t - pl.ironTipT > 6) { pl.ironTipT = game.t; toast('Iron doors open with a lever or a button next to them.', 3); }
+    sfx('dig_metal', t.x + 0.5, t.y + 0.5, t.z + 0.5, 0.5);
+    return;
+  }
+  const ly = (w.getData(t.x, t.y, t.z) & 8) ? t.y - 1 : t.y;
+  setDoorOpen(w, t.x, ly, t.z, !(w.getData(t.x, ly, t.z) & 4));
+  doorSound(t.id, t.x, t.y, t.z);
+}
+/* put a door down: on top of a solid block, two blocks of room, facing away from you (an airlock door can go in water) */
+function placeDoor(game, pl, hid, t, creative) {
+  const world = game.world, id = ITEMS[hid].door, wet = id === B.AIRLOCK;
+  let px = t.x + DX[t.face], py = t.y + DY[t.face], pz = t.z + DZ[t.face];
+  const free = b => b === B.AIR || (BLOCKS[b] && BLOCKS[b].replaceable && (!LIQUID[b] || (wet && b === B.WATER)));
+  if (BLOCKS[t.id].replaceable && free(t.id)) { px = t.x; py = t.y; pz = t.z; }
+  if (py < 1 || py + 1 >= WH || !free(world.getBlock(px, py, pz)) || !free(world.getBlock(px, py + 1, pz))) return false;
+  const below = world.getBlock(px, py - 1, pz);
+  if (!SOLID[below] || !OPAQUE[below]) return false;
+  const hitsP = e => e.x + e.w > px && e.x - e.w < px + 1 && e.z + e.w > pz && e.z - e.w < pz + 1 && e.y < py + 2 && e.y + e.h > py;
+  if (hitsP(pl)) return false;
+  const f = facingFromYaw(pl.yaw);
+  world.setBlock(px, py, pz, id, f, true);
+  world.setBlock(px, py + 1, pz, id, f | 8, true);
+  sfx(BLOCKS[id].sound === 'metal' ? 'place_metal' : BLOCKS[id].sound === 'glass' ? 'place_glass' : 'place_wood', px + 0.5, py + 0.5, pz + 0.5);
+  pl.swing();
+  if (!creative) pl.consumeHeld(1);
+  if (wet && !game.tipped) game.tipped = {};
+  if (wet && !game.tipped.airlock) { game.tipped.airlock = 1; toast('Airlock doors keep the water out. Shut one and it pumps the water out of the room behind it!', 6); }
+  return true;
+}
+
+/* ---- garage doors ---- */
+/* all the panels joined to this one, side by side and one above another in the same wall */
+function garageGroup(w, x, y, z) {
+  const ax = w.getData(x, y, z) & 1, out = [], seen = new Set([posKey(x, y, z)]), q = [[x, y, z]];
+  while (q.length && out.length < 128) {
+    const c = q.pop();
+    out.push(c);
+    for (const [dx, dy, dz] of ax ? [[0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1]] : [[0, 1, 0], [0, -1, 0], [1, 0, 0], [-1, 0, 0]]) {
+      const nx = c[0] + dx, ny = c[1] + dy, nz = c[2] + dz, k = posKey(nx, ny, nz);
+      if (seen.has(k) || !isGarage(w.getBlock(nx, ny, nz)) || (w.getData(nx, ny, nz) & 1) !== ax) continue;
+      seen.add(k); q.push([nx, ny, nz]);
+    }
+  }
+  return out;
+}
+function setGarage(w, x, y, z, open) {
+  let changed = false;
+  for (const [gx, gy, gz] of garageGroup(w, x, y, z)) if (w.setBlock(gx, gy, gz, open ? B.GARAGE_OPEN : B.GARAGE_DOOR, w.getData(gx, gy, gz) & 3, true)) changed = true;
+  return changed;
+}
+const toggleGarage = (w, x, y, z) => setGarage(w, x, y, z, w.getBlock(x, y, z) === B.GARAGE_DOOR);
+/* a garage door panel goes up like a wall: on the side of a block, or on top of one (or of another panel) */
+function placeGarage(game, pl, t, creative) {
+  const w = game.world;
+  let px = t.x + DX[t.face], py = t.y + DY[t.face], pz = t.z + DZ[t.face];
+  if (BLOCKS[t.id].replaceable && !LIQUID[t.id]) { px = t.x; py = t.y; pz = t.z; }
+  const cur = w.getBlock(px, py, pz);
+  if (py < 0 || py >= WH || cur === B.UNLOADED || !(cur === B.AIR || (BLOCKS[cur].replaceable && !LIQUID[cur]))) return false;
+  // in line with a panel it is put against; otherwise across the way you are looking
+  const data = isGarage(t.id) && t.face !== 2 && t.face !== 3 ? w.getData(t.x, t.y, t.z) & 3 : facingFromYaw(pl.yaw);
+  const bb = garageBox(data), hitsP = e => e.x + e.w > px + bb[0] && e.x - e.w < px + bb[3] && e.z + e.w > pz + bb[2] && e.z - e.w < pz + bb[5] && e.y < py + 1 && e.y + e.h > py;
+  if (hitsP(pl)) return false;
+  // open if the door it joins is rolled up
+  let open = false;
+  for (let d = 0; d < 6; d++) { const nb = w.getBlock(px + DX[d], py + DY[d], pz + DZ[d]); if (nb === B.GARAGE_OPEN && (w.getData(px + DX[d], py + DY[d], pz + DZ[d]) & 1) === (data & 1)) open = true; }
+  w.setBlock(px, py, pz, open ? B.GARAGE_OPEN : B.GARAGE_DOOR, data, true);
+  sfx('place_metal', px + 0.5, py + 0.5, pz + 0.5);
+  if (game.net) MP.localFx('place', px, py, pz, B.GARAGE_DOOR);
+  pl.swing();
+  if (!creative) pl.consumeHeld(1);
+  return true;
+}
+/* a lever or button: open while any panel of the door is powered */
+function powerGarage(game, x, y, z, placed) {
+  const w = game.world, group = garageGroup(w, x, y, z), on = group.some(c => isPowered(w, c[0], c[1], c[2]));
+  if (placed && !on) return;   // (put up, or rolled by hand: only a switched-on lever changes it)
+  if (setGarage(w, x, y, z, on)) { sfx('garageDoor', x + 0.5, y + 0.5, z + 0.5); MP.localFx('door', x, y, z, 2); }
+}
+
+/* ---- airlocks (worked out by a single player or the host) ---- */
+const AIRLOCK_SHUT = 3.5, AIRLOCK_ROOM = 6000, AIRLOCK_CHAMBER = 48;
+const AIRLOCKS = { open: new Map(), pumps: [] };
+/* a block change: an airlock door opened, shut or was put down (from World.setBlock) */
+function airlockChanged(w, x, y, z, old, od, id, data) {
+  if (id !== B.AIRLOCK) { if (old === B.AIRLOCK && !(od & 8)) AIRLOCKS.open.delete(posKey(x, y, z)); return; }
+  if (data & 8) return;   // (the bottom half speaks for the door)
+  const k = posKey(x, y, z);
+  if (data & 4) { if (!AIRLOCKS.open.has(k)) AIRLOCKS.open.set(k, { x, y, z, t: 0, auto: false }); return; }
+  const was = AIRLOCKS.open.get(k);
+  AIRLOCKS.open.delete(k);
+  if (old !== B.AIRLOCK || (od & 4)) AIRLOCKS.pumps.push({ x, y, z, t: 0.6, cycled: !!(was && was.auto) });
+}
+/* the room on one side of a door: the open blocks joined together (null if it is too big, or open to the world) */
+function airlockRoom(w, starts) {
+  const seen = new Set(), cells = [], q = [];
+  for (const c of starts) { const k = posKey(c[0], c[1], c[2]); if (!seen.has(k)) { seen.add(k); q.push(c); } }
+  while (q.length) {
+    const [x, y, z] = q.pop(), b = w.getBlock(x, y, z);
+    if (b === B.UNLOADED || y < 0 || y >= WH) return null;
+    if (SOLID[b] || IS_DOOR[b] || isGarage(b) || b === B.LAVA) continue;
+    cells.push([x, y, z, b]);
+    if (cells.length > AIRLOCK_ROOM) return null;
+    for (let d = 0; d < 6; d++) {
+      const nx = x + DX[d], ny = y + DY[d], nz = z + DZ[d], k = posKey(nx, ny, nz);
+      if (seen.has(k)) continue;
+      seen.add(k); q.push([nx, ny, nz]);
+    }
+  }
+  return cells;
+}
+/* where the players are (a block each for their feet and head) */
+function playerCells(game) {
+  const out = [], add = (x, y, z) => { out.push(posKey(Math.floor(x), Math.floor(y + 0.1), Math.floor(z)), posKey(Math.floor(x), Math.floor(y + 1.2), Math.floor(z))); };
+  const pl = game.player;
+  if (pl.alive) add(pl.x, pl.y, pl.z);
+  if (MP.role === 'host') for (const r of MP.remotes.values()) if (r.has && r.alive) add(r.tx, r.ty, r.tz);
+  return out;
+}
+/* a door has shut: pump the water out of a closed room on either side; and if someone is in a little airlock
+   room, open its other door for them */
+function airlockPump(game, p) {
+  const w = game.world, { x, y, z } = p;
+  if (w.getBlock(x, y, z) !== B.AIRLOCK || (w.getData(x, y, z) & 12)) return;
+  const f = w.getData(x, y, z) & 3, ox = f & 1 ? 1 : 0, oz = f & 1 ? 0 : 1, here = playerCells(game);
+  let drained = 0, cycled = false;
+  for (const s of [1, -1]) {
+    const room = airlockRoom(w, [[x + ox * s, y, z + oz * s], [x + ox * s, y + 1, z + oz * s]]);
+    if (!room) continue;
+    const wet = room.filter(c => c[3] === B.WATER);
+    if (wet.length) {
+      w.beginBlast();
+      for (const c of wet) w.setBlock(c[0], c[1], c[2], B.AIR, 0, true);
+      w.endBlast();
+      drained += wet.length;
+      for (let i = 0; i < 24 && PARTICLES.length < 1500; i++) {
+        const c = wet[(Math.random() * wet.length) | 0];
+        PARTICLES.push({ x: c[0] + Math.random(), y: c[1] + Math.random(), z: c[2] + Math.random(), vx: 0, vy: randRange(0.6, 1.6), vz: 0, life: randRange(0.5, 1), tile: TILE.bubble_p, u: 0, v: 0, us: 16, size: randRange(0.08, 0.14), grav: 0 });
+      }
+    }
+    if (p.cycled || room.length > AIRLOCK_CHAMBER) continue;
+    const keys = new Set(room.map(c => posKey(c[0], c[1], c[2])));
+    if (!here.some(k => keys.has(k))) continue;
+    for (const c of room) for (let d = 0; d < 4; d++) {   // someone is in the airlock room: open its other door
+      const nx = c[0] + HX[d], nz = c[2] + HZ[d];
+      for (const ny of [c[1], c[1] - 1]) {
+        if ((nx === x && nz === z) || w.getBlock(nx, ny, nz) !== B.AIRLOCK || (w.getData(nx, ny, nz) & 12)) continue;
+        if (setDoorOpen(w, nx, ny, nz, true)) {
+          cycled = true;
+          const o = AIRLOCKS.open.get(posKey(nx, ny, nz));
+          if (o) { o.auto = true; o.t = -1; }   // (it stays open a little longer)
+          doorSound(B.AIRLOCK, nx, ny, nz);
+        }
+      }
+    }
+  }
+  if (drained) {
+    sfx('airlockDrain', x + 0.5, y + 1, z + 0.5); MP.sfx('airlockDrain', x + 0.5, y + 1, z + 0.5);
+    const pl = game.player;
+    if (Math.hypot(pl.x - x, pl.y - y, pl.z - z) < 24) toast('Glug glug! The airlock pumped the water out.', 3);
+  } else if (cycled) { sfx('airlockHiss', x + 0.5, y + 1, z + 0.5); MP.sfx('airlockHiss', x + 0.5, y + 1, z + 0.5); }
+}
+/* each frame: open airlock doors shut themselves once nobody is in the doorway; shut ones pump */
+function tickAirlocks(game, dt) {
+  const w = game.world;
+  if (w.remote) { AIRLOCKS.open.clear(); AIRLOCKS.pumps.length = 0; return; }
+  if (AIRLOCKS.pumps.length) {
+    const due = AIRLOCKS.pumps.filter(p => (p.t -= dt) <= 0);
+    AIRLOCKS.pumps = AIRLOCKS.pumps.filter(p => p.t > 0);
+    for (const p of due) airlockPump(game, p);
+  }
+  if (!AIRLOCKS.open.size) return;
+  let here = null;
+  for (const [k, o] of AIRLOCKS.open) {
+    if (w.getBlock(o.x, o.y, o.z) !== B.AIRLOCK || !(w.getData(o.x, o.y, o.z) & 4)) { AIRLOCKS.open.delete(k); continue; }
+    o.t += dt;
+    if (o.t < AIRLOCK_SHUT) continue;
+    if (!here) here = new Set(playerCells(game));
+    if (here.has(posKey(o.x, o.y, o.z)) || here.has(posKey(o.x, o.y + 1, o.z))) { o.t = AIRLOCK_SHUT - 0.5; continue; }   // (someone is in the doorway)
+    if (setDoorOpen(w, o.x, o.y, o.z, false)) doorSound(B.AIRLOCK, o.x, o.y, o.z);
+  }
+}
+
 /* ---- 09j-flying.js ---- */
 /* ===================== The flying car and broomsticks ===================== */
 // Both go where you look. The flying car drives along the ground like a car; Jump (or pushing forward while looking
@@ -9200,8 +9692,8 @@ function groundUnder(w, x, y, z) {
   }
   return -1;
 }
-/* is this a flying car, a broom or a rocket up in the air? (saved, it is kept on the ground below, and its rider beside it) */
-const aloft = (w, v) => (isFlyer(v) || v.type === 'rocket') && !SOLID[w.getBlock(Math.floor(v.x), Math.floor(v.y + 0.01) - 1, Math.floor(v.z))];
+/* is this a flying car, a broom, a plane or a rocket up in the air? (saved, it is kept on the ground below, and its rider beside it) */
+const aloft = (w, v) => (isFlyer(v) || isPlane(v) || v.type === 'rocket') && !SOLID[w.getBlock(Math.floor(v.x), Math.floor(v.y + 0.01) - 1, Math.floor(v.z))];
 
 function flyStep(game, e, dt) {
   const w = game.world, pl = game.player, F = FLYERS[e.type], me = e.rider === 'me', broom = e.type === 'broom';
@@ -9417,6 +9909,191 @@ function drawTNT(e, dx, dy, dz, eb) {
   gl.enable(gl.CULL_FACE);
   drawMesh(itemMesh(TNT_BLOCK[e.kind] || B.TNT), eb);
   gl.disable(gl.CULL_FACE);
+}
+
+/* ---- 09l-planes.js ---- */
+/* ===================== Planes: a propeller plane, a jet and a passenger plane ===================== */
+// A plane drives along the ground on its wheels: push the joystick forward for the engine, back to brake, left and
+// right to steer. Once it is going fast enough, look up (or press Jump) and it takes off. In the air it flies where
+// you look, and left and right bank it round into a turn; Jump pulls up and Sneak dives. Planes can't hover: let go
+// of the joystick and the engine slows down, and when a plane is too slow its nose drops and it glides down. To land,
+// come in low and slow, touch down, and pull back to stop; then Sneak gets out.
+// The propeller plane has a seat for a friend behind the pilot, and the passenger plane has five. A friend in the air
+// who presses Sneak jumps out with a parachute.
+const PLANES = {
+  // speed: top speed in the air; takeoff: fast enough to lift off; stall: slower than this it can't stay up;
+  // seats: [right, up, back] from the middle, in blocks (the pilot's first)
+  plane: { speed: 20, takeoff: 8, stall: 6, turn: 1.4, follow: 2.4, sound: 'planeProp', sndT: 0.2, seats: [[0, 0.35, -0.35], [0, 0.35, 0.65]] },
+  jet: { speed: 32, takeoff: 13, stall: 10, turn: 1.15, follow: 2.2, sound: 'planeJet', sndT: 0.3, seats: [[0, 0.3, -0.9]] },
+  airliner: { speed: 25, takeoff: 11, stall: 8, turn: 0.7, follow: 1.3, sound: 'planeHum', sndT: 0.3,
+    seats: [[0, 0.75, -4.6], [-0.6, 0.75, -2], [0.6, 0.75, -2], [-0.6, 0.75, 0], [0.6, 0.75, 0], [0, 0.75, 2]] },
+};
+const isPlane = v => !!(v && PLANES[v.type]);
+/* where a seat is, in the world (feet) */
+function planeSeat(v, k) {
+  const s = PLANES[v.type].seats[k] || PLANES[v.type].seats[0], c = Math.cos(v.yaw), sn = Math.sin(v.yaw), up = Math.sin(v.slope || 0) * -s[2];
+  return [v.x + c * s[0] + sn * s[2], v.y + s[1] + up, v.z - sn * s[0] + c * s[2]];
+}
+/* the first free passenger seat (1, 2 ...), or 0 */
+function freeSeat(v) {
+  if (!isPlane(v)) return 0;
+  const n = PLANES[v.type].seats.length;
+  if (!v.pass) v.pass = [];
+  for (let k = 1; k < n; k++) if (!v.pass[k]) return k;
+  return 0;
+}
+
+function planeStep(game, e, dt) {
+  if (!game.tipped) game.tipped = {};
+  const w = game.world, pl = game.player, F = PLANES[e.type], me = e.rider === 'me';
+  const stick = me ? e.ctrlZ || 0 : 0, steer = me ? e.ctrlX || 0 : 0, up = me && !!e.up, down = me && !!e.down;
+  e.thr = lerp(e.thr || 0, Math.max(0, stick), Math.min(1, dt * 2));   // the engine winds up and down
+  let spd = e.spd || 0;
+  const y0 = e.yaw;
+  if (me) {   // it heads where its pilot looks; left and right turn the view, and so the plane (slowly on the ground)
+    pl.yaw -= steer * F.turn * dt * (e.flying ? 1 : clamp(spd / 3, 0.4, 1));
+    e.yaw = approachAngle(e.yaw, pl.yaw, dt * F.follow);
+  }
+  const turned = ((e.yaw - y0 + Math.PI) % TAU + TAU) % TAU - Math.PI;
+  const fx = -Math.sin(e.yaw), fz = -Math.cos(e.yaw);
+  if (!e.flying) {   // on its wheels
+    if (stick > 0.1) spd += stick * F.speed * 0.28 * dt;
+    else spd -= (stick < -0.3 ? 9 : 1.5) * dt;   // (pull back to brake)
+    spd = clamp(spd, 0, F.speed * 0.75);
+    e.vx = fx * spd; e.vz = fz * spd;
+    const wet = w.getBlock(Math.floor(e.x), Math.floor(e.y + 0.2), Math.floor(e.z)) === B.WATER;
+    physicsStep(w, e, dt, 24);
+    if (wet) { e.vy = Math.max(e.vy, 2.5); spd *= Math.pow(0.6, dt); }   // (it floats)
+    if (e.collidedH) {
+      if (e.onGround && spd > 0.5 && boxFree(w, e.x + fx * 0.4, e.y + 1.05, e.z + fz * 0.4, e.w, e.h)) e.vy = 7.2;   // a one-block step: hop up it
+      else { if (spd > 5) sfx('planeBump', e.x, e.y + 0.5, e.z); spd = Math.min(spd, 1); }
+    }
+    e.fallDist = 0;
+    e.slope = lerp(e.slope || 0, 0, Math.min(1, dt * 4));
+    e.bank = lerp(e.bank || 0, 0, Math.min(1, dt * 4));
+    const pitch = me ? pl.pitch : 0;
+    if (me && spd >= F.takeoff && (up || pitch > 0.12)) {   // take off!
+      e.flying = true; e.vy = 2; e.pa = 0.15;
+      sfx('planeTakeoff', e.x, e.y, e.z);
+      if (game.net) MP.localFx('sfx', e.x, e.y, e.z, SFX_NET.indexOf('planeTakeoff'));
+    } else if (me && spd >= F.takeoff * 0.9 && !game.tipped.planeUp) { game.tipped.planeUp = 1; toast('Fast enough! Look up (or press Jump) to take off!', 4); }
+  } else {   // flying
+    let want = me ? clamp(pl.pitch, -0.7, 0.7) + (up ? 0.45 : 0) - (down ? 0.45 : 0) : -0.12;
+    if (spd < F.stall) want = Math.min(want, -0.35);   // too slow: the nose drops
+    e.pa = (e.pa || 0) + clamp(clamp(want, -0.9, 0.8) - (e.pa || 0), -dt * 1.4, dt * 1.4);
+    spd += (e.thr * F.speed - spd) * dt * 0.5 - Math.sin(e.pa) * 5 * dt;   // the engine pulls; climbing slows it, diving speeds it up
+    if (stick < -0.3) spd -= 4 * dt;
+    spd = clamp(spd, 0, F.speed * 1.3);
+    let vy = Math.sin(e.pa) * spd - (spd < F.stall ? (F.stall - spd) * 0.7 : 0);
+    if (e.y > WH + 60) vy = Math.min(vy, 0);   // (high enough)
+    const hs = Math.cos(e.pa) * spd;
+    e.vx = fx * hs; e.vz = fz * hs; e.vy = vy;
+    moveEntity(w, e, e.vx * dt, e.vy * dt, e.vz * dt);
+    if (e.collidedH) { if (spd > 5 && !(e.bumpT > e.age)) { e.bumpT = e.age + 0.5; sfx('planeBump', e.x, e.y + 0.5, e.z); } spd *= Math.pow(0.02, dt); }
+    const splash = w.getBlock(Math.floor(e.x), Math.floor(e.y + 0.2), Math.floor(e.z)) === B.WATER;
+    if (splash) { sfx('splash', e.x, e.y, e.z); splashBits(e.x, e.y + 0.3, e.z, 16); e.vy = 0; spd *= 0.5; }   // down on the water: it floats
+    if (e.onGround || splash) {   // touched down
+      e.flying = false; e.pa = 0;
+      if (splash) { /* (a splash, not a bump) */ }
+      else if (vy < -7) { sfx('planeBump', e.x, e.y, e.z); e.vy = 3; spd *= 0.6; }
+      else sfx('planeLand', e.x, e.y, e.z);
+      if (me && !game.tipped.planeLand) { game.tipped.planeLand = 1; toast('You landed! Pull back to stop, then Sneak to get out.', 4); }
+    }
+    e.onGround = false; e.fallDist = 0;
+    e.slope = e.pa;
+    e.bank = lerp(e.bank || 0, clamp(-turned / Math.max(dt, 1e-3) * 0.45, -0.75, 0.75), Math.min(1, dt * 3));
+    if (e.type === 'jet' && e.thr > 0.4 && Math.random() < dt * 30 && PARTICLES.length < 1500) {   // flames from the engine
+      const bx = e.x - fx * 2.9, bz = e.z - fz * 2.9;
+      PARTICLES.push({ x: bx, y: e.y + 0.85 + Math.sin(e.pa) * -2.9, z: bz, vx: -fx * 3, vy: randRange(-0.2, 0.2), vz: -fz * 3, life: randRange(0.12, 0.25), tile: TILE.flame, u: 0, v: 0, us: 16, size: randRange(0.14, 0.22), grav: 0, bright: 1 });
+    }
+  }
+  e.spd = spd;
+  e.prop = (e.prop || 0) + dt * (4 + e.thr * 40 + spd * 0.6);   // (the propeller turns)
+  e.wheel += (e.flying ? 0 : spd) * dt / VEHICLES[e.type].wheel;
+}
+/* the engine's sound, over and over while someone is flying it (or it is rolling along) */
+function planeSounds(e) {
+  const F = PLANES[e.type], sp = e.spd !== undefined ? e.spd : Math.abs(e.speed || 0);
+  if (!e.rider || (!e.flying && sp < 0.3 && !(e.thr > 0.05))) return;
+  e.sndT = F.sndT;
+  sfx(F.sound, e.x, e.y + 1, e.z, clamp(0.4 + (e.thr !== undefined ? e.thr * 0.4 : 0.3) + sp / F.speed * 0.3, 0.35, 1));
+}
+/* the pilot's controls: Sneak dives in the air, and gets out once the plane has stopped */
+function planeControls(game, pl, v, fx, fz, inp) {
+  v.up = !!inp.jump; v.down = !!inp.sneak && !!v.flying;
+  if (inp.sneak && !pl.sneakHeld && !v.flying) {
+    pl.sneakHeld = true;
+    if ((v.spd || 0) > 2) { toast('Slow down first: pull the joystick back to brake.', 2.5); return; }
+    dismountVehicle(game); return;
+  }
+  pl.sneakHeld = !!inp.sneak;
+  v.ctrlX = fx; v.ctrlZ = fz;
+}
+
+/* ---- passengers ---- */
+/* a passenger sits in their seat (each frame, wherever the plane has got to) */
+function sitPassenger(pl, v) {
+  const [x, y, z] = planeSeat(v, pl.seat);
+  pl.x = x; pl.y = y; pl.z = z; pl.vx = v.vx || 0; pl.vz = v.vz || 0; pl.vy = 0; pl.fallDist = 0; pl.onGround = true;
+  pl.bodyYaw = v.yaw;
+}
+/* a passenger can only look around; Sneak gets out (in the air: out of the door with a parachute) */
+function passengerControls(game, pl, v, inp) {
+  if (!v || v.removed) { leaveSeat(game, pl, v); return; }
+  if (inp.sneak && !pl.sneakHeld) { pl.sneakHeld = true; leaveSeat(game, pl, v); return; }
+  pl.sneakHeld = !!inp.sneak;
+}
+function leaveSeat(game, pl, v) {
+  const k = pl.seat;
+  pl.riding = null; pl.seat = 0;
+  if (!v) return;
+  if (v.pass && v.pass[k] === 'me') v.pass[k] = null;
+  if (MP.role === 'guest') MP.send({ t: 'dismount', e: v.nid });
+  const w = game.world, high = v.removed || aloft(w, v) || (v.flying && w.getBlock(Math.floor(v.x), Math.floor(v.y) - 2, Math.floor(v.z)) === B.AIR);
+  if (high && !v.removed) {   // jump out, and the parachute opens
+    const c = Math.cos(v.yaw), s = Math.sin(v.yaw), side = PLANES[v.type].seats[k] && PLANES[v.type].seats[k][0] < 0 ? -1 : 1, d = v.w + 0.8;
+    pl.x = v.x + c * side * d; pl.z = v.z - s * side * d; pl.y = v.y;
+    pl.vx = (v.vx || 0) * 0.3; pl.vz = (v.vz || 0) * 0.3; pl.vy = 0; pl.fallDist = 0; pl.onGround = false;
+    openChute(pl);
+    return;
+  }
+  [pl.x, pl.y, pl.z] = dismountSpot(w, v);
+  pl.vx = pl.vz = pl.vy = 0; pl.fallDist = 0;
+}
+/* get into a plane someone else is flying (or that is full up front) */
+function boardSeat(game, v, k) {
+  const pl = game.player;
+  if (!v.pass) v.pass = [];
+  v.pass[k] = 'me';
+  pl.riding = v; pl.seat = k; pl.sneakHeld = true; pl.flying = false; pl.drawT = pl.loadT = 0;
+  pl.yaw = v.yaw;
+  sitPassenger(pl, v);
+  sfx('click', v.x, v.y, v.z);
+  if (!game.tipped) game.tipped = {};
+  if (!game.tipped.passenger) { game.tipped.passenger = 1; toast("You're a passenger! Look around and enjoy the flight. Press Sneak to get out (up in the air you jump out with a parachute!).", 6); }
+}
+
+/* ---- parachutes ---- */
+function openChute(pl) {
+  pl.chute = true; pl.flying = false;
+  sfx('chuteOpen', pl.x, pl.y + 2, pl.z);
+  if (game.net) MP.localFx('sfx', pl.x, pl.y + 2, pl.z, SFX_NET.indexOf('chuteOpen'));
+}
+/* floating down: slow, and no bump at the bottom; it folds away on the ground or in water */
+function chuteStep(pl) {
+  if (!pl.chute) return;
+  if (pl.onGround || pl.inWater || pl.inLava || pl.riding || pl.flying || !pl.alive) { pl.chute = false; return; }
+  pl.vy = Math.max(pl.vy, -3); pl.fallDist = 0;
+}
+function drawChute(x, y, z, yaw, s, cam) {
+  const P = PROG.entity, model = MODELS.parachute;
+  gl.uniform1f(P.u.uBright, brightAt(game.world, x, y + 3, z, s));
+  gl.uniform4fv(P.u.uTint, [0, 0, 0, 0]);
+  M4.identity(_eb);
+  M4.translate(_eb, _eb, x - cam.x, y - cam.y, z - cam.z);
+  M4.rotY(_eb, _eb, yaw + Math.PI);
+  M4.scale(_eb, _eb, model.scale, model.scale, model.scale);
+  drawModel(model, _eb, null);
 }
 
 /* ---- 09m-moon.js ---- */
@@ -10606,7 +11283,7 @@ function blockColor(id) {
 // A single player or the host works this out; guests just flip the levers and press the buttons.
 const POWER_SRC = new Uint8Array(256), POWER_DEV = new Uint8Array(256);
 POWER_SRC[B.LEVER] = POWER_SRC[B.BUTTON] = 1;
-for (const id of [B.TNT, B.MEGA_TNT, B.ICE_TNT, B.DIG_TNT, B.PARTY_TNT, B.CLUSTER_TNT, B.DISPENSER, B.DOOR]) POWER_DEV[id] = 1;
+for (const id of [B.TNT, B.MEGA_TNT, B.ICE_TNT, B.DIG_TNT, B.PARTY_TNT, B.CLUSTER_TNT, B.DISPENSER, B.DOOR, B.BIRCH_DOOR, B.SPRUCE_DOOR, B.IRON_DOOR, B.GLASS_DOOR, B.AIRLOCK, B.GARAGE_DOOR, B.GARAGE_OPEN]) POWER_DEV[id] = 1;
 const BUTTON_TIME = 1;
 /* a lever or button keeps the side it is stuck to in data & 7 (an index into DX/DY/DZ); data & 8 is on */
 function isPowered(w, x, y, z) {
@@ -10655,17 +11332,15 @@ function tickPower(game, dt) {
 function powerDevice(game, x, y, z, placed) {
   const w = game.world, id = w.getBlock(x, y, z);
   if (tntKindOf(id)) { if (isPowered(w, x, y, z)) igniteTNT(game, x, y, z); return; }
-  if (id === B.DOOR) {
-    const d = w.getData(x, y, z), ly = (d & 8) ? y - 1 : y, ld = w.getData(x, ly, z);
-    if (w.getBlock(x, ly, z) !== B.DOOR) return;
+  if (isGarage(id)) { powerGarage(game, x, y, z, placed); return; }
+  if (IS_DOOR[id]) {
+    const d = w.getData(x, y, z), ly = (d & 8) ? y - 1 : y;
+    if (w.getBlock(x, ly, z) !== id) return;
     const on = isPowered(w, x, ly, z) || isPowered(w, x, ly + 1, z);
     if (placed && !on) return;
-    const want = on ? ld | 4 : ld & ~4;
-    if (want === ld) return;
-    w.setBlock(x, ly, z, B.DOOR, want, true);
-    if (w.getBlock(x, ly + 1, z) === B.DOOR) w.setBlock(x, ly + 1, z, B.DOOR, want | 8, true);
-    sfx('door', x + 0.5, ly + 0.5, z + 0.5);
-    MP.localFx('door', x, ly, z, 0);
+    if (!setDoorOpen(w, x, ly, z, on)) return;
+    sfx(DOOR_SFX[doorSfx(id)], x + 0.5, ly + 0.5, z + 0.5);
+    MP.localFx('door', x, ly, z, doorSfx(id));
     return;
   }
   if (id === B.DISPENSER) {
@@ -12223,7 +12898,7 @@ function raycast(world, ox, oy, oz, dx, dy, dz, maxD, solidOnly) {
   const cells = Math.max(64, Math.ceil(maxD * 3) + 3);   // a long diagonal ray passes through up to 3 blocks per block of length
   for (let i = 0; i < cells && t <= maxD; i++) {
     const b = world.getBlock(x, y, z);
-    if (solidOnly ? SOLID[b] : TARGETABLE[b]) {
+    if ((solidOnly ? SOLID[b] : TARGETABLE[b]) && !(b === B.GARAGE_OPEN && isGarage(world.getBlock(x, y + 1, z)))) {   // (a rolled-up garage door: only its top, where it is rolled up, is there)
       const bd = BLOCKS[b], bx = bd.boxFn ? bd.boxFn(world.getData(x, y, z)) : bd.box;
       if (!bx) return { x, y, z, id: b, face, t };
       const tb = rayBox(ox, oy, oz, dx, dy, dz, x + bx[0], y + bx[1], z + bx[2], x + bx[3], y + bx[4], z + bx[5]);
@@ -12272,6 +12947,7 @@ class Player {
     this.portalT = 0; this.portalLock = true;   // seconds spent in a portal; locked until you step out (after travelling, loading or respawning)
     this.drawT = 0; this.loadT = 0; this.shotCd = 0;   // pulling a bow back; loading a crossbow
     this.riding = null; this.sneakHeld = false;      // the minecart or car you are in
+    this.seat = 0; this.chute = false;             // (a passenger's seat in a plane; floating down on a parachute)
     this.chill = 0; this.partyT = 0;                 // slowed by Ice TNT; bounced by Party TNT (no fall damage)
     this.blocking = false; this.blockT = 0; this.blockJolt = 0;   // a raised shield
     this.xp = 0; this.xpLevel = 0; this.xpProg = 0; this.enchSeed = (Math.random() * 2147483647) | 0;   // experience, and what the enchanting table offers
@@ -12352,7 +13028,9 @@ class Player {
         while (dz !== 0 && boxFree(world, this.x + dx, this.y - 0.6, this.z + dz, this.w - 0.02, 0.58)) dz = Math.abs(dz) <= st ? 0 : dz - Math.sign(dz) * st;
         this.vx = dx / dt; this.vz = dz / dt;
       }
+      chuteStep(this);
       physicsStep(world, this, dt, 30);
+      chuteStep(this);
       if (this.landed) {
         const safe = hasEffect(this, 'leaping') ? 5.5 : 3.5, fall = this.fallDist * (world.map === 'moon' ? MOON_G : 1);   // (leaping: a softer landing too; on the Moon, much softer)
         if (fall > safe && !creative && !(this.partyT > 0)) this.damage(Math.floor(fall - safe + 0.5), 'fall');
@@ -12625,7 +13303,7 @@ class Player {
     inp.usePressed = false;
   }
   isInteractive(id) {
-    return id === B.DOOR || id === B.CRAFTING_TABLE || id === B.FURNACE || id === B.FURNACE_LIT || id === B.CHEST || id === B.BED || !!(BLOCKS[id] && BLOCKS[id].tnt) ||
+    return IS_DOOR[id] || isGarage(id) || id === B.CRAFTING_TABLE || id === B.FURNACE || id === B.FURNACE_LIT || id === B.CHEST || id === B.BED || !!(BLOCKS[id] && BLOCKS[id].tnt) ||
       id === B.LEVER || id === B.BUTTON || id === B.DISPENSER || id === B.ENCH_TABLE || id === B.SIGN || id === B.BREWING_STAND || id === B.TV || id === B.BOARD || id === B.SORTING_HAT || id === B.MONITOR;
   }
   /* bows: hold to pull back and let go to shoot (a quick tap is a quick shot); crossbows: tap to load, tap to fire */
@@ -12704,14 +13382,7 @@ class Player {
       if (t.id === B.MONITOR) { this.swing(); useMonitor(game, t.x, t.y, t.z); return true; }
       if (t.id === B.BOARD) { this.swing(); openBoard(t.x, t.y, t.z); return true; }
       if (t.id === B.DISPENSER) { this.swing(); const tile = MP.useTile(t.x, t.y, t.z, 'dispenser'); if (tile) { sfx('chest', t.x + 0.5, t.y + 0.5, t.z + 0.5); game.openScreen('dispenser', tile); } return true; }
-      if (t.id === B.DOOR) {
-        const d = world.getData(t.x, t.y, t.z), ly = (d & 8) ? t.y - 1 : t.y, ld = world.getData(t.x, ly, t.z) ^ 4;
-        world.setBlock(t.x, ly, t.z, B.DOOR, ld, true);
-        if (world.getBlock(t.x, ly + 1, t.z) === B.DOOR) world.setBlock(t.x, ly + 1, t.z, B.DOOR, ld | 8, true);
-        sfx('door', t.x + 0.5, t.y + 0.5, t.z + 0.5); this.swing();
-        if (game.net) MP.localFx('door', t.x, t.y, t.z, 0);
-        return true;
-      }
+      if (IS_DOOR[t.id] || (isGarage(t.id) && hid !== B.GARAGE_DOOR)) { useDoor(game, this, t); this.swing(); return true; }   // (holding garage door panels, you put more up)
     }
     if (hid === I.FLINT_AND_STEEL && t.face >= 0) {
       const fx = t.x + DX[t.face], fy = t.y + DY[t.face], fz = t.z + DZ[t.face];
@@ -12742,24 +13413,10 @@ class Player {
       if (!creative) this.consumeHeld(1);
       return true;
     }
-    if (hid === I.DOOR && t.face >= 0) {
-      let px = t.x + DX[t.face], py = t.y + DY[t.face], pz = t.z + DZ[t.face];
-      if (BLOCKS[t.id].replaceable && !LIQUID[t.id]) { px = t.x; py = t.y; pz = t.z; }
-      const free = b => b === B.AIR || (BLOCKS[b] && BLOCKS[b].replaceable && !LIQUID[b]);
-      if (py < 1 || py + 1 >= WH || !free(world.getBlock(px, py, pz)) || !free(world.getBlock(px, py + 1, pz))) return false;
-      const below = world.getBlock(px, py - 1, pz);
-      if (!SOLID[below] || !OPAQUE[below]) return false;
-      const hitsP = e => e.x + e.w > px && e.x - e.w < px + 1 && e.z + e.w > pz && e.z - e.w < pz + 1 && e.y < py + 2 && e.y + e.h > py;
-      if (hitsP(this)) return false;
-      const f = facingFromYaw(this.yaw);
-      world.setBlock(px, py, pz, B.DOOR, f, true);
-      world.setBlock(px, py + 1, pz, B.DOOR, f | 8, true);
-      sfx('place_wood', px + 0.5, py + 0.5, pz + 0.5); this.swing();
-      if (!creative) this.consumeHeld(1);
-      return true;
-    }
-    if ((hid === I.MINECART || hid === I.CAR || hid === I.BOAT || hid === I.SUBMARINE || hid === I.FLYING_CAR || hid === I.BROOM || hid === I.ROCKET) && t.face >= 0) {
-      const type = hid === I.CAR ? 'car' : hid === I.BOAT ? 'boat' : hid === I.SUBMARINE ? 'submarine' : hid === I.FLYING_CAR ? 'flycar' : hid === I.BROOM ? 'broom' : hid === I.ROCKET ? 'rocket' : 'minecart';
+    if (hid >= 256 && ITEMS[hid] && ITEMS[hid].door && t.face >= 0) return placeDoor(game, this, hid, t, creative);
+    if (hid === B.GARAGE_DOOR && t.face >= 0) return placeGarage(game, this, t, creative);
+    if ((hid === I.MINECART || hid === I.CAR || hid === I.BOAT || hid === I.SUBMARINE || hid === I.FLYING_CAR || hid === I.BROOM || hid === I.ROCKET || hid === I.PLANE || hid === I.JET || hid === I.AIRLINER) && t.face >= 0) {
+      const type = hid === I.CAR ? 'car' : hid === I.BOAT ? 'boat' : hid === I.SUBMARINE ? 'submarine' : hid === I.FLYING_CAR ? 'flycar' : hid === I.BROOM ? 'broom' : hid === I.ROCKET ? 'rocket' : hid === I.PLANE ? 'plane' : hid === I.JET ? 'jet' : hid === I.AIRLINER ? 'airliner' : 'minecart';
       let vx = t.x + 0.5, vy = t.y + 1, vz = t.z + 0.5;
       if (hid === I.MINECART) {
         if (t.id !== B.RAIL) { if (!this.toldRails) { this.toldRails = true; toast('Minecarts go on rails. Put some rails down first.', 3); } return false; }
@@ -13096,6 +13753,7 @@ function drawHumanoid(pl, model, heldId, s, t, cam) {
     if (glint & 16) glintOn(false);
     entityBegin(texSkins);
   }
+  if (pl.chute) drawChute(pl.x, pl.y, pl.z, pl.bodyYaw, s, cam);   // (floating down on a parachute)
 }
 
 /* ---- 11-audio.js ---- */
@@ -13434,6 +14092,29 @@ Object.assign(SFX, {
   golemAngry: (v, p) => tone({ f: 70, fEnd: 110, dur: 0.6, type: 'sawtooth', vol: 0.18 * v, lp: 500, vib: [9, 10], pan: p }),
   golemAttack: (v, p) => { nz({ f: 900, fEnd: 300, q: 1.2, dur: 0.25, vol: 0.22 * v, pan: p }); tone({ f: 85, fEnd: 50, dur: 0.22, type: 'sine', vol: 0.3 * v, when: 0.12, pan: p }); },
   golemBuilt: (v, p) => { [523, 659, 784, 1047].forEach((f, i) => tone({ f, dur: 0.35, type: 'triangle', vol: 0.12 * v, when: i * 0.09, pan: p })); tone({ f: 900, dur: 0.6, type: 'square', vol: 0.05 * v, lp: 2500, when: 0.36, pan: p }); },
+});
+
+/* ---- 11c-audio4.js ---- */
+/* ===================== Sounds for the fourth wish list: doors and planes (added to SFX; see 11-audio.js) ===================== */
+Object.assign(SFX, {
+  // doors: an iron door clanks, a garage door rumbles up and down, an airlock door thunks and seals with a hiss
+  ironDoor: (v, p) => { tone({ f: 180, fEnd: 120, dur: 0.3, type: 'square', vol: 0.06 * v, lp: 700, pan: p }); nz({ f: 2400, q: 3, dur: 0.12, vol: 0.12 * v, when: 0.18, pan: p }); },
+  garageDoor: (v, p) => { nzLong({ f: 260, fEnd: 200, type: 'lowpass', q: 1.5, dur: 1.2, vol: 0.2 * v, attack: 0.1, pan: p }); for (let i = 0; i < 9; i++) nz({ f: 900, q: 4, dur: 0.04, vol: 0.06 * v, when: 0.1 + i * 0.12, pan: p }); },
+  airlockDoor: (v, p) => { tone({ f: 110, fEnd: 70, dur: 0.35, type: 'sine', vol: 0.25 * v, pan: p }); nz({ f: 3200, type: 'highpass', dur: 0.35, vol: 0.06 * v, when: 0.25, pan: p }); },
+  airlockHiss: (v, p) => nzLong({ f: 4200, fEnd: 2200, type: 'highpass', dur: 1.2, vol: 0.09 * v, attack: 0.15, pan: p }),
+  airlockDrain: (v, p) => {   // the pump gurgles the water away
+    nzLong({ f: 500, fEnd: 160, type: 'lowpass', q: 2, dur: 2, vol: 0.22 * v, attack: 0.2, pan: p });
+    for (let i = 0; i < 10; i++) tone({ f: randRange(250, 650), fEnd: randRange(700, 1100), dur: 0.08, type: 'sine', vol: 0.06 * v, when: 0.15 + i * 0.17 + Math.random() * 0.06, pan: p });
+  },
+  // planes: a propeller's buzz, a jet's roar and a big plane's hum (each played over and over while it flies), the
+  // rush of taking off, the squeak of the wheels touching down, a bump, and a parachute popping open
+  planeProp: (v, p) => { tone({ f: 70 + v * 40, dur: 0.24, type: 'sawtooth', vol: 0.05 * v, lp: 500, attack: 0.03, vib: [24, 18], pan: p }); nz({ f: 300, q: 1, dur: 0.22, vol: 0.05 * v, attack: 0.03, pan: p }); },
+  planeJet: (v, p) => { nzLong({ f: 900 + v * 900, type: 'bandpass', q: 0.6, dur: 0.36, vol: 0.12 * v, attack: 0.06, pan: p }); tone({ f: 1800 + v * 600, dur: 0.34, type: 'sine', vol: 0.015 * v, attack: 0.06, pan: p }); },
+  planeHum: (v, p) => { tone({ f: 95, dur: 0.36, type: 'sawtooth', vol: 0.04 * v, lp: 400, attack: 0.06, pan: p }); nzLong({ f: 600, type: 'bandpass', q: 0.8, dur: 0.36, vol: 0.07 * v, attack: 0.06, pan: p }); },
+  planeTakeoff: (v, p) => nzLong({ f: 400, fEnd: 1600, type: 'bandpass', q: 0.7, dur: 1.2, vol: 0.14 * v, attack: 0.2, pan: p }),
+  planeLand: (v, p) => { tone({ f: 1400, fEnd: 900, dur: 0.12, type: 'triangle', vol: 0.05 * v, pan: p }); tone({ f: 1300, fEnd: 850, dur: 0.12, type: 'triangle', vol: 0.04 * v, when: 0.1, pan: p }); nz({ f: 300, q: 0.8, dur: 0.2, vol: 0.15 * v, pan: p }); },
+  planeBump: (v, p) => { nz({ f: 200, q: 0.8, dur: 0.25, vol: 0.3 * v, pan: p }); tone({ f: 90, fEnd: 50, dur: 0.25, type: 'sine', vol: 0.25 * v, pan: p }); },
+  chuteOpen: (v, p) => { nz({ f: 1200, fEnd: 300, q: 0.8, dur: 0.35, vol: 0.2 * v, pan: p }); tone({ f: 200, fEnd: 120, dur: 0.2, type: 'sine', vol: 0.1 * v, when: 0.05, pan: p }); },
 });
 
 /* ---- 12-ui.js ---- */
@@ -15298,8 +15979,9 @@ class Link {
    The host's iPad runs the world: creatures, falling sand, water, furnaces, time of day.
    Guests build the same terrain from the seed, send their own moves and block changes,
    and show the host's creatures. A guest's things are saved inside the host's world. */
-const MP_PROTO = 4;   // 2: bows, new TNT, endermen, ghasts, dispensers, minecarts and cars; 3: armor, enchanting, books, signs, potions, fish, boats, made characters, TVs, boards, Hardcore;
-                      // 4: weather, golems, Snorks, the flying car and broom, the rocket and the Moon, wands, Hogwarts, plans, cameras, dungeons, robots
+const MP_PROTO = 5;   // 2: bows, new TNT, endermen, ghasts, dispensers, minecarts and cars; 3: armor, enchanting, books, signs, potions, fish, boats, made characters, TVs, boards, Hardcore;
+                      // 4: weather, golems, Snorks, the flying car and broom, the rocket and the Moon, wands, Hogwarts, plans, cameras, dungeons, robots;
+                      // 5: more doors (iron, glass, airlock, garage), planes with passenger seats, parachutes
 const MP_MAX_GUESTS = 3;
 const r2 = v => Math.round(v * 100) / 100;
 const okXYZ = a => Array.isArray(a) && a.length === 3 && a.every(v => typeof v === 'number' && isFinite(v));
@@ -15332,8 +16014,8 @@ const STATE_LEN = 13;
 function encodeState(p) {
   const rd = p.riding, aim = p.drawT > 0 || p.loadT > 0 || p.heldId() === I.CROSSBOW_LOADED, sh = shieldHand(p);
   const f = (p.sneaking ? 1 : 0) | (p.flying ? 2 : 0) | (p.alive ? 4 : 0) | (game.mode === 'creative' ? 8 : 0) | (game.sleeping > 0 ? 16 : 0) |
-    (rd ? 32 : 0) | (rd && (rd.type === 'car' || rd.type === 'flycar') ? 64 : 0) | (aim ? 128 : 0) | (sh === 'off' ? 256 : 0) | (p.blocking ? 512 : 0) |
-    (rd && rd.type === 'boat' ? 1024 : 0) | (rd && rd.type === 'submarine' ? 2048 : 0) | (rd && rd.type === 'broom' ? 4096 : 0) | (rd && rd.type === 'rocket' ? 8192 : 0);
+    (rd ? 32 : 0) | (rd && (rd.type === 'car' || rd.type === 'flycar' || isPlane(rd)) ? 64 : 0) | (aim ? 128 : 0) | (sh === 'off' ? 256 : 0) | (p.blocking ? 512 : 0) |
+    (rd && rd.type === 'boat' ? 1024 : 0) | (rd && rd.type === 'submarine' ? 2048 : 0) | (rd && rd.type === 'broom' ? 4096 : 0) | (rd && rd.type === 'rocket' ? 8192 : 0) | (p.chute ? 16384 : 0) | ((p.seat & 7) << 15) | (rd && isPlane(rd) ? 1 << 18 : 0);   // (in a plane, and which seat: 1-5 behind the pilot)
   const b = p.bobber && !p.bobber.removed ? [r2(p.bobber.x), r2(p.bobber.y), r2(p.bobber.z)] : 0;
   return [r2(p.x), r2(p.y), r2(p.z), r2(p.yaw), r2(p.pitch), r2(p.bodyYaw), f, p.heldId(), p.swings || 0, wornArmor(p), wornGlint(p), effectBits(p), b];
 }
@@ -15345,7 +16027,7 @@ function applyState(r, a) {
   const was = r.alive;
   r.sneaking = !!(f & 1); r.flying = !!(f & 2); r.alive = !!(f & 4); r.mode = (f & 8) ? 'creative' : 'survival';
   if (was && !r.alive) markOut(r);
-  r.riding = (f & 32) ? ((f & 64) ? 'car' : (f & 1024) ? 'boat' : (f & 2048) ? 'sub' : (f & 4096) ? 'broom' : (f & 8192) ? 'rocket' : 'cart') : null; r.aiming = !!(f & 128);
+  r.riding = (f & 32) ? ((f & 64) ? 'car' : (f & 1024) ? 'boat' : (f & 2048) ? 'sub' : (f & 4096) ? 'broom' : (f & 8192) ? 'rocket' : 'cart') : null; r.aiming = !!(f & 128); r.chute = !(f & 32) && !!(f & 16384); r.seat = (f >> 15) & 7; r.inPlane = !!(f & (1 << 18));
   const held = a[7] | 0;
   r.held = held > 0 && itemDef(held) ? held : 0;
   r.shield = r.held === I.SHIELD ? 'main' : (f & 256) ? 'off' : null; r.blocking = !!(f & 512) && !!r.shield;
@@ -15391,11 +16073,11 @@ function encodeEnt(e) {
   if (e.type === 'tnt') return [e.nid, -1, r2(e.x), r2(e.y), r2(e.z), r2(e.fuse), TNT_KINDS.indexOf(e.kind), e.small ? 1 : 0];
   if (e.type === 'falling') return [e.nid, -2, r2(e.x), r2(e.y), r2(e.z), e.id];
   if (e.type === 'proj') return [e.nid, -3, r2(e.x), r2(e.y), r2(e.z), r2(e.vx), r2(e.vy), r2(e.vz), PROJ_KINDS.indexOf(e.kind), (e.stuck ? 1 : 0) | (e.crit ? 2 : 0), e.tok || '', e.pk | 0];
-  if (e.vehicle) return [e.nid, VEHICLES[e.type].code, r2(e.x), r2(e.y), r2(e.z), r2(e.yaw), r2(e.slope || 0), e.rider ? 1 : 0, vehicleState(e)[5], e.hurt > 0 ? 1 : 0, e.flying ? 1 : 0];
+  if (e.vehicle) return [e.nid, VEHICLES[e.type].code, r2(e.x), r2(e.y), r2(e.z), r2(e.yaw), r2(e.slope || 0), e.rider ? 1 : 0, vehicleState(e)[5], e.hurt > 0 ? 1 : 0, e.flying ? 1 : 0, r2(e.bank || 0)];
   if (e.type === 'xp') return [e.nid, -7, r2(e.x), r2(e.y), r2(e.z), e.value];
   return null;
 }
-const ENT_CODE = { '-1': 'tnt', '-2': 'falling', '-3': 'proj', '-5': 'minecart', '-6': 'car', '-7': 'xp', '-8': 'boat', '-9': 'submarine', '-10': 'flycar', '-11': 'broom', '-12': 'rocket' };
+const ENT_CODE = { '-1': 'tnt', '-2': 'falling', '-3': 'proj', '-5': 'minecart', '-6': 'car', '-7': 'xp', '-8': 'boat', '-9': 'submarine', '-10': 'flycar', '-11': 'broom', '-12': 'rocket', '-13': 'plane', '-14': 'jet', '-15': 'airliner' };
 /* guest: creatures from the host glide to their latest positions */
 function updateProxy(e, dt) {
   e.age += dt;
@@ -15404,7 +16086,8 @@ function updateProxy(e, dt) {
     return;
   }
   const k = Math.min(1, dt * 10);
-  if (e.vehicle) { e.yaw = lerpAngle(e.yaw, e.yawT || 0, k); e.slope = lerp(e.slope || 0, e.slopeT || 0, k); e.wheel += (e.speed || 0) * dt / VEHICLES[e.type].wheel; if (e.hurt > 0) e.hurt -= dt; }
+  if (e.vehicle) { e.yaw = lerpAngle(e.yaw, e.yawT || 0, k); e.slope = lerp(e.slope || 0, e.slopeT || 0, k); e.wheel += (e.flying ? 0 : e.speed || 0) * dt / VEHICLES[e.type].wheel; if (e.hurt > 0) e.hurt -= dt; }
+  if (isPlane(e)) { e.bank = lerp(e.bank || 0, e.bankT || 0, k); e.prop = (e.prop || 0) + dt * (e.rider ? 30 : 0); e.sndT = (e.sndT || 0) - dt; if (e.sndT <= 0) planeSounds(e); }
   if (e.tx !== undefined) {
     const ox = e.x, oy = e.y, oz = e.z;
     if (Math.abs(e.tx - e.x) + Math.abs(e.ty - e.y) + Math.abs(e.tz - e.z) > 10) { e.x = e.tx; e.y = e.ty; e.z = e.tz; }
@@ -15470,8 +16153,8 @@ function cleanDataTiles(td) {
   return out;
 }
 const FX_KINDS = ['break', 'place', 'door', 'boom', 'sfx', 'party', 'ice', 'tele', 'smoke', 'xpb', 'splash', 'spell', 'zap'];
-const SFX_NET = ['leverClick', 'buttonClick', 'honk', 'bowShoot', 'crossbowShoot', 'pearlThrow', 'dispense', 'dispenseFail', 'ghastShoot', 'endermanPortal', 'sonar', 'tvOn', 'tvOff', 'golemBuilt', 'snorkHappy', 'snorkToot', 'spellCast', 'patronus', 'camSwitch'];
-const GUEST_SFX = new Set(['leverClick', 'buttonClick', 'honk', 'sonar', 'tvOn', 'tvOff', 'snorkHappy', 'snorkToot', 'camSwitch']);   // the sounds a guest can send
+const SFX_NET = ['leverClick', 'buttonClick', 'honk', 'bowShoot', 'crossbowShoot', 'pearlThrow', 'dispense', 'dispenseFail', 'ghastShoot', 'endermanPortal', 'sonar', 'tvOn', 'tvOff', 'golemBuilt', 'snorkHappy', 'snorkToot', 'spellCast', 'patronus', 'camSwitch', 'airlockDrain', 'airlockHiss', 'planeTakeoff', 'chuteOpen'];
+const GUEST_SFX = new Set(['leverClick', 'buttonClick', 'honk', 'sonar', 'tvOn', 'tvOff', 'snorkHappy', 'snorkToot', 'camSwitch', 'planeTakeoff', 'chuteOpen']);   // the sounds a guest can send
 const LINK_FAIL = "Found the game, but the two iPads couldn't connect to each other. Put both on the same Wi-Fi, then try again.";
 const STALE_T = new Set(['st', 'set', 'open', 'tile', 'close', 'tnt', 'egg', 'portal', 'shoot', 'mount', 'veh', 'dismount', 'veh+', 'sign', 'board', 'rocket', 'launch', 'snitch', 'robot+', 'robot']);
 
@@ -15626,14 +16309,21 @@ const MP = {
         break;
       }
       case 'mount': {
-        const v = game.entities.find(q => q.nid === m.e && q.vehicle && !q.removed), ok = !!v && !v.rider && Math.hypot(v.x - r.tx, v.z - r.tz) < 6;
-        if (ok) { v.rider = r.id; v.vx = v.vz = 0; }
-        l.send({ t: 'mount', e: m.e, ok: ok ? 1 : 0, s: v ? vehicleState(v) : null });
+        const v = game.entities.find(q => q.nid === m.e && q.vehicle && !q.removed), near = !!v && Math.hypot(v.x - r.tx, v.z - r.tz) < (isPlane(v) ? 9 : 6);
+        if (v && (v.rider === r.id || (v.pass && v.pass.includes(r.id)))) break;   // (already in it)
+        const seat = near && v.rider ? freeSeat(v) : 0, ok = near && (!v.rider || seat > 0);   // (a plane someone is flying: a passenger seat)
+        if (ok && seat) v.pass[seat] = r.id;
+        else if (ok) { v.rider = r.id; v.vx = v.vz = 0; }
+        l.send({ t: 'mount', e: m.e, ok: ok ? 1 : 0, s: v ? vehicleState(v) : null, seat });
         break;
       }
       case 'veh': case 'dismount': {   // where the vehicle a guest is driving has got to (and when they get out)
         const v = game.entities.find(q => q.nid === m.e && q.vehicle && q.rider === r.id);
-        if (!v) break;
+        if (!v) {   // a passenger getting out
+          const pv = m.t === 'dismount' && game.entities.find(q => q.nid === m.e && q.vehicle && q.pass && q.pass.includes(r.id));
+          if (pv) pv.pass[pv.pass.indexOf(r.id)] = null;
+          break;
+        }
         if (Array.isArray(m.s) && m.s.length >= 6 && m.s.every(n => typeof n === 'number' && isFinite(n)) && Math.hypot(m.s[0] - r.tx, m.s[2] - r.tz) < 10 && Math.abs(m.s[1] - r.ty) < 10) applyVehState(v, m.s);
         if (m.t === 'dismount') v.rider = null;
         break;
@@ -15754,7 +16444,7 @@ const MP = {
     this.remotes.delete(id);
     if (r.tag) r.tag.remove();
     if (game.world) for (const t of game.world.tiles.values()) if (t.viewers) t.viewers.delete(id);
-    for (const e of game.entities) if (e.vehicle && e.rider === id) e.rider = null;   // their car or minecart is free again
+    for (const e of game.entities) if (e.vehicle) { if (e.rider === id) e.rider = null; if (e.pass && e.pass.includes(id)) e.pass[e.pass.indexOf(id)] = null; }   // their car or minecart (or seat) is free again
     if (!quiet) { chat(r.name + (msg || ' left the game'), '#ffff55'); sfx('leave'); }
     if (this.role === 'host') this.broadcast({ t: 'pl', id });
     this.updateUI();
@@ -15999,8 +16689,9 @@ const MP = {
       case 'snitch': snitchCaught(game); break;   // we caught the Golden Snitch!
       case 'mount': {   // the host says whether we got in
         const v = this.proxies.get(m.e), pl = game.player;
-        if (!m.ok) { if (v) toast('Someone is already in it.', 2); break; }
+        if (!m.ok) { if (v) toast(isPlane(v) ? 'This plane is full.' : 'Someone is already in it.', 2); break; }
         if (!v || v.removed || pl.riding || !pl.alive || game.state !== 'playing') { this.send({ t: 'dismount', e: m.e }); break; }
+        if (m.seat > 0 && isPlane(v)) { boardSeat(game, v, m.seat | 0); break; }   // a passenger seat
         if (Array.isArray(m.s) && m.s.length >= 6) { v.x = +m.s[0]; v.y = +m.s[1]; v.z = +m.s[2]; v.yaw = +m.s[3] || 0; v.slope = +m.s[4] || 0; }
         v.vx = v.vy = v.vz = 0; v.local = true;
         boardVehicle(game, v);
@@ -16132,7 +16823,7 @@ const MP = {
         e.vx = +a[5] || 0; e.vy = +a[6] || 0; e.vz = +a[7] || 0;
         continue;
       }
-      if (ti <= -5) { e.yawT = +a[5] || 0; e.slopeT = +a[6] || 0; e.rider = a[7] === 1 ? 'someone' : null; e.speed = +a[8] || 0; if (a[9]) e.hurt = 0.2; e.flying = a[10] === 1; continue; }
+      if (ti <= -5) { e.yawT = +a[5] || 0; e.slopeT = +a[6] || 0; e.rider = a[7] === 1 ? 'someone' : null; e.speed = +a[8] || 0; if (a[9]) e.hurt = 0.2; e.flying = a[10] === 1; e.bankT = clamp(+a[11] || 0, -1, 1); continue; }
       if (ti >= 0) {
         e.bodyT = +a[5] || 0; e.headT = +a[6] || 0; e.pitchT = +a[7] || 0; e.walkT = +a[8] || 0;
         const f = a[9] | 0;
@@ -16204,7 +16895,7 @@ const MP = {
       if (![x, y, z].every(isFinite)) continue;
       if (k === 'break' && BLOCKS[id]) { sfx('break_' + SOUND_OF(id), x + 0.5, y + 0.5, z + 0.5); blockParticles(x, y, z, id, 10, true); }
       else if (k === 'place' && BLOCKS[id]) sfx('place_' + SOUND_OF(id), x + 0.5, y + 0.5, z + 0.5);
-      else if (k === 'door') sfx('door', x + 0.5, y + 0.5, z + 0.5);
+      else if (k === 'door') sfx(DOOR_SFX[id | 0] || 'door', x + 0.5, y + 0.5, z + 0.5);
       else if (k === 'sfx') { if (SFX_NET[id]) sfx(SFX_NET[id], x, y, z); }
       else if (k === 'party') partyEffect(x, y, z);
       else if (k === 'spell') { spellBurst(x, y, z, (SPELLS[id] || SPELLS[0]).tile, 16); sfx('spellHit', x, y, z); }
@@ -16416,11 +17107,25 @@ function drawRemotePlayers(game, s, t, cam) {
     const dx = r.x - cam.x, dz = r.z - cam.z;
     if (dx * dx + dz * dz > R.fogEnd * R.fogEnd) continue;
     if (!boxInFrustum(R.planes, dx - 1, r.y - cam.y, dz - 1, dx + 1, r.y - cam.y + 2.2, dz + 1)) continue;
+    if (r.inPlane) seatRemote(game, r);
     entityBegin(texSkins);
     gl.enable(gl.CULL_FACE);
     drawHumanoid(r, playerModelFor(r.skin), r.held, s, t, cam);
   }
   entityBegin(texSkins);
+}
+/* someone flying a plane, or a passenger in one: drawn in their seat in the plane as this iPad sees it (where
+   they say they are is a moment behind, and at a plane's speed that would be well behind it) */
+function seatRemote(game, r) {
+  let best = null, bd = 12 * 12;
+  for (const e of game.entities) {
+    if (!isPlane(e) || e.removed) continue;
+    const d = (e.x - r.tx) * (e.x - r.tx) + (e.z - r.tz) * (e.z - r.tz);
+    if (d < bd) { bd = d; best = e; }
+  }
+  if (!best) return;
+  [r.x, r.y, r.z] = planeSeat(best, r.seat || 0);
+  r.bodyYaw = best.yaw;
 }
 /* write one guest's things into a saved world (used just after the host closed it) */
 function patchSavedGuest(slot, id, d) {
@@ -17545,8 +18250,9 @@ function updateCamera(dt) {
   if (game.shake > 0 && !REDUCED_MOTION) { ex += randRange(-1, 1) * game.shake * 0.2; ey += randRange(-1, 1) * game.shake * 0.2; }
   if (game.view > 0) {
     const [dx, dy, dz] = pl.lookDir(), sgn = game.view === 1 ? -1 : 1;
-    const hit = raycast(game.world, ex, ey, ez, dx * sgn, dy * sgn, dz * sgn, 4.2);
-    const dist = hit ? Math.max(0.5, hit.t - 0.3) : 4;
+    const far = pl.riding && isPlane(pl.riding) ? (pl.riding.type === 'airliner' ? 14 : 8) : 4;   // (further back from a plane, to see all of it)
+    const hit = raycast(game.world, ex, ey, ez, dx * sgn, dy * sgn, dz * sgn, far + 0.2);
+    const dist = hit ? Math.max(0.5, hit.t - 0.3) : far;
     ex += dx * sgn * dist; ey += dy * sgn * dist; ez += dz * sgn * dist;
     if (game.view === 2) { yaw += Math.PI; pitch = -pitch; }
   }
