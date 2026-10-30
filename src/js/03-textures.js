@@ -1174,6 +1174,7 @@ function buildSkins() {
   });
   buildNewSkins();
   buildSkins3();
+  buildSkins4();
   addSkin('item_glint', S => { /* reserved */ });
 }
 /* a player's face as a small picture, for menus */

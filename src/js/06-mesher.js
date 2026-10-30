@@ -15,8 +15,13 @@ function buildBlockTiles() {
     for (let f = 0; f < 6; f++) BT[id * 6 + f] = TILE[tt[f]];
     if (typeof t === 'object' && t.front) FRONT_T[id] = TILE[t.front];
     if (typeof t === 'object' && t.back) BACK_T[id] = TILE[t.back];
+    if (d.doorTex) {   // (a door's two halves)
+      for (const n of d.doorTex) if (!(TILE[n] < 256)) console.error('The picture ' + n + ' is number ' + TILE[n] + ': block pictures must be under 256');
+      DOOR_T[id * 2] = TILE[d.doorTex[0]]; DOOR_T[id * 2 + 1] = TILE[d.doorTex[1]];
+    }
   }
 }
+const DOOR_T = new Uint8Array(512);
 const UPDOWN = new Uint8Array(256);   // facing blocks that can also point up (data 4) or down (data 5)
 UPDOWN[B.DISPENSER] = UPDOWN[B.DIG_TNT] = 1;
 function tileFor(id, d, data) {
@@ -231,8 +236,14 @@ function meshSection(world, c, s) {
         for (let f = 0; f < 6; f++) _tiles6[f] = BT[id * 6 + f];
         emitBox(WO, x, y, z, pi, 1, 0, 1, 15, 16, 15, _tiles6, SIX_FULL, faces, 0, 0);
       } else if (r === R_DOOR) {
-        const data = padD[pi], bb = doorBox(data), t = (data & 8) ? TILE.door_top : TILE.door_bottom;
+        const data = padD[pi], bb = doorBox(data), t = DOOR_T[id * 2 + ((data & 8) ? 1 : 0)];
         for (let f = 0; f < 6; f++) _tiles6[f] = t;
+        emitBox(WO, x, y, z, pi, bb[0] * 16, bb[1] * 16, bb[2] * 16, bb[3] * 16, bb[4] * 16, bb[5] * 16, _tiles6, SIX_FULL, 63, 0, 0);
+      } else if (r === R_GARAGE) {   // a garage door panel; rolled up, the top one of a door is a drum and the rest are out of the way
+        const data = padD[pi];
+        if (id === B.GARAGE_OPEN && isGarage(padB[pi + 324])) continue;
+        const bb = id === B.GARAGE_OPEN ? garageRollBox(data) : garageBox(data);
+        for (let f = 0; f < 6; f++) _tiles6[f] = BT[id * 6];
         emitBox(WO, x, y, z, pi, bb[0] * 16, bb[1] * 16, bb[2] * 16, bb[3] * 16, bb[4] * 16, bb[5] * 16, _tiles6, SIX_FULL, 63, 0, 0);
       } else if (r === R_PORTAL) {
         // a glowing sheet in the middle of the block; edges only where the portal ends

@@ -2,8 +2,9 @@
    The host's iPad runs the world: creatures, falling sand, water, furnaces, time of day.
    Guests build the same terrain from the seed, send their own moves and block changes,
    and show the host's creatures. A guest's things are saved inside the host's world. */
-const MP_PROTO = 4;   // 2: bows, new TNT, endermen, ghasts, dispensers, minecarts and cars; 3: armor, enchanting, books, signs, potions, fish, boats, made characters, TVs, boards, Hardcore;
-                      // 4: weather, golems, Snorks, the flying car and broom, the rocket and the Moon, wands, Hogwarts, plans, cameras, dungeons, robots
+const MP_PROTO = 5;   // 2: bows, new TNT, endermen, ghasts, dispensers, minecarts and cars; 3: armor, enchanting, books, signs, potions, fish, boats, made characters, TVs, boards, Hardcore;
+                      // 4: weather, golems, Snorks, the flying car and broom, the rocket and the Moon, wands, Hogwarts, plans, cameras, dungeons, robots;
+                      // 5: more doors (iron, glass, airlock, garage), planes with passenger seats, parachutes
 const MP_MAX_GUESTS = 3;
 const r2 = v => Math.round(v * 100) / 100;
 const okXYZ = a => Array.isArray(a) && a.length === 3 && a.every(v => typeof v === 'number' && isFinite(v));
@@ -36,8 +37,8 @@ const STATE_LEN = 13;
 function encodeState(p) {
   const rd = p.riding, aim = p.drawT > 0 || p.loadT > 0 || p.heldId() === I.CROSSBOW_LOADED, sh = shieldHand(p);
   const f = (p.sneaking ? 1 : 0) | (p.flying ? 2 : 0) | (p.alive ? 4 : 0) | (game.mode === 'creative' ? 8 : 0) | (game.sleeping > 0 ? 16 : 0) |
-    (rd ? 32 : 0) | (rd && (rd.type === 'car' || rd.type === 'flycar') ? 64 : 0) | (aim ? 128 : 0) | (sh === 'off' ? 256 : 0) | (p.blocking ? 512 : 0) |
-    (rd && rd.type === 'boat' ? 1024 : 0) | (rd && rd.type === 'submarine' ? 2048 : 0) | (rd && rd.type === 'broom' ? 4096 : 0) | (rd && rd.type === 'rocket' ? 8192 : 0);
+    (rd ? 32 : 0) | (rd && (rd.type === 'car' || rd.type === 'flycar' || isPlane(rd)) ? 64 : 0) | (aim ? 128 : 0) | (sh === 'off' ? 256 : 0) | (p.blocking ? 512 : 0) |
+    (rd && rd.type === 'boat' ? 1024 : 0) | (rd && rd.type === 'submarine' ? 2048 : 0) | (rd && rd.type === 'broom' ? 4096 : 0) | (rd && rd.type === 'rocket' ? 8192 : 0) | (p.chute ? 16384 : 0) | ((p.seat & 7) << 15) | (rd && isPlane(rd) ? 1 << 18 : 0);   // (in a plane, and which seat: 1-5 behind the pilot)
   const b = p.bobber && !p.bobber.removed ? [r2(p.bobber.x), r2(p.bobber.y), r2(p.bobber.z)] : 0;
   return [r2(p.x), r2(p.y), r2(p.z), r2(p.yaw), r2(p.pitch), r2(p.bodyYaw), f, p.heldId(), p.swings || 0, wornArmor(p), wornGlint(p), effectBits(p), b];
 }
@@ -49,7 +50,7 @@ function applyState(r, a) {
   const was = r.alive;
   r.sneaking = !!(f & 1); r.flying = !!(f & 2); r.alive = !!(f & 4); r.mode = (f & 8) ? 'creative' : 'survival';
   if (was && !r.alive) markOut(r);
-  r.riding = (f & 32) ? ((f & 64) ? 'car' : (f & 1024) ? 'boat' : (f & 2048) ? 'sub' : (f & 4096) ? 'broom' : (f & 8192) ? 'rocket' : 'cart') : null; r.aiming = !!(f & 128);
+  r.riding = (f & 32) ? ((f & 64) ? 'car' : (f & 1024) ? 'boat' : (f & 2048) ? 'sub' : (f & 4096) ? 'broom' : (f & 8192) ? 'rocket' : 'cart') : null; r.aiming = !!(f & 128); r.chute = !(f & 32) && !!(f & 16384); r.seat = (f >> 15) & 7; r.inPlane = !!(f & (1 << 18));
   const held = a[7] | 0;
   r.held = held > 0 && itemDef(held) ? held : 0;
   r.shield = r.held === I.SHIELD ? 'main' : (f & 256) ? 'off' : null; r.blocking = !!(f & 512) && !!r.shield;
@@ -95,11 +96,11 @@ function encodeEnt(e) {
   if (e.type === 'tnt') return [e.nid, -1, r2(e.x), r2(e.y), r2(e.z), r2(e.fuse), TNT_KINDS.indexOf(e.kind), e.small ? 1 : 0];
   if (e.type === 'falling') return [e.nid, -2, r2(e.x), r2(e.y), r2(e.z), e.id];
   if (e.type === 'proj') return [e.nid, -3, r2(e.x), r2(e.y), r2(e.z), r2(e.vx), r2(e.vy), r2(e.vz), PROJ_KINDS.indexOf(e.kind), (e.stuck ? 1 : 0) | (e.crit ? 2 : 0), e.tok || '', e.pk | 0];
-  if (e.vehicle) return [e.nid, VEHICLES[e.type].code, r2(e.x), r2(e.y), r2(e.z), r2(e.yaw), r2(e.slope || 0), e.rider ? 1 : 0, vehicleState(e)[5], e.hurt > 0 ? 1 : 0, e.flying ? 1 : 0];
+  if (e.vehicle) return [e.nid, VEHICLES[e.type].code, r2(e.x), r2(e.y), r2(e.z), r2(e.yaw), r2(e.slope || 0), e.rider ? 1 : 0, vehicleState(e)[5], e.hurt > 0 ? 1 : 0, e.flying ? 1 : 0, r2(e.bank || 0)];
   if (e.type === 'xp') return [e.nid, -7, r2(e.x), r2(e.y), r2(e.z), e.value];
   return null;
 }
-const ENT_CODE = { '-1': 'tnt', '-2': 'falling', '-3': 'proj', '-5': 'minecart', '-6': 'car', '-7': 'xp', '-8': 'boat', '-9': 'submarine', '-10': 'flycar', '-11': 'broom', '-12': 'rocket' };
+const ENT_CODE = { '-1': 'tnt', '-2': 'falling', '-3': 'proj', '-5': 'minecart', '-6': 'car', '-7': 'xp', '-8': 'boat', '-9': 'submarine', '-10': 'flycar', '-11': 'broom', '-12': 'rocket', '-13': 'plane', '-14': 'jet', '-15': 'airliner' };
 /* guest: creatures from the host glide to their latest positions */
 function updateProxy(e, dt) {
   e.age += dt;
@@ -108,7 +109,8 @@ function updateProxy(e, dt) {
     return;
   }
   const k = Math.min(1, dt * 10);
-  if (e.vehicle) { e.yaw = lerpAngle(e.yaw, e.yawT || 0, k); e.slope = lerp(e.slope || 0, e.slopeT || 0, k); e.wheel += (e.speed || 0) * dt / VEHICLES[e.type].wheel; if (e.hurt > 0) e.hurt -= dt; }
+  if (e.vehicle) { e.yaw = lerpAngle(e.yaw, e.yawT || 0, k); e.slope = lerp(e.slope || 0, e.slopeT || 0, k); e.wheel += (e.flying ? 0 : e.speed || 0) * dt / VEHICLES[e.type].wheel; if (e.hurt > 0) e.hurt -= dt; }
+  if (isPlane(e)) { e.bank = lerp(e.bank || 0, e.bankT || 0, k); e.prop = (e.prop || 0) + dt * (e.rider ? 30 : 0); e.sndT = (e.sndT || 0) - dt; if (e.sndT <= 0) planeSounds(e); }
   if (e.tx !== undefined) {
     const ox = e.x, oy = e.y, oz = e.z;
     if (Math.abs(e.tx - e.x) + Math.abs(e.ty - e.y) + Math.abs(e.tz - e.z) > 10) { e.x = e.tx; e.y = e.ty; e.z = e.tz; }
@@ -174,8 +176,8 @@ function cleanDataTiles(td) {
   return out;
 }
 const FX_KINDS = ['break', 'place', 'door', 'boom', 'sfx', 'party', 'ice', 'tele', 'smoke', 'xpb', 'splash', 'spell', 'zap'];
-const SFX_NET = ['leverClick', 'buttonClick', 'honk', 'bowShoot', 'crossbowShoot', 'pearlThrow', 'dispense', 'dispenseFail', 'ghastShoot', 'endermanPortal', 'sonar', 'tvOn', 'tvOff', 'golemBuilt', 'snorkHappy', 'snorkToot', 'spellCast', 'patronus', 'camSwitch'];
-const GUEST_SFX = new Set(['leverClick', 'buttonClick', 'honk', 'sonar', 'tvOn', 'tvOff', 'snorkHappy', 'snorkToot', 'camSwitch']);   // the sounds a guest can send
+const SFX_NET = ['leverClick', 'buttonClick', 'honk', 'bowShoot', 'crossbowShoot', 'pearlThrow', 'dispense', 'dispenseFail', 'ghastShoot', 'endermanPortal', 'sonar', 'tvOn', 'tvOff', 'golemBuilt', 'snorkHappy', 'snorkToot', 'spellCast', 'patronus', 'camSwitch', 'airlockDrain', 'airlockHiss', 'planeTakeoff', 'chuteOpen'];
+const GUEST_SFX = new Set(['leverClick', 'buttonClick', 'honk', 'sonar', 'tvOn', 'tvOff', 'snorkHappy', 'snorkToot', 'camSwitch', 'planeTakeoff', 'chuteOpen']);   // the sounds a guest can send
 const LINK_FAIL = "Found the game, but the two iPads couldn't connect to each other. Put both on the same Wi-Fi, then try again.";
 const STALE_T = new Set(['st', 'set', 'open', 'tile', 'close', 'tnt', 'egg', 'portal', 'shoot', 'mount', 'veh', 'dismount', 'veh+', 'sign', 'board', 'rocket', 'launch', 'snitch', 'robot+', 'robot']);
 
@@ -330,14 +332,21 @@ const MP = {
         break;
       }
       case 'mount': {
-        const v = game.entities.find(q => q.nid === m.e && q.vehicle && !q.removed), ok = !!v && !v.rider && Math.hypot(v.x - r.tx, v.z - r.tz) < 6;
-        if (ok) { v.rider = r.id; v.vx = v.vz = 0; }
-        l.send({ t: 'mount', e: m.e, ok: ok ? 1 : 0, s: v ? vehicleState(v) : null });
+        const v = game.entities.find(q => q.nid === m.e && q.vehicle && !q.removed), near = !!v && Math.hypot(v.x - r.tx, v.z - r.tz) < (isPlane(v) ? 9 : 6);
+        if (v && (v.rider === r.id || (v.pass && v.pass.includes(r.id)))) break;   // (already in it)
+        const seat = near && v.rider ? freeSeat(v) : 0, ok = near && (!v.rider || seat > 0);   // (a plane someone is flying: a passenger seat)
+        if (ok && seat) v.pass[seat] = r.id;
+        else if (ok) { v.rider = r.id; v.vx = v.vz = 0; }
+        l.send({ t: 'mount', e: m.e, ok: ok ? 1 : 0, s: v ? vehicleState(v) : null, seat });
         break;
       }
       case 'veh': case 'dismount': {   // where the vehicle a guest is driving has got to (and when they get out)
         const v = game.entities.find(q => q.nid === m.e && q.vehicle && q.rider === r.id);
-        if (!v) break;
+        if (!v) {   // a passenger getting out
+          const pv = m.t === 'dismount' && game.entities.find(q => q.nid === m.e && q.vehicle && q.pass && q.pass.includes(r.id));
+          if (pv) pv.pass[pv.pass.indexOf(r.id)] = null;
+          break;
+        }
         if (Array.isArray(m.s) && m.s.length >= 6 && m.s.every(n => typeof n === 'number' && isFinite(n)) && Math.hypot(m.s[0] - r.tx, m.s[2] - r.tz) < 10 && Math.abs(m.s[1] - r.ty) < 10) applyVehState(v, m.s);
         if (m.t === 'dismount') v.rider = null;
         break;
@@ -458,7 +467,7 @@ const MP = {
     this.remotes.delete(id);
     if (r.tag) r.tag.remove();
     if (game.world) for (const t of game.world.tiles.values()) if (t.viewers) t.viewers.delete(id);
-    for (const e of game.entities) if (e.vehicle && e.rider === id) e.rider = null;   // their car or minecart is free again
+    for (const e of game.entities) if (e.vehicle) { if (e.rider === id) e.rider = null; if (e.pass && e.pass.includes(id)) e.pass[e.pass.indexOf(id)] = null; }   // their car or minecart (or seat) is free again
     if (!quiet) { chat(r.name + (msg || ' left the game'), '#ffff55'); sfx('leave'); }
     if (this.role === 'host') this.broadcast({ t: 'pl', id });
     this.updateUI();
@@ -703,8 +712,9 @@ const MP = {
       case 'snitch': snitchCaught(game); break;   // we caught the Golden Snitch!
       case 'mount': {   // the host says whether we got in
         const v = this.proxies.get(m.e), pl = game.player;
-        if (!m.ok) { if (v) toast('Someone is already in it.', 2); break; }
+        if (!m.ok) { if (v) toast(isPlane(v) ? 'This plane is full.' : 'Someone is already in it.', 2); break; }
         if (!v || v.removed || pl.riding || !pl.alive || game.state !== 'playing') { this.send({ t: 'dismount', e: m.e }); break; }
+        if (m.seat > 0 && isPlane(v)) { boardSeat(game, v, m.seat | 0); break; }   // a passenger seat
         if (Array.isArray(m.s) && m.s.length >= 6) { v.x = +m.s[0]; v.y = +m.s[1]; v.z = +m.s[2]; v.yaw = +m.s[3] || 0; v.slope = +m.s[4] || 0; }
         v.vx = v.vy = v.vz = 0; v.local = true;
         boardVehicle(game, v);
@@ -836,7 +846,7 @@ const MP = {
         e.vx = +a[5] || 0; e.vy = +a[6] || 0; e.vz = +a[7] || 0;
         continue;
       }
-      if (ti <= -5) { e.yawT = +a[5] || 0; e.slopeT = +a[6] || 0; e.rider = a[7] === 1 ? 'someone' : null; e.speed = +a[8] || 0; if (a[9]) e.hurt = 0.2; e.flying = a[10] === 1; continue; }
+      if (ti <= -5) { e.yawT = +a[5] || 0; e.slopeT = +a[6] || 0; e.rider = a[7] === 1 ? 'someone' : null; e.speed = +a[8] || 0; if (a[9]) e.hurt = 0.2; e.flying = a[10] === 1; e.bankT = clamp(+a[11] || 0, -1, 1); continue; }
       if (ti >= 0) {
         e.bodyT = +a[5] || 0; e.headT = +a[6] || 0; e.pitchT = +a[7] || 0; e.walkT = +a[8] || 0;
         const f = a[9] | 0;
@@ -908,7 +918,7 @@ const MP = {
       if (![x, y, z].every(isFinite)) continue;
       if (k === 'break' && BLOCKS[id]) { sfx('break_' + SOUND_OF(id), x + 0.5, y + 0.5, z + 0.5); blockParticles(x, y, z, id, 10, true); }
       else if (k === 'place' && BLOCKS[id]) sfx('place_' + SOUND_OF(id), x + 0.5, y + 0.5, z + 0.5);
-      else if (k === 'door') sfx('door', x + 0.5, y + 0.5, z + 0.5);
+      else if (k === 'door') sfx(DOOR_SFX[id | 0] || 'door', x + 0.5, y + 0.5, z + 0.5);
       else if (k === 'sfx') { if (SFX_NET[id]) sfx(SFX_NET[id], x, y, z); }
       else if (k === 'party') partyEffect(x, y, z);
       else if (k === 'spell') { spellBurst(x, y, z, (SPELLS[id] || SPELLS[0]).tile, 16); sfx('spellHit', x, y, z); }
@@ -1120,11 +1130,25 @@ function drawRemotePlayers(game, s, t, cam) {
     const dx = r.x - cam.x, dz = r.z - cam.z;
     if (dx * dx + dz * dz > R.fogEnd * R.fogEnd) continue;
     if (!boxInFrustum(R.planes, dx - 1, r.y - cam.y, dz - 1, dx + 1, r.y - cam.y + 2.2, dz + 1)) continue;
+    if (r.inPlane) seatRemote(game, r);
     entityBegin(texSkins);
     gl.enable(gl.CULL_FACE);
     drawHumanoid(r, playerModelFor(r.skin), r.held, s, t, cam);
   }
   entityBegin(texSkins);
+}
+/* someone flying a plane, or a passenger in one: drawn in their seat in the plane as this iPad sees it (where
+   they say they are is a moment behind, and at a plane's speed that would be well behind it) */
+function seatRemote(game, r) {
+  let best = null, bd = 12 * 12;
+  for (const e of game.entities) {
+    if (!isPlane(e) || e.removed) continue;
+    const d = (e.x - r.tx) * (e.x - r.tx) + (e.z - r.tz) * (e.z - r.tz);
+    if (d < bd) { bd = d; best = e; }
+  }
+  if (!best) return;
+  [r.x, r.y, r.z] = planeSeat(best, r.seat || 0);
+  r.bodyYaw = best.yaw;
 }
 /* write one guest's things into a saved world (used just after the host closed it) */
 function patchSavedGuest(slot, id, d) {

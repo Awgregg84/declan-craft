@@ -24,7 +24,7 @@ function raycast(world, ox, oy, oz, dx, dy, dz, maxD, solidOnly) {
   const cells = Math.max(64, Math.ceil(maxD * 3) + 3);   // a long diagonal ray passes through up to 3 blocks per block of length
   for (let i = 0; i < cells && t <= maxD; i++) {
     const b = world.getBlock(x, y, z);
-    if (solidOnly ? SOLID[b] : TARGETABLE[b]) {
+    if ((solidOnly ? SOLID[b] : TARGETABLE[b]) && !(b === B.GARAGE_OPEN && isGarage(world.getBlock(x, y + 1, z)))) {   // (a rolled-up garage door: only its top, where it is rolled up, is there)
       const bd = BLOCKS[b], bx = bd.boxFn ? bd.boxFn(world.getData(x, y, z)) : bd.box;
       if (!bx) return { x, y, z, id: b, face, t };
       const tb = rayBox(ox, oy, oz, dx, dy, dz, x + bx[0], y + bx[1], z + bx[2], x + bx[3], y + bx[4], z + bx[5]);
@@ -73,6 +73,7 @@ class Player {
     this.portalT = 0; this.portalLock = true;   // seconds spent in a portal; locked until you step out (after travelling, loading or respawning)
     this.drawT = 0; this.loadT = 0; this.shotCd = 0;   // pulling a bow back; loading a crossbow
     this.riding = null; this.sneakHeld = false;      // the minecart or car you are in
+    this.seat = 0; this.chute = false;             // (a passenger's seat in a plane; floating down on a parachute)
     this.chill = 0; this.partyT = 0;                 // slowed by Ice TNT; bounced by Party TNT (no fall damage)
     this.blocking = false; this.blockT = 0; this.blockJolt = 0;   // a raised shield
     this.xp = 0; this.xpLevel = 0; this.xpProg = 0; this.enchSeed = (Math.random() * 2147483647) | 0;   // experience, and what the enchanting table offers
@@ -153,7 +154,9 @@ class Player {
         while (dz !== 0 && boxFree(world, this.x + dx, this.y - 0.6, this.z + dz, this.w - 0.02, 0.58)) dz = Math.abs(dz) <= st ? 0 : dz - Math.sign(dz) * st;
         this.vx = dx / dt; this.vz = dz / dt;
       }
+      chuteStep(this);
       physicsStep(world, this, dt, 30);
+      chuteStep(this);
       if (this.landed) {
         const safe = hasEffect(this, 'leaping') ? 5.5 : 3.5, fall = this.fallDist * (world.map === 'moon' ? MOON_G : 1);   // (leaping: a softer landing too; on the Moon, much softer)
         if (fall > safe && !creative && !(this.partyT > 0)) this.damage(Math.floor(fall - safe + 0.5), 'fall');
@@ -426,7 +429,7 @@ class Player {
     inp.usePressed = false;
   }
   isInteractive(id) {
-    return id === B.DOOR || id === B.CRAFTING_TABLE || id === B.FURNACE || id === B.FURNACE_LIT || id === B.CHEST || id === B.BED || !!(BLOCKS[id] && BLOCKS[id].tnt) ||
+    return IS_DOOR[id] || isGarage(id) || id === B.CRAFTING_TABLE || id === B.FURNACE || id === B.FURNACE_LIT || id === B.CHEST || id === B.BED || !!(BLOCKS[id] && BLOCKS[id].tnt) ||
       id === B.LEVER || id === B.BUTTON || id === B.DISPENSER || id === B.ENCH_TABLE || id === B.SIGN || id === B.BREWING_STAND || id === B.TV || id === B.BOARD || id === B.SORTING_HAT || id === B.MONITOR;
   }
   /* bows: hold to pull back and let go to shoot (a quick tap is a quick shot); crossbows: tap to load, tap to fire */
@@ -505,14 +508,7 @@ class Player {
       if (t.id === B.MONITOR) { this.swing(); useMonitor(game, t.x, t.y, t.z); return true; }
       if (t.id === B.BOARD) { this.swing(); openBoard(t.x, t.y, t.z); return true; }
       if (t.id === B.DISPENSER) { this.swing(); const tile = MP.useTile(t.x, t.y, t.z, 'dispenser'); if (tile) { sfx('chest', t.x + 0.5, t.y + 0.5, t.z + 0.5); game.openScreen('dispenser', tile); } return true; }
-      if (t.id === B.DOOR) {
-        const d = world.getData(t.x, t.y, t.z), ly = (d & 8) ? t.y - 1 : t.y, ld = world.getData(t.x, ly, t.z) ^ 4;
-        world.setBlock(t.x, ly, t.z, B.DOOR, ld, true);
-        if (world.getBlock(t.x, ly + 1, t.z) === B.DOOR) world.setBlock(t.x, ly + 1, t.z, B.DOOR, ld | 8, true);
-        sfx('door', t.x + 0.5, t.y + 0.5, t.z + 0.5); this.swing();
-        if (game.net) MP.localFx('door', t.x, t.y, t.z, 0);
-        return true;
-      }
+      if (IS_DOOR[t.id] || (isGarage(t.id) && hid !== B.GARAGE_DOOR)) { useDoor(game, this, t); this.swing(); return true; }   // (holding garage door panels, you put more up)
     }
     if (hid === I.FLINT_AND_STEEL && t.face >= 0) {
       const fx = t.x + DX[t.face], fy = t.y + DY[t.face], fz = t.z + DZ[t.face];
@@ -543,24 +539,10 @@ class Player {
       if (!creative) this.consumeHeld(1);
       return true;
     }
-    if (hid === I.DOOR && t.face >= 0) {
-      let px = t.x + DX[t.face], py = t.y + DY[t.face], pz = t.z + DZ[t.face];
-      if (BLOCKS[t.id].replaceable && !LIQUID[t.id]) { px = t.x; py = t.y; pz = t.z; }
-      const free = b => b === B.AIR || (BLOCKS[b] && BLOCKS[b].replaceable && !LIQUID[b]);
-      if (py < 1 || py + 1 >= WH || !free(world.getBlock(px, py, pz)) || !free(world.getBlock(px, py + 1, pz))) return false;
-      const below = world.getBlock(px, py - 1, pz);
-      if (!SOLID[below] || !OPAQUE[below]) return false;
-      const hitsP = e => e.x + e.w > px && e.x - e.w < px + 1 && e.z + e.w > pz && e.z - e.w < pz + 1 && e.y < py + 2 && e.y + e.h > py;
-      if (hitsP(this)) return false;
-      const f = facingFromYaw(this.yaw);
-      world.setBlock(px, py, pz, B.DOOR, f, true);
-      world.setBlock(px, py + 1, pz, B.DOOR, f | 8, true);
-      sfx('place_wood', px + 0.5, py + 0.5, pz + 0.5); this.swing();
-      if (!creative) this.consumeHeld(1);
-      return true;
-    }
-    if ((hid === I.MINECART || hid === I.CAR || hid === I.BOAT || hid === I.SUBMARINE || hid === I.FLYING_CAR || hid === I.BROOM || hid === I.ROCKET) && t.face >= 0) {
-      const type = hid === I.CAR ? 'car' : hid === I.BOAT ? 'boat' : hid === I.SUBMARINE ? 'submarine' : hid === I.FLYING_CAR ? 'flycar' : hid === I.BROOM ? 'broom' : hid === I.ROCKET ? 'rocket' : 'minecart';
+    if (hid >= 256 && ITEMS[hid] && ITEMS[hid].door && t.face >= 0) return placeDoor(game, this, hid, t, creative);
+    if (hid === B.GARAGE_DOOR && t.face >= 0) return placeGarage(game, this, t, creative);
+    if ((hid === I.MINECART || hid === I.CAR || hid === I.BOAT || hid === I.SUBMARINE || hid === I.FLYING_CAR || hid === I.BROOM || hid === I.ROCKET || hid === I.PLANE || hid === I.JET || hid === I.AIRLINER) && t.face >= 0) {
+      const type = hid === I.CAR ? 'car' : hid === I.BOAT ? 'boat' : hid === I.SUBMARINE ? 'submarine' : hid === I.FLYING_CAR ? 'flycar' : hid === I.BROOM ? 'broom' : hid === I.ROCKET ? 'rocket' : hid === I.PLANE ? 'plane' : hid === I.JET ? 'jet' : hid === I.AIRLINER ? 'airliner' : 'minecart';
       let vx = t.x + 0.5, vy = t.y + 1, vz = t.z + 0.5;
       if (hid === I.MINECART) {
         if (t.id !== B.RAIL) { if (!this.toldRails) { this.toldRails = true; toast('Minecarts go on rails. Put some rails down first.', 3); } return false; }
@@ -897,4 +879,5 @@ function drawHumanoid(pl, model, heldId, s, t, cam) {
     if (glint & 16) glintOn(false);
     entityBegin(texSkins);
   }
+  if (pl.chute) drawChute(pl.x, pl.y, pl.z, pl.bodyYaw, s, cam);   // (floating down on a parachute)
 }

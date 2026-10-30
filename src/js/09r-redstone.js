@@ -4,7 +4,7 @@
 // A single player or the host works this out; guests just flip the levers and press the buttons.
 const POWER_SRC = new Uint8Array(256), POWER_DEV = new Uint8Array(256);
 POWER_SRC[B.LEVER] = POWER_SRC[B.BUTTON] = 1;
-for (const id of [B.TNT, B.MEGA_TNT, B.ICE_TNT, B.DIG_TNT, B.PARTY_TNT, B.CLUSTER_TNT, B.DISPENSER, B.DOOR]) POWER_DEV[id] = 1;
+for (const id of [B.TNT, B.MEGA_TNT, B.ICE_TNT, B.DIG_TNT, B.PARTY_TNT, B.CLUSTER_TNT, B.DISPENSER, B.DOOR, B.BIRCH_DOOR, B.SPRUCE_DOOR, B.IRON_DOOR, B.GLASS_DOOR, B.AIRLOCK, B.GARAGE_DOOR, B.GARAGE_OPEN]) POWER_DEV[id] = 1;
 const BUTTON_TIME = 1;
 /* a lever or button keeps the side it is stuck to in data & 7 (an index into DX/DY/DZ); data & 8 is on */
 function isPowered(w, x, y, z) {
@@ -53,17 +53,15 @@ function tickPower(game, dt) {
 function powerDevice(game, x, y, z, placed) {
   const w = game.world, id = w.getBlock(x, y, z);
   if (tntKindOf(id)) { if (isPowered(w, x, y, z)) igniteTNT(game, x, y, z); return; }
-  if (id === B.DOOR) {
-    const d = w.getData(x, y, z), ly = (d & 8) ? y - 1 : y, ld = w.getData(x, ly, z);
-    if (w.getBlock(x, ly, z) !== B.DOOR) return;
+  if (isGarage(id)) { powerGarage(game, x, y, z, placed); return; }
+  if (IS_DOOR[id]) {
+    const d = w.getData(x, y, z), ly = (d & 8) ? y - 1 : y;
+    if (w.getBlock(x, ly, z) !== id) return;
     const on = isPowered(w, x, ly, z) || isPowered(w, x, ly + 1, z);
     if (placed && !on) return;
-    const want = on ? ld | 4 : ld & ~4;
-    if (want === ld) return;
-    w.setBlock(x, ly, z, B.DOOR, want, true);
-    if (w.getBlock(x, ly + 1, z) === B.DOOR) w.setBlock(x, ly + 1, z, B.DOOR, want | 8, true);
-    sfx('door', x + 0.5, ly + 0.5, z + 0.5);
-    MP.localFx('door', x, ly, z, 0);
+    if (!setDoorOpen(w, x, ly, z, on)) return;
+    sfx(DOOR_SFX[doorSfx(id)], x + 0.5, ly + 0.5, z + 0.5);
+    MP.localFx('door', x, ly, z, doorSfx(id));
     return;
   }
   if (id === B.DISPENSER) {

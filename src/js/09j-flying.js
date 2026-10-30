@@ -20,8 +20,8 @@ function groundUnder(w, x, y, z) {
   }
   return -1;
 }
-/* is this a flying car, a broom or a rocket up in the air? (saved, it is kept on the ground below, and its rider beside it) */
-const aloft = (w, v) => (isFlyer(v) || v.type === 'rocket') && !SOLID[w.getBlock(Math.floor(v.x), Math.floor(v.y + 0.01) - 1, Math.floor(v.z))];
+/* is this a flying car, a broom, a plane or a rocket up in the air? (saved, it is kept on the ground below, and its rider beside it) */
+const aloft = (w, v) => (isFlyer(v) || isPlane(v) || v.type === 'rocket') && !SOLID[w.getBlock(Math.floor(v.x), Math.floor(v.y + 0.01) - 1, Math.floor(v.z))];
 
 function flyStep(game, e, dt) {
   const w = game.world, pl = game.player, F = FLYERS[e.type], me = e.rider === 'me', broom = e.type === 'broom';

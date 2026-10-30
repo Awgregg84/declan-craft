@@ -77,8 +77,94 @@ function buildBlockTiles3() {
       return p.jit(C('#f2c84a'), 6);
     });
   });
+  // more doors: birch and spruce (like the oak door, in their own wood), iron with rivets, glass in a thin white frame,
+  // and the airlock door: steel with a round window at the top and yellow and black stripes at the bottom
+  const woodDoor = (p, top, frame, cross, b1, b2, line) => {
+    p.fill((x, y) => {
+      if (x === 0 || x === 15 || (top && y === 0) || (!top && y === 15)) return p.jit(C(frame), 4);
+      if (top && x > 2 && x < 13 && y > 2 && y < 13 && x !== 7 && x !== 8 && y !== 7 && y !== 8) return null;
+      if (top && (x === 7 || x === 8 || y === 7 || y === 8) && x > 1 && x < 14 && y > 1 && y < 14) return p.jit(C(cross), 4);
+      return p.jit(x % 4 === 0 ? C(b1) : C(b2), 5);
+    });
+    if (!top) { p.px(12, 2, C('#3a3a3a')); p.px(12, 3, C('#5a5a5a')); for (let y = 5; y < 13; y += 7) for (let x = 2; x < 14; x++) p.px(x, y, C(line)); }
+  };
+  addTile('birch_door_top', p => woodDoor(p, true, '#b8a46a', '#c9b882', '#d2c393', '#e2d6ad', '#a8955f'));
+  addTile('birch_door_bottom', p => { woodDoor(p, false, '#b8a46a', '#c9b882', '#d2c393', '#e2d6ad', '#a8955f'); for (const [x, y] of [[4, 9], [9, 3], [10, 10]]) { p.px(x, y, C('#3a3226')); p.px(x + 1, y, C('#3a3226')); } });
+  addTile('spruce_door_top', p => woodDoor(p, true, '#3f2b16', '#5a3e22', '#684828', '#76542f', '#4e361d'));
+  addTile('spruce_door_bottom', p => woodDoor(p, false, '#3f2b16', '#5a3e22', '#684828', '#76542f', '#4e361d'));
+  const ironDoor = (p, top) => {
+    p.fill((x, y) => {
+      if (x === 0 || x === 15 || (top && y === 0) || (!top && y === 15)) return C('#7a8088');
+      if (top && x > 2 && x < 13 && y > 2 && y < 9 && x !== 7 && x !== 8) return null;   // two little windows
+      if ((x === 2 || x === 13) && y % 4 === 2) return C('#e8ecf0');   // rivets
+      return p.jit(y % 5 === 4 ? C('#aeb3ba') : C('#c8ccd2'), 4);
+    });
+    if (!top) p.rect(11, 1, 2, 3, C('#5a5f68'));   // the handle
+  };
+  addTile('iron_door_top', p => ironDoor(p, true));
+  addTile('iron_door_bottom', p => ironDoor(p, false));
+  const glassDoor = (p, top) => {
+    p.fill((x, y) => (x <= 1 || x >= 14 || (top && y <= 1) || (!top && y >= 14)) ? ((x + y) % 6 === 0 ? C('#ffffff') : C('#dfe8ee')) : null);
+    (top ? [[4, 9], [5, 8], [6, 7], [7, 6], [5, 10], [10, 4], [11, 3]] : [[4, 12], [5, 11], [6, 10], [9, 7], [10, 6], [11, 5]]).forEach(([x, y]) => p.px(x, y, C('#f4fbff')));
+    if (!top) p.rect(11, 1, 1, 3, C('#9aa4ac'));   // the handle
+  };
+  addTile('glass_door_top', p => glassDoor(p, true));
+  addTile('glass_door_bottom', p => glassDoor(p, false));
+  addTile('airlock_top', p => p.fill((x, y) => {
+    const d = Math.hypot(x - 7.5, y - 8.5);
+    if (d < 3.6) return null;   // the round window
+    if (d < 5) return d < 4.3 ? C('#3a3f45') : C('#d8a020');   // its rim
+    if (x === 0 || x === 15 || y === 0) return C('#3a3f45');
+    if ((x === 2 || x === 13) && (y === 2 || y === 14)) return C('#c8ccd2');   // bolts
+    return p.jit(C('#6e767f'), 4);
+  }));
+  addTile('airlock_bottom', p => p.fill((x, y) => {
+    if (x === 0 || x === 15 || y === 15) return C('#3a3f45');
+    if (y >= 11) return ((x + y) >> 1) % 2 ? C('#1e1e1e') : C('#f2c418');   // warning stripes
+    const d = Math.hypot(x - 7.5, y - 5.5);
+    if (Math.abs(d - 3) < 0.7 || (d < 3 && (Math.abs(x - 7.5) < 0.6 || Math.abs(y - 5.5) < 0.6))) return C('#c43a2a');   // the wheel that seals it
+    return p.jit(C('#6e767f'), 4);
+  }));
+  // a garage door panel: painted metal slats
+  addTile('garage_door', p => p.fill((x, y) => y % 4 === 3 ? C('#a9b0b6') : y % 4 === 0 ? C('#f2f4f5') : p.jit(C('#dfe3e6'), 3)));
 }
 function buildItemTiles3() {
+  // the new doors, as items
+  const doorItem = (name, pal, win) => addTile(name, p => {
+    shadeMask(p, mask(poly([[4.5, 1], [11.5, 1], [11.5, 15], [4.5, 15]])), pal.map(C), true);
+    if (win) win(p);
+  });
+  doorItem('birch_door_item', ['#d8cba0', '#efe6c8', '#b0a070', '#5a4a2a'], p => { p.rect(6, 3, 4, 4, C('#bcd8ea')); p.px(10, 9, C('#3a3a3a')); p.px(6, 11, C('#3a3226')); });
+  doorItem('spruce_door_item', ['#6a4a2a', '#8a6a42', '#4a321a', '#24160a'], p => { p.rect(6, 3, 4, 4, C('#bcd8ea')); p.px(10, 9, C('#c8c8c8')); });
+  doorItem('iron_door_item', ['#c8ccd2', '#eef0f2', '#8e959e', '#3a3f45'], p => { p.rect(6, 3, 1, 3, C('#3a3f45')); p.rect(9, 3, 1, 3, C('#3a3f45')); p.px(10, 9, C('#5a5f68')); });
+  doorItem('glass_door_item', ['#cfe8f2', '#f4fbff', '#9ac0d0', '#4a6a7a'], p => { p.px(6, 6, C('#ffffff')); p.px(7, 5, C('#ffffff')); p.px(8, 10, C('#ffffff')); p.px(10, 9, C('#9aa4ac')); });
+  doorItem('airlock_item', ['#6e767f', '#9aa2ab', '#4a5058', '#1e2226'], p => {
+    shadeMask(p, mask(circle(8, 5, 2.2)), [C('#9fd4ee'), C('#e0f4ff'), C('#5a9ab8'), C('#d8a020')], true);
+    for (let x = 5; x < 12; x++) p.px(x, 13, (x % 2) ? C('#1e1e1e') : C('#f2c418'));
+  });
+  // the planes, from the side: a propeller plane, a jet, and a big passenger plane with a row of windows
+  addTile('plane', p => {
+    shadeMask(p, mask(poly([[2, 6], [13, 7], [14.5, 8.5], [13, 10.5], [3, 10], [1, 8]])), [C('#e8402a'), C('#ff7a5a'), C('#a82a1a'), C('#3a0a04')], true);
+    shadeMask(p, mask(poly([[1, 3], [3.5, 3], [4.5, 7], [2, 7]])), [C('#e8402a'), C('#ff7a5a'), C('#a82a1a'), C('#3a0a04')], true);   // the tail
+    shadeMask(p, mask(poly([[6, 8], [11, 8], [10, 9.5], [5, 9.5]])), [C('#f4f4f4'), C('#ffffff'), C('#c8c8c8'), C('#4a4a4a')], true);   // a wing
+    p.rect(9, 6, 2, 1, C('#bfe8ff'));
+    p.rect(15, 5, 1, 7, C('#5a5a5a')); p.px(15, 8, C('#2a2a2a'));   // the propeller
+    p.px(7, 12, C('#2a2a2a')); p.px(11, 12, C('#2a2a2a'));
+  });
+  addTile('jet', p => {
+    shadeMask(p, mask(poly([[1, 7], [11, 7], [15, 8.5], [11, 10], [1, 10]])), [C('#8e98a6'), C('#c8d0dc'), C('#5a6472'), C('#1e2430')], true);
+    shadeMask(p, mask(poly([[1, 2], [3, 2], [5.5, 7], [2.5, 7]])), [C('#8e98a6'), C('#c8d0dc'), C('#5a6472'), C('#1e2430')], true);   // the tail
+    shadeMask(p, mask(poly([[4, 9], [9, 9], [5, 14], [3, 14]])), [C('#7a8492'), C('#aab4c0'), C('#4a5462'), C('#1e2430')], true);   // a swept wing
+    p.rect(10, 7, 2, 1, C('#ffd060'));   // the cockpit
+    p.px(0, 8, C('#ffb030')); p.px(0, 9, C('#ff7020'));   // flames
+  });
+  addTile('airliner', p => {
+    shadeMask(p, mask(capsule([[1.5, 8.5], [14.5, 8.5]], 2.6)), [C('#f4f4f4'), C('#ffffff'), C('#c8c8c8'), C('#3a4a5a')], true);
+    shadeMask(p, mask(poly([[0.5, 3], [2.5, 3], [4.5, 7], [1.5, 7]])), [C('#2a6ae0'), C('#6a9aff'), C('#1a4aa8'), C('#0a1a4a')], true);   // the tail
+    for (let x = 4; x < 13; x += 2) p.px(x, 8, C('#3a7ac8'));   // windows
+    p.rect(3, 10, 11, 1, C('#2a6ae0'));   // a stripe
+    shadeMask(p, mask(poly([[6, 9.5], [10, 9.5], [8, 13.5], [6, 13.5]])), [C('#d8d8d8'), C('#f0f0f0'), C('#a8a8a8'), C('#3a4a5a')], true);   // a wing
+  });
   // the weather: rain streaks and snowflakes (drawn on sheets that scroll down, so they wrap around top to bottom),
   // the glow of a lightning bolt, and a splash of rain on the ground
   addTile('rain', p => {   // (half a block wide and one block tall: each drop is a thin streak)

@@ -1,6 +1,6 @@
 # Declan-craft
 
-A block-building game made for Declan. It has three worlds to explore (Sunny Valley, Sky Islands and Hogwarts), each with its own Nether, the Moon (go there in a rocket), plus a Hardcore world where you only get one life. There is mining, crafting, building, animals, fish and monsters, villages with villagers and iron golems, dungeons, Snorks in the sea, armor and shields, enchanting, potions, magic wands, books and signs, books of building plans, bows and crossbows, six kinds of TNT, levers and dispensers, minecarts, a car, a flying car, a broom, a boat and a submarine, TVs, coloring boards and security cameras, robots, rain, snow and thunder, day and night, and survival and creative modes. You can make your own characters. Two to four players can share a world over the internet. Everything in it, including the worlds, textures, characters and sounds, is generated in code.
+A block-building game made for Declan. It has three worlds to explore (Sunny Valley, Sky Islands and Hogwarts), each with its own Nether, the Moon (go there in a rocket), plus a Hardcore world where you only get one life. There is mining, crafting, building, animals, fish and monsters, villages with villagers and iron golems, dungeons, Snorks in the sea, armor and shields, enchanting, potions, magic wands, books and signs, books of building plans, bows and crossbows, six kinds of TNT, levers and dispensers, minecarts, a car, a flying car, a broom, a boat and a submarine, three kinds of plane, doors of wood, glass and iron, airlocks for bases under the sea, garage doors, TVs, coloring boards and security cameras, robots, rain, snow and thunder, day and night, and survival and creative modes. You can make your own characters. Two to four players can share a world over the internet. Everything in it, including the worlds, textures, characters and sounds, is generated in code.
 
 **Play:** https://awgregg84.github.io/declan-craft/
 
@@ -62,6 +62,12 @@ Build a frame of obsidian 4 wide and 5 tall (the corners can be left out) and li
 - **Dungeons.** Little old stone towers in Sunny Valley have stairs winding down to a dungeon: a Monster Room (a monster spawner and two chests), a Maze with treasure in the middle, a Treasure Vault behind iron bars, or a Lava Temple with treasure on an island in a lava moat. Break a spawner with a pickaxe to stop the monsters. `/locate dungeon` finds the nearest one. Worlds from before keep dungeons out of anything already built.
 - **Robots.** A robot (glass and five iron ingots) lives in your bag: tap the ground to let it out, tap it to change what it does (follow you, guard you and zap monsters, collect things into your bag, or stay put), and hit it to put it back. Robots keep their colour, come along through portals and in the rocket, are saved with the world, and nothing can hurt them.
 
+## The fourth wish list
+
+- **Planes.** A propeller plane (iron and wool), a jet (a plane, gunpowder and iron) and a passenger plane (two planes and a block of iron). Push forward to speed along the ground, then look up (or press Jump) to take off: a plane needs a run along the ground and can't hover. In the air it flies where you look and banks into its turns, and planes are the fastest way to travel (the jet most of all). Let go and it slows down and glides; land by coming in low and slow, pull back to stop, then Sneak gets out. The propeller plane has a seat behind the pilot for a friend, and the passenger plane has five; a passenger up in the air who presses Sneak jumps out with a parachute.
+- **Doors.** Birch and spruce doors (from their own planks), glass doors (glass), iron doors (iron: only a lever or a button opens them), and garage doors (planks round an iron ingot): put the panels up side by side and on top of each other, and a tap rolls the whole door up, wide enough to drive or fly through.
+- **Airlocks.** An airlock door (iron and glass) can go in underwater, and no water comes through it. When it shuts, it pumps the water out of the closed room behind it, so you can build a dry base under the sea. Airlock doors shut by themselves: build a little room with one at each end, and when you go in, the door shuts behind you, it pumps, and the inside door opens.
+
 ## Playing together
 
 Both devices need the internet.
@@ -71,7 +77,7 @@ Both devices need the internet.
 3. On the other device: **Play Together**, **Join a Game**, type the code, then **Join**. A small typing mistake (WORSE8 for HORSE8) is corrected automatically.
 4. The host taps **Let them in**.
 
-The shared world, and everything a guest collects there, is saved on the host's device. A guest who leaves and joins again gets their things back. When one player goes through a Nether portal, everyone travels together. Arrows, TNT, levers, dispensers, minecarts, cars, boats and submarines, armor, enchanting, potions, brewing, fishing, signs, coloring boards and TVs, the weather, flying cars and brooms, the rocket, wands, Quidditch, plans, cameras, dungeons and robots all work for every player; a guest drives a car or a boat on their own device and the host follows along. Both devices need this version of the game.
+The shared world, and everything a guest collects there, is saved on the host's device. A guest who leaves and joins again gets their things back. When one player goes through a Nether portal, everyone travels together. Arrows, TNT, levers, dispensers, minecarts, cars, boats and submarines, armor, enchanting, potions, brewing, fishing, signs, coloring boards and TVs, the weather, flying cars and brooms, the rocket, wands, Quidditch, plans, cameras, dungeons, robots, planes, the new doors and airlocks all work for every player; a guest drives a car or a boat on their own device and the host follows along, and a friend can ride in a plane someone else is flying. Both devices need this version of the game.
 
 If joining doesn't work, tap **Check Connection** on the Play Together screen on both devices. It tests each matchmaking service and the network, and failed joins show a short code (for example `S0` for no internet, `G1` for a wrong room code, `D1` when the two devices can't reach each other).
 
@@ -83,7 +89,7 @@ Requires Node.js.
 
 - `node build.mjs` writes `dist/site/` (the website, published on the `gh-pages` branch) and `dist/declan-craft.html` (a single file that opens in a desktop browser).
 - `node tools/make-assets.mjs` regenerates the icons and link-preview picture in `assets/`. It needs Playwright.
-- `test/` holds browser tests that use Playwright with Chromium, for example `node test/site.mjs`. `test/wishlist.mjs` covers the bows, TNT, machines, endermen, ghasts and vehicles, `test/wishlist2.mjs` the armor, enchanting, books, potions, fish, boats, TVs, coloring boards, Hardcore and made characters, and `test/wishlist3.mjs` the golems, weather, Snorks, flying, the Moon, wands, plans, cameras, dungeons, robots and Hogwarts (sections can be picked: `node test/wishlist2.mjs fish boats`). `test/upgrade-wishlist2.mjs <previous build>` opens a world saved by the previous version. `test/loading.mjs` checks that a world always finishes loading (at every render distance, and when part of it never arrives). The playing-together tests (`test/mp.mjs`, `test/mp-touch.mjs`, `test/mp-nether.mjs`, `test/mp-backup.mjs`, `test/mp-wishlist.mjs`, `test/mp-wishlist2.mjs`, `test/mp-wishlist3.mjs`) run local copies of the PeerJS and MQTT services; install them first with `npm install` in `tools/`.
+- `test/` holds browser tests that use Playwright with Chromium, for example `node test/site.mjs`. `test/wishlist.mjs` covers the bows, TNT, machines, endermen, ghasts and vehicles, `test/wishlist2.mjs` the armor, enchanting, books, potions, fish, boats, TVs, coloring boards, Hardcore and made characters, and `test/wishlist3.mjs` the golems, weather, Snorks, flying, the Moon, wands, plans, cameras, dungeons, robots and Hogwarts, and `test/wishlist4.mjs` the doors, airlocks, garage doors and planes (sections can be picked: `node test/wishlist2.mjs fish boats`). `test/upgrade-wishlist2.mjs <previous build>` opens a world saved by the previous version. `test/loading.mjs` checks that a world always finishes loading (at every render distance, and when part of it never arrives). The playing-together tests (`test/mp.mjs`, `test/mp-touch.mjs`, `test/mp-nether.mjs`, `test/mp-backup.mjs`, `test/mp-wishlist.mjs`, `test/mp-wishlist2.mjs`, `test/mp-wishlist3.mjs`, `test/mp-wishlist4.mjs`) run local copies of the PeerJS and MQTT services; install them first with `npm install` in `tools/`.
 
 ## Layout
 
@@ -92,6 +98,7 @@ Requires Node.js.
   - `02b-gen3.js`: the Moon, Hogwarts and dungeons
   - `03b-tiles2.js`, `07b-models2.js`: pictures, skins and models for the second wish list
   - `03c-tiles3.js`, `07c-models3.js`, `11b-audio3.js`: pictures, skins, models and sounds for the third wish list
+  - `07d-models4.js`, `11c-audio4.js`: models, skins and sounds for the fourth wish list (its pictures are in `03c-tiles3.js`)
   - `08c-dyntex.js`: live pictures (sign words, coloring boards, TV shows)
   - `09a-armor.js`: armor and shields
   - `09b-books.js`: paper, books, story books and signs
@@ -101,8 +108,10 @@ Requires Node.js.
   - `09f-fish.js`: fish and fishing
   - `09g-golem.js`: iron golems
   - `09h-snorks.js`: Snorks
+  - `09i-doors.js`: doors, iron doors, garage doors and airlocks
   - `09j-flying.js`: the flying car and the broom
   - `09k-tnt.js`: the kinds of TNT
+  - `09l-planes.js`: planes, passenger seats and parachutes
   - `09m-moon.js`: the rocket and the Moon
   - `09n-enchant.js`: experience and enchanting
   - `09o-potions.js`: brewing, potions and their effects

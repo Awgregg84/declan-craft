@@ -440,6 +440,7 @@ class World {
     }
     this.markAround(x, y, z, urgent);
     if (this.onChange) this.onChange(x, y, z, id, data, old);
+    if (!this.remote && (id === B.AIRLOCK || old === B.AIRLOCK)) airlockChanged(this, x, y, z, old, od, id, data);
     if (!this.remote && (POWER_SRC[old] || POWER_SRC[id] || (old !== id && POWER_DEV[id]))) this.powerQ.push(x, y, z, old, od, id, data);   // levers, buttons and machines
     if (old !== id) {
       const tileOld = old === B.CHEST || old === B.FURNACE || old === B.FURNACE_LIT || old === B.DISPENSER || old === B.BREWING_STAND;
@@ -513,7 +514,8 @@ class World {
     const id = this.getBlock(x, y, z);
     for (const dy of [-1, 1]) {
       const ny = y + dy;
-      if (this.getBlock(x, ny, z) === B.DOOR && id !== B.DOOR) {
+      const nb = this.getBlock(x, ny, z);
+      if (IS_DOOR[nb] && id !== nb) {
         const nd = this.getData(x, ny, z);
         if ((dy === 1 && (nd & 8)) || (dy === -1 && !(nd & 8))) this.setBlock(x, ny, z, B.AIR, 0, true);
       }
@@ -557,7 +559,7 @@ class World {
     const lava = this.getBlock(x, y, z) === B.LAVA;
     this.liquidQ.push({ x, y, z, k, t: this.clock + (lava ? 1.2 : 0.25) });
   }
-  flowable(b) { return b === B.AIR || (!SOLID[b] && !LIQUID[b] && b !== B.UNLOADED && b !== B.DOOR && b !== B.NETHER_PORTAL); }
+  flowable(b) { return b === B.AIR || (!SOLID[b] && !LIQUID[b] && b !== B.UNLOADED && !IS_DOOR[b] && b !== B.GARAGE_OPEN && b !== B.NETHER_PORTAL); }
   flowInto(x, y, z, id, data) {
     const b = this.getBlock(x, y, z);
     if (b !== B.AIR && this.onBreak) this.onBreak(x, y, z, b, true);

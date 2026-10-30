@@ -8,7 +8,8 @@ const B = {
   CHEST: 39, BOOKSHELF: 40, PUMPKIN: 41, JACK_O_LANTERN: 42, IRON_BLOCK: 43, GOLD_BLOCK: 44, DIAMOND_BLOCK: 45,
   COAL_BLOCK: 46, TORCH: 47, TALL_GRASS: 48, DANDELION: 49, POPPY: 50, CORNFLOWER: 51, DEAD_BUSH: 52,
   OAK_SAPLING: 53, BIRCH_SAPLING: 54, SPRUCE_SAPLING: 55, BED: 56,
-  DOOR: 57, EMERALD_ORE: 58, EMERALD_BLOCK: 59,
+  DOOR: 57, EMERALD_ORE: 58, EMERALD_BLOCK: 59, BIRCH_DOOR: 60, SPRUCE_DOOR: 61, IRON_DOOR: 62, GLASS_DOOR: 63,
+  AIRLOCK: 119, GARAGE_DOOR: 120, GARAGE_OPEN: 121,
   WOOL: 64, // 64..79
   NETHERRACK: 80, SOUL_SAND: 81, NETHER_QUARTZ_ORE: 82, QUARTZ_BLOCK: 83, NETHER_BRICKS: 84, NETHER_PORTAL: 85,
   MEGA_TNT: 86, ICE_TNT: 87, DIG_TNT: 88, PARTY_TNT: 89, CLUSTER_TNT: 90, DISPENSER: 91, LEVER: 92, BUTTON: 93, RAIL: 94,
@@ -30,6 +31,7 @@ const I = {
   SUGAR: 324, PAPER: 325, BOOK: 326, WRITABLE_BOOK: 327, WRITTEN_BOOK: 328, LAPIS: 329, GLASS_BOTTLE: 330, SHIELD: 331, FISHING_ROD: 332,
   COD: 333, COOKED_COD: 334, SALMON: 335, COOKED_SALMON: 336, TROPICAL_FISH: 337, PUFFERFISH: 338, BOAT: 339, SUBMARINE: 340, MAGMA_CREAM: 341, XP_BOTTLE: 342,
   WAND: 402, BROOM: 403, FLYING_CAR: 404, ROCKET: 405, SPACE_HELMET: 406, PLAN_BOOK: 407, ROBOT: 408, CHEESE: 409,
+  BIRCH_DOOR: 410, SPRUCE_DOOR: 411, IRON_DOOR: 412, GLASS_DOOR: 413, AIRLOCK: 414, PLANE: 415, JET: 416, AIRLINER: 417,
   POTION: 370, // 370..381 potions, 390..401 splash potions, in POTIONS order
   SPLASH: 390,
   ARMOR: 350, // 350..365 = material*4 + slot
@@ -56,7 +58,7 @@ const armorId = (mat, slot) => I.ARMOR + mat * 4 + slot;
 // the inventory: 0-8 hotbar, 9-35 bag, 36-39 armor (helmet to boots), 40 the off-hand (shield) slot
 const INV_SIZE = 41, ARMOR_INV = 36, OFFHAND = 40;
 
-const R_NONE = 0, R_CUBE = 1, R_CROSS = 2, R_TORCH = 3, R_LIQUID = 4, R_CACTUS = 5, R_BED = 6, R_DOOR = 7, R_PORTAL = 8, R_RAIL = 9, R_LEVER = 10, R_BUTTON = 11, R_LOW = 12, R_BREW = 13;
+const R_NONE = 0, R_CUBE = 1, R_CROSS = 2, R_TORCH = 3, R_LIQUID = 4, R_CACTUS = 5, R_BED = 6, R_DOOR = 7, R_PORTAL = 8, R_RAIL = 9, R_LEVER = 10, R_BUTTON = 11, R_LOW = 12, R_BREW = 13, R_GARAGE = 14;
 const DOOR_BOXES = [[0, 0, 13 / 16, 1, 1, 1], [0, 0, 0, 3 / 16, 1, 1], [0, 0, 0, 1, 1, 3 / 16], [13 / 16, 0, 0, 1, 1, 1]];
 const doorBox = d => DOOR_BOXES[((d & 3) + ((d & 4) ? 1 : 0)) & 3];
 const BLOCKS = new Array(256).fill(null);
@@ -139,7 +141,28 @@ defBlock(B.SPRUCE_SAPLING, 'Spruce Sapling', { tex: 'spruce_sapling', solid: fal
 defBlock(B.BED, 'Bed', { tex: { top: 'bed_top', bottom: 'oak_planks', side: 'bed_side', front: 'bed_end', back: 'bed_end' }, opaque: false, render: R_BED, hardness: 0.2, sound: 'wool', facing: true, ao: false, box: [0, 0, 0, 1, 9 / 16, 1] });
 defBlock(B.EMERALD_ORE, 'Emerald Ore', { tex: 'emerald_ore', hardness: 3, tool: 'pickaxe', tier: 3, drop: I.EMERALD, xp: [3, 7] });
 defBlock(B.EMERALD_BLOCK, 'Block of Emerald', { tex: 'emerald_block', hardness: 5, tool: 'pickaxe', tier: 3, sound: 'metal' });
-defBlock(B.DOOR, 'Oak Door', { tex: 'door_bottom', opaque: false, render: R_DOOR, hardness: 3, tool: 'axe', sound: 'wood', drop: I.DOOR, creative: false, ao: false, boxFn: doorBox });
+defBlock(B.DOOR, 'Oak Door', { tex: 'door_bottom', opaque: false, render: R_DOOR, hardness: 3, tool: 'axe', sound: 'wood', drop: I.DOOR, creative: false, ao: false, boxFn: doorBox, doorTex: ['door_bottom', 'door_top'] });
+// more doors (see 09i-doors.js): each is two blocks tall like the oak door (data & 3 facing, & 4 open, & 8 the top half).
+// An iron door only opens with a lever or a button; an airlock door goes in underwater, keeps the water out, and pumps
+// the water out of the room behind it when it shuts.
+const IS_DOOR = new Uint8Array(256);
+for (const [id, name, item, tex, o] of [
+  [B.DOOR, 'Oak Door', I.DOOR, 'door'], [B.BIRCH_DOOR, 'Birch Door', I.BIRCH_DOOR, 'birch_door'], [B.SPRUCE_DOOR, 'Spruce Door', I.SPRUCE_DOOR, 'spruce_door'],
+  [B.IRON_DOOR, 'Iron Door', I.IRON_DOOR, 'iron_door', { hardness: 5, tool: 'pickaxe', tier: 1, sound: 'metal', iron: true }],
+  [B.GLASS_DOOR, 'Glass Door', I.GLASS_DOOR, 'glass_door', { hardness: 0.5, tool: null, sound: 'glass' }],
+  [B.AIRLOCK, 'Airlock Door', I.AIRLOCK, 'airlock', { hardness: 5, tool: 'pickaxe', tier: 1, sound: 'metal', airlock: true, blast: 1e9 }],
+]) {
+  IS_DOOR[id] = 1;
+  if (id !== B.DOOR) defBlock(id, name, Object.assign({ tex: tex + '_bottom', opaque: false, render: R_DOOR, hardness: 3, tool: 'axe', sound: 'wood', drop: item, creative: false, ao: false, boxFn: doorBox, doorTex: [tex + '_bottom', tex + '_top'] }, o));
+  BLOCKS[id].doorItem = item;
+}
+// garage doors: thin panels, put up side by side and one above another; tapping one rolls them all up together (data & 3
+// facing, & 4 open). Rolled up, a panel is a different block that you can walk (or drive, or fly) through.
+const garageBox = d => (d & 1) ? [7 / 16, 0, 0, 9 / 16, 1, 1] : [0, 0, 7 / 16, 1, 1, 9 / 16];
+const garageRollBox = d => (d & 1) ? [5 / 16, 10 / 16, 0, 11 / 16, 1, 1] : [0, 10 / 16, 5 / 16, 1, 1, 11 / 16];
+defBlock(B.GARAGE_DOOR, 'Garage Door', { tex: 'garage_door', opaque: false, render: R_GARAGE, hardness: 3, tool: 'pickaxe', sound: 'metal', ao: false, boxFn: garageBox });
+defBlock(B.GARAGE_OPEN, 'Garage Door', { tex: 'garage_door', solid: false, opaque: false, render: R_GARAGE, hardness: 3, tool: 'pickaxe', sound: 'metal', drop: B.GARAGE_DOOR, creative: false, ao: false, boxFn: garageRollBox });
+const isGarage = b => b === B.GARAGE_DOOR || b === B.GARAGE_OPEN;
 for (let i = 0; i < 16; i++) defBlock(B.WOOL + i, WOOL_NAMES[i] + ' Wool', { tex: 'wool_' + i, hardness: 0.8, sound: 'wool' });
 defBlock(B.NETHERRACK, 'Netherrack', { tex: 'netherrack', hardness: 0.4, tool: 'pickaxe', tier: 1 });
 defBlock(B.SOUL_SAND, 'Soul Sand', { tex: 'soul_sand', hardness: 0.5, tool: 'shovel', sound: 'sand', slow: 0.45 });
@@ -245,7 +268,12 @@ defItem(I.ROTTEN_FLESH, 'Rotten Flesh', { tex: 'rotten_flesh', food: 4 });
 defItem(I.GUNPOWDER, 'Gunpowder', { tex: 'gunpowder' });
 defItem(I.FEATHER, 'Feather', { tex: 'feather' });
 defItem(I.LEATHER, 'Leather', { tex: 'leather' });
-defItem(I.DOOR, 'Oak Door', { tex: 'door_item', fuel: 10 });
+defItem(I.DOOR, 'Oak Door', { tex: 'door_item', fuel: 10, door: B.DOOR });
+defItem(I.BIRCH_DOOR, 'Birch Door', { tex: 'birch_door_item', fuel: 10, door: B.BIRCH_DOOR });
+defItem(I.SPRUCE_DOOR, 'Spruce Door', { tex: 'spruce_door_item', fuel: 10, door: B.SPRUCE_DOOR });
+defItem(I.IRON_DOOR, 'Iron Door', { tex: 'iron_door_item', door: B.IRON_DOOR });
+defItem(I.GLASS_DOOR, 'Glass Door', { tex: 'glass_door_item', door: B.GLASS_DOOR });
+defItem(I.AIRLOCK, 'Airlock Door', { tex: 'airlock_item', door: B.AIRLOCK });
 defItem(I.EMERALD, 'Emerald', { tex: 'emerald' });
 defItem(I.BREAD, 'Bread', { tex: 'bread', food: 5 });
 EGG_MOBS.forEach((m, i) => defItem(I.EGG + i, mobName(m) + ' Spawn Egg', { tex: 'egg_' + m, egg: m }));
@@ -268,6 +296,10 @@ defItem(I.SUBMARINE, 'Submarine', { tex: 'submarine', stack: 1 });
 defItem(I.FLYING_CAR, 'Flying Car', { tex: 'flycar', stack: 1 });
 defItem(I.BROOM, 'Broomstick', { tex: 'broom', stack: 1, fuel: 5 });
 defItem(I.ROCKET, 'Rocket', { tex: 'rocket', stack: 1 });
+// planes (see 09l-planes.js)
+defItem(I.PLANE, 'Propeller Plane', { tex: 'plane', stack: 1 });
+defItem(I.JET, 'Jet', { tex: 'jet', stack: 1 });
+defItem(I.AIRLINER, 'Passenger Plane', { tex: 'airliner', stack: 1 });
 defItem(I.WAND, 'Magic Wand', { tex: 'wand', stack: 1 });   // (see 09x-wand.js)
 defItem(I.PLAN_BOOK, 'Book of Building Plans', { tex: 'plan_book', stack: 1 });   // (see 09q-plans.js)
 defItem(I.ROBOT, 'Robot', { tex: 'robot', stack: 1 });   // (see 09z-robots.js)
@@ -378,7 +410,13 @@ shaped(B.CRAFTING_TABLE, 1, ['PP', 'PP'], { P: 'planks' });
 shaped(B.TORCH, 4, ['C', 'S'], { C: I.COAL, S: I.STICK });
 shaped(B.FURNACE, 1, ['CCC', 'C C', 'CCC'], { C: 'stone' });
 shaped(B.CHEST, 1, ['PPP', 'P P', 'PPP'], { P: 'planks' });
-shaped(I.DOOR, 3, ['PP', 'PP', 'PP'], { P: 'planks' });
+shaped(I.DOOR, 3, ['PP', 'PP', 'PP'], { P: B.OAK_PLANKS });
+shaped(I.BIRCH_DOOR, 3, ['PP', 'PP', 'PP'], { P: B.BIRCH_PLANKS });
+shaped(I.SPRUCE_DOOR, 3, ['PP', 'PP', 'PP'], { P: B.SPRUCE_PLANKS });
+shaped(I.IRON_DOOR, 3, ['II', 'II', 'II'], { I: I.IRON_INGOT });
+shaped(I.GLASS_DOOR, 3, ['GG', 'GG', 'GG'], { G: B.GLASS });
+shaped(I.AIRLOCK, 2, ['II', 'GI', 'II'], { I: I.IRON_INGOT, G: B.GLASS });   // (a round window in it)
+shaped(B.GARAGE_DOOR, 4, ['PPP', 'PIP', 'PPP'], { P: 'planks', I: I.IRON_INGOT });
 [['planks', 0], ['stone', 1], [I.IRON_INGOT, 2], [I.DIAMOND, 3]].forEach(([mat, m]) => {
   shaped(toolId(m, 0), 1, ['MMM', ' S ', ' S '], { M: mat, S: I.STICK });
   shaped(toolId(m, 1), 1, ['MM', 'MS', ' S'], { M: mat, S: I.STICK });
@@ -413,6 +451,9 @@ shaped(B.RAIL, 16, ['I I', 'ISI', 'I I'], { I: I.IRON_INGOT, S: I.STICK });
 shaped(I.MINECART, 1, ['I I', 'III'], { I: I.IRON_INGOT });
 shaped(I.CAR, 1, [' G ', 'III', 'C C'], { G: B.GLASS, I: I.IRON_INGOT, C: I.COAL });
 shapeless(I.FLYING_CAR, 1, [I.CAR, I.FEATHER, I.FEATHER, I.FEATHER, I.FEATHER]);   // wings!
+shaped(I.PLANE, 1, [' I ', 'WIW', ' I '], { I: I.IRON_INGOT, W: 'wool' });   // (wool wings, as the Wright brothers' were cloth)
+shapeless(I.JET, 1, [I.PLANE, I.GUNPOWDER, I.GUNPOWDER, I.IRON_INGOT, I.IRON_INGOT]);
+shapeless(I.AIRLINER, 1, [I.PLANE, I.PLANE, B.IRON_BLOCK]);
 shaped(I.BROOM, 1, ['  S', ' S ', 'F  '], { S: I.STICK, F: I.FEATHER });
 shaped(I.ROCKET, 1, [' I ', 'IGI', 'IFI'], { I: I.IRON_INGOT, G: B.GLASS, F: B.FURNACE });   // (the furnace is the engine)
 shapeless(I.WAND, 1, [I.STICK, I.FEATHER, I.GOLD_INGOT]);   // (a phoenix feather inside)
@@ -517,7 +558,7 @@ const CREATIVE_LIST = [
   B.COAL_ORE, B.IRON_ORE, B.GOLD_ORE, B.DIAMOND_ORE, B.EMERALD_ORE, B.LAPIS_ORE, B.COAL_BLOCK, B.IRON_BLOCK, B.GOLD_BLOCK, B.DIAMOND_BLOCK, B.EMERALD_BLOCK, B.LAPIS_BLOCK,
   B.NETHERRACK, B.SOUL_SAND, B.NETHER_QUARTZ_ORE, B.QUARTZ_BLOCK, B.NETHER_BRICKS,
   B.GLOWSTONE, B.TORCH, B.JACK_O_LANTERN, B.PUMPKIN, B.TNT, B.MEGA_TNT, B.ICE_TNT, B.DIG_TNT, B.PARTY_TNT, B.CLUSTER_TNT,
-  B.CRAFTING_TABLE, B.FURNACE, B.CHEST, B.BOOKSHELF, B.ENCH_TABLE, B.BREWING_STAND, B.SIGN, B.BOARD, B.TV, B.MONITOR, B.CAMERA, B.BED, I.DOOR, B.DISPENSER, B.LEVER, B.BUTTON, B.RAIL, I.MINECART, I.CAR, I.FLYING_CAR, I.BROOM, I.ROCKET, I.SPACE_HELMET, I.BOAT, I.SUBMARINE,
+  B.CRAFTING_TABLE, B.FURNACE, B.CHEST, B.BOOKSHELF, B.ENCH_TABLE, B.BREWING_STAND, B.SIGN, B.BOARD, B.TV, B.MONITOR, B.CAMERA, B.BED, I.DOOR, I.BIRCH_DOOR, I.SPRUCE_DOOR, I.GLASS_DOOR, I.IRON_DOOR, I.AIRLOCK, B.GARAGE_DOOR, B.DISPENSER, B.LEVER, B.BUTTON, B.RAIL, I.MINECART, I.CAR, I.FLYING_CAR, I.BROOM, I.ROCKET, I.PLANE, I.JET, I.AIRLINER, I.SPACE_HELMET, I.BOAT, I.SUBMARINE,
   B.CACTUS, B.SUGAR_CANE, B.TALL_GRASS, B.DANDELION, B.POPPY, B.CORNFLOWER, B.DEAD_BUSH, B.OAK_SAPLING, B.BIRCH_SAPLING, B.SPRUCE_SAPLING,
   B.WATER, B.LAVA, B.CORAL_RED, B.CORAL_YELLOW, B.CORAL_BLUE, B.MOON_DUST, B.MOON_ROCK, B.MOON_CHEESE, B.FLAG, B.SLATE, B.STAINED_GLASS, B.CANDLE, B.SORTING_HAT,
   ...TAGS.wool,

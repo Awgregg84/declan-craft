@@ -368,6 +368,8 @@ function updateEntities(game, dt) {
     if (e.vehicle) { updateVehicle(game, e, dt); continue; }
     if (e.mob) updateMob(game, e, dt);
   }
+  if (pl.riding && pl.seat) sitPassenger(pl, pl.riding);   // (a passenger: wherever the plane has got to)
+  tickAirlocks(game, dt);
   if (!world.remote) { tickDiggers(game, dt); tickPower(game, dt); }
   let j = 0;
   for (const e of game.entities) if (!e.removed) game.entities[j++] = e;
