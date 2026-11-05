@@ -410,6 +410,7 @@ class Player {
     }
     // read a book, or write in one
     if ((hid === I.WRITABLE_BOOK || hid === I.WRITTEN_BOOK) && inp.use && inp.usePressed && !interactive) { this.swing(); openBook(this.sel); inp.usePressed = false; return; }
+    if (isTale(hid) && inp.use && inp.usePressed && !interactive) { this.swing(); openTale(hid); inp.usePressed = false; return; }
     // put on armor
     if (inp.use && inp.usePressed && armorOf(hid) && !interactive && this.useCd <= 0) { equipArmor(this); this.swing(); this.useCd = 0.3; inp.usePressed = false; return; }
     // use / place / eat

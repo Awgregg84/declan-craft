@@ -79,6 +79,7 @@ function fillVillageChest(t) {
   const put = (id, n, ex) => { if (n <= 0) return; const free = []; for (let i = 0; i < t.slots.length; i++) if (!t.slots[i]) free.push(i); if (!free.length) return; t.slots[free[randInt(0, free.length - 1)]] = Object.assign({ id, count: n }, ex || {}); };
   put(I.WRITTEN_BOOK, 1, { tag: randomStoryBook() });
   if (Math.random() < 0.5) put(I.WRITTEN_BOOK, 1, { tag: randomStoryBook() });
+  if (Math.random() < 0.6) put(randomTale(), 1);   // (an old tale)
   put(I.PAPER, randInt(1, 5));
   put(I.BOOK, randInt(0, 2));
   put(I.BREAD, randInt(1, 3));

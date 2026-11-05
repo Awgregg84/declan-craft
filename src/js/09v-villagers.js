@@ -8,7 +8,7 @@ function tradesFor(prof, vseed) {
     case 'farmer': return [t([[B.PUMPKIN, 4]], [E, 1]), t([[B.DANDELION, 10]], [E, 1]), t([[E, 1]], [I.BREAD, 6]),
       t([[E, 1]], [I.APPLE, 4]), t([[E, 1]], [B.OAK_SAPLING, 4]), t([[E, 1]], [B.SUGAR_CANE, 6]), t([[E, 2]], [B.PUMPKIN, 3])];
     case 'librarian': return [t([[I.PAPER, 24]], [E, 1]), t([[I.BOOK, 4]], [E, 1]), t([[E, 1]], [I.WRITTEN_BOOK, 1, 'story']),
-      t([[E, 1]], [I.WRITABLE_BOOK, 1]), t([[E, 1]], [I.PAPER, 8]), t([[E, 2]], [B.BOOKSHELF, 1]), t([[E, 3]], [I.XP_BOTTLE, 2])];
+      t([[E, 1]], [I.WRITABLE_BOOK, 1]), t([[E, 1]], [I.PAPER, 8]), t([[E, 2]], [B.BOOKSHELF, 1]), t([[E, 3]], [I.XP_BOTTLE, 2]), t([[E, 1]], [I.TALE + (vseed % 8), 1]), t([[E, 1]], [I.TALE + ((vseed + 3) % 8), 1])];
     case 'armorer': return [t([[I.COAL, 16]], [E, 1]), t([[I.IRON_INGOT, 4]], [E, 1]), t([[E, 3]], [I.SHIELD, 1]),
       t([[E, 4]], [armorId(2, 0), 1]), t([[E, 7]], [armorId(2, 1), 1]), t([[E, 6]], [armorId(2, 2), 1]), t([[E, 3]], [armorId(2, 3), 1]),
       t([[E, 10]], [armorId(3, 3), 1]), t([[E, 12]], [armorId(3, 0), 1])];
