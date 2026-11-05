@@ -819,7 +819,7 @@ const FRONT_FACE_OF = d => [4, 1, 5, 0][d & 3];
   if (on('hogwarts')) {
     // ---------- the Hogwarts world ----------
     const cards = await E(() => { buildWorldCards(); return Array.from(document.querySelectorAll('#world-cards h3')).map(h => h.textContent); });
-    check('there is a Hogwarts world to pick', cards.includes('Hogwarts') && cards.length === 5, cards);
+    check('there is a Hogwarts world to pick', cards.includes('Hogwarts') && cards.length === 7, cards);
     await E(() => { game.startWorld('hogwarts', 'survival', true); });
     check('a new Hogwarts world starts', await waitFor(() => game.state === 'playing' && game.mapId === 'hogwarts', 150000));
     await E(() => { game.dragLook = true; game.world.time = 0.3; game.runCommand('/weather clear'); });
