@@ -227,6 +227,134 @@ const FRONT_FACE_OF = d => [4, 1, 5, 0][d & 3];
     await E(() => { game.input.sneak = true; }); await sleep(200); await E(() => { game.input.sneak = false; });
   }
 
+  if (on('falls')) {
+    // ---------- the Declan Falls world ----------
+    const card = await E(() => { game.state = 'title'; buildWorldCards(); return Array.from(document.querySelectorAll('#world-cards h3')).map(h => h.textContent); });
+    check('Declan Falls is in the list of worlds', card.includes('Declan Falls'), card);
+    await E(() => { game.startWorld('falls', 'survival', true); });
+    check('a new Declan Falls world starts', await waitFor(() => game.state === 'playing' && game.mapId === 'falls', 150000));
+    check('you are asked who you are: Dipper, Mabel, Grunkle Stan, Soos or Wendy', await waitFor(() => ui.screen === 'scr-falls' && document.querySelectorAll('#falls-chars button').length === 5, 5000),
+      await E(() => Array.from(document.querySelectorAll('#falls-chars span')).map(s => s.textContent).join()));
+    await sleep(500);
+    await shot('falls-pick');
+    await E(() => document.querySelectorAll('#falls-chars button')[0].click());
+    const dip = await E(() => { const pl = game.player; return { fc: game.stats.fc, screen: ui.screen, journal: T.count(I.JOURNAL), cap: pl.inv[ARMOR_INV] && pl.inv[ARMOR_INV].id === I.PINE_CAP, skin: mySkin() }; });
+    check('pick Dipper: you get Journal 3 and wear his pine tree cap, and look like him', dip.fc === 1 && dip.screen === null && dip.journal === 1 && dip.cap && dip.skin === 'falls_0', dip);
+    // the town
+    const town = await E(() => {
+      const w = game.world, F = game.gen.falls, S = F.shack, Y = F.town.y + 1, T = F.tower, D = F.diner;
+      const ready = () => w.getBlock(T.x, Y + 16, T.z) !== B.UNLOADED && w.getBlock(S.x0, Y, S.z0) !== B.UNLOADED;
+      return new Promise(res => { const t0 = Date.now(), iv = setInterval(() => { if (ready() || Date.now() - t0 > 30000) { clearInterval(iv); res({
+        shack: w.getBlock(S.x0, Y, S.z0) === B.SPRUCE_LOG && w.getBlock(-13, Y + 18, S.z1 - 2) === B.WOOL,
+        tower: w.getBlock(T.x + 5, Y + 18, T.z) === B.QUARTZ_BLOCK && w.getBlock(T.x - 4, Y + 3, T.z - 4) === B.SPRUCE_LOG,
+        diner: w.getBlock(D.x0, Y + 1, D.z0) === B.QUARTZ_BLOCK && w.getBlock(D.x0 + 1, Y + 10, D.z0 + 4) === B.WOOL + 14,
+        houses: F.houses.every(([hx, hz]) => w.getBlock(hx - 3, Y + 1, hz - 3) !== B.AIR),
+        lake: w.getBlock(F.lake.x, F.lake.y - 1, F.lake.z) === B.WATER,
+      }); } }, 200); });
+    });
+    check('the town: the Mystery Shack with its sign, the water tower, the diner, houses and the lake', Object.values(town).every(Boolean), town);
+    await E(() => { const pl = game.player; T.put(0.5, 67, 3.5, { yaw: 0, pitch: 0.12 }); game.view = 0; game.world.time = 0.3; });
+    await sleep(2500);
+    await shot('falls-town');
+    await E(() => { T.put(14.5, 67, 2.5, { yaw: -0.6, pitch: 0.25 }); });
+    await sleep(1500);
+    await shot('falls-tower');
+    // the pines are tall
+    const pines = await E(() => { const w = game.world, F = game.gen.falls; let best = 0; for (let x = -90; x <= -60; x++) for (let z = -20; z <= 10; z++) { let n = 0; for (let y = 60; y < 120; y++) if (w.getBlock(x, y, z) === B.SPRUCE_LOG) n++; best = Math.max(best, n); } return best; });
+    check('the forest is tall pines', pines >= 11, pines);
+    // the six mysteries
+    const ms = await E(async () => {
+      const F = game.gen.falls, out = [];
+      for (let i = 0; i < F.myst.length; i++) {
+        const m = F.myst[i], y = m.y !== undefined ? m.y : game.gen.fallsGround(game.seed, m.x, m.z) + 1;
+        T.put(m.x + 0.5, y, m.z + 0.5 + (i === 3 ? 1 : 0));
+        await new Promise(r => setTimeout(r, 250));
+        out.push(mystCount());
+      }
+      return { counts: out.join(), hud: el('myst-count').textContent, hidden: el('myst-count').hidden };
+    });
+    check('six mysteries to find: each one adds to the counter', ms.counts === '1,2,3,4,5,6' && ms.hud === 'Mysteries found 6/6' && !ms.hidden, ms);
+    check('...with a message for each', await chatHas(/secret lab under it/) && await chatHas(/GHFODQ/) && await chatHas(/crashed flying saucer/) && await chatHas(/all six mysteries/));
+    // the lab is under the Shack, through the hidden door at the back
+    const lab = await E(() => { const w = game.world, S = game.gen.falls.shack, Y = 67; return { door: w.getBlock(8, Y, S.z0) === B.AIR && w.getBlock(8, Y + 1, S.z0) === B.AIR, steps: w.getBlock(8, Y - 2, S.z0 - 1) === B.SPRUCE_PLANKS, room: w.getBlock(4, 61, -50) === B.AIR }; });
+    check('a hidden door at the back of the Shack, and steps down to the lab', Object.values(lab).every(Boolean), lab);
+    await E(() => { T.put(4.5, 60, -48.5, { yaw: 0, pitch: -0.1 }); });
+    await sleep(1200);
+    await shot('falls-lab');
+    const saucer = await E(() => { const m = game.gen.falls.myst[5]; T.put(m.x + 12.5, game.gen.fallsGround(game.seed, m.x + 12, m.z) + 2, m.z + 0.5, { yaw: Math.PI / 2, pitch: -0.2 }); return true; });
+    await sleep(1500);
+    await shot('falls-saucer');
+    // creatures: gnomes, forest lights and the lake monster
+    const cr = await E(async () => {
+      const F = game.gen.falls, h = F.myst[4];
+      T.put(h.x + 0.5, game.gen.fallsGround(game.seed, h.x + 9, h.z) + 1, h.z + 9.5);
+      await new Promise(r => setTimeout(r, 800));
+      for (let i = 0; i < 12; i++) { fallsSpawnTick(game); await new Promise(r => setTimeout(r, 50)); }
+      const g = T.ents('gnome')[0];
+      const out = { gnomes: T.ents('gnome').length, wisps: T.ents('wisp').length, lake: T.ents('lakemon').length };
+      if (g) {   // walk right up to a gnome: it giggles and runs off
+        const pl = game.player; g.x = pl.x + 2; g.z = pl.z; g.y = pl.y; g.vx = g.vz = 0;
+        const d0 = Math.hypot(g.x - pl.x, g.z - pl.z);
+        await new Promise(r => setTimeout(r, 1200));
+        out.ran = Math.hypot(g.x - pl.x, g.z - pl.z) > d0 + 1;
+        const hp = g.hp; hurtMob(game, g, 10, pl.x, pl.z, 'player'); out.unhurt = g.hp === hp && !g.dead;
+      }
+      return out;
+    });
+    check('garden gnomes and glowing forest lights live in the forest, and something lives in the lake', cr.gnomes >= 3 && cr.wisps >= 1 && cr.lake === 1, cr);
+    check('a gnome giggles and runs away when you come close (and nothing hurts it)', cr.ran && cr.unhurt, cr);
+    await E(() => { const g = T.ents('gnome')[0], pl = game.player; g.x = pl.x - Math.sin(pl.yaw) * 2.5; g.z = pl.z - Math.cos(pl.yaw) * 2.5; g.ai = () => {}; g.panic = 0; g.frozen = 3; pl.pitch = -0.4; });
+    await sleep(500);
+    await shot('falls-gnome');
+    const lk = await E(async () => {
+      const F = game.gen.falls, L = F.lake, e = T.ents('lakemon')[0];
+      e.peekT = game.t + 60; e.y = L.y - 1.6;
+      T.put(L.x + 0.5, L.y + 1, L.z - 18.5, { flying: true, yaw: Math.PI, pitch: -0.15 });
+      e.x = L.x + 0.5; e.z = L.z - 8; e.ang = -Math.PI / 2;
+      await new Promise(r => setTimeout(r, 1500));
+      return { seen: (game.stats.seen | 0) };
+    });
+    await shot('falls-lake-monster');
+    check('the creatures you see go in your Journal', (lk.seen & 7) === 7, lk);
+    const jr = await E(() => { T.hold(I.JOURNAL, 1); game.player.useCd = 0; T.tap(); return new Promise(r => setTimeout(() => r({ screen: ui.screen, title: el('book-title').textContent, pages: BOOKUI.pages.join('|') }), 400)); });
+    check('Journal 3 opens, with the creatures and mysteries you have found', jr.screen === 'scr-book' && jr.title === 'Journal 3' && /Garden gnomes: /.test(jr.pages) && /MYSTERIES 6\/6/.test(jr.pages), jr);
+    await shot('falls-journal');
+    await E(() => closeBook(null));
+    // each character starts with their own things
+    const kits = await E(() => {
+      const out = {}, pl = game.player;
+      for (let i = 1; i < 5; i++) {
+        pl.inv = pl.inv.map(() => null); game.stats.fc = 0; pickFallsChar(i);
+        const has = id => T.count(id), worn = k => pl.inv[ARMOR_INV + k] && pl.inv[ARMOR_INV + k].id;
+        out[FALLS_CHARS[i].name] = i === 1 ? SWEATERS.every((s, k) => has(I.SWEATER + k) === 1) && worn(1) === I.SWEATER
+          : i === 2 ? worn(0) === I.FEZ && has(I.GOLD_INGOT) === 32 && has(I.EMERALD) === 32
+          : i === 3 ? has(I.GOLF_CART) === 1 && has(I.PIZZA) === 8
+          : /Axe/.test(itemName(toolId(2, 1))) && has(toolId(2, 1)) === 1 && mySkin() === 'falls_4';
+      }
+      return out;
+    });
+    check('Mabel: sweaters; Grunkle Stan: a fez and money; Soos: a golf cart and pizza; Wendy: an axe and her flannel', Object.values(kits).every(Boolean), kits);
+    // the characters, side by side (as other players would see them)
+    await E(() => { const pl = game.player; T.put(0.5, 67, 2.5, { yaw: Math.PI, pitch: 0 }); game.view = 2; });
+    for (let i = 0; i < 5; i++) { await E(i => { game.stats.fc = i + 1; const pl = game.player; pl.inv[ARMOR_INV] = i === 0 ? { id: I.PINE_CAP, count: 1 } : i === 2 ? { id: I.FEZ, count: 1 } : null; pl.inv[ARMOR_INV + 1] = i === 1 ? { id: I.SWEATER, count: 1 } : null; }, i); await sleep(500); await shot('falls-char-' + i); }
+    await E(() => { game.view = 0; });
+    // Soos's golf cart drives
+    const cart = await E(async () => {
+      const pl = game.player; T.put(0.5, 67, 0.5, { yaw: 0, pitch: -0.4 }); T.hold(I.GOLF_CART, 1);
+      pl.target = { x: 0, y: 66, z: -3, id: B.GRAVEL, face: 2 }; pl.useBlock(I.GOLF_CART, false);
+      const v = T.ents('golfcart')[0]; if (!v) return { put: false };
+      mountVehicle(game, v); const z0 = v.z; game.input.fwd = true;
+      await new Promise(r => setTimeout(r, 1500)); game.input.fwd = false;
+      return { put: true, riding: pl.riding === v, moved: Math.round((z0 - v.z) * 10) / 10 };
+    });
+    check("Soos's golf cart goes down and drives", cart.put && cart.riding && cart.moved > 2, cart);
+    await E(() => { game.view = 1; }); await sleep(500); await shot('falls-golfcart'); await E(() => { game.view = 0; dismountVehicle(game); });
+    // who you are and what you found are kept with the world
+    await E(() => game.save());
+    const sv = await E(() => { const d = JSON.parse(store.get(saveKey('falls'))); return { fc: d.stats.fc, myst: d.stats.myst, seen: d.stats.seen }; });
+    check('who you are and the mysteries you found are saved with the world', sv.fc === 5 && sv.myst === 63 && (sv.seen & 7) === 7, sv);
+  }
+
   console.log(errs.length ? 'ERRORS:\n' + errs.join('\n') : 'no page errors');
   console.log(fails ? fails + ' FAILED' : 'ALL PASSED');
   await browser.close(); server.close();

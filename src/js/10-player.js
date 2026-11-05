@@ -353,7 +353,7 @@ class Player {
       inp.usePressed = false;
       return;
     }
-    if (this.riding && (this.riding.type === 'car' || this.riding.type === 'flycar' || this.riding.type === 'submarine') && inp.use) {   // (in a submarine: a sonar ping)
+    if (this.riding && (this.riding.type === 'car' || this.riding.type === 'golfcart' || this.riding.type === 'flycar' || this.riding.type === 'submarine') && inp.use) {   // (in a submarine: a sonar ping)
       if (inp.usePressed && this.useCd <= 0) {
         this.useCd = 0.5;
         if (this.riding.type === 'submarine') sonarPing(game, this);
@@ -363,6 +363,8 @@ class Player {
       return;
     }
     const interactive = this.target && !this.sneaking && this.isInteractive(this.target.id);
+    // Journal 3 (Declan Falls): open it
+    if (hid === I.JOURNAL && inp.use && inp.usePressed && this.useCd <= 0 && !interactive) { inp.usePressed = false; inp.use = false; this.useCd = 0.3; this.swing(); openJournal(); return; }
     // a book of building plans: open it
     if (hid === I.PLAN_BOOK && inp.use && inp.usePressed && this.useCd <= 0 && !interactive) { inp.usePressed = false; inp.use = false; this.useCd = 0.3; this.swing(); openPlans(); return; }
     // a magic wand: tap to cast its spell
@@ -548,8 +550,8 @@ class Player {
     }
     if (hid >= 256 && ITEMS[hid] && ITEMS[hid].door && t.face >= 0) return placeDoor(game, this, hid, t, creative);
     if (hid === B.GARAGE_DOOR && t.face >= 0) return placeGarage(game, this, t, creative);
-    if ((hid === I.MINECART || hid === I.CAR || hid === I.BOAT || hid === I.SUBMARINE || hid === I.FLYING_CAR || hid === I.BROOM || hid === I.ROCKET || hid === I.PLANE || hid === I.JET || hid === I.AIRLINER || isTankItem(hid)) && t.face >= 0) {
-      const type = hid === I.CAR ? 'car' : hid === I.BOAT ? 'boat' : hid === I.SUBMARINE ? 'submarine' : hid === I.FLYING_CAR ? 'flycar' : hid === I.BROOM ? 'broom' : hid === I.ROCKET ? 'rocket' : hid === I.PLANE ? 'plane' : hid === I.JET ? 'jet' : hid === I.AIRLINER ? 'airliner' : isTankItem(hid) ? 'tank' : 'minecart';
+    if ((hid === I.MINECART || hid === I.CAR || hid === I.BOAT || hid === I.SUBMARINE || hid === I.FLYING_CAR || hid === I.BROOM || hid === I.ROCKET || hid === I.PLANE || hid === I.JET || hid === I.AIRLINER || hid === I.GOLF_CART || isTankItem(hid)) && t.face >= 0) {
+      const type = hid === I.CAR ? 'car' : hid === I.BOAT ? 'boat' : hid === I.SUBMARINE ? 'submarine' : hid === I.FLYING_CAR ? 'flycar' : hid === I.BROOM ? 'broom' : hid === I.ROCKET ? 'rocket' : hid === I.PLANE ? 'plane' : hid === I.JET ? 'jet' : hid === I.AIRLINER ? 'airliner' : hid === I.GOLF_CART ? 'golfcart' : isTankItem(hid) ? 'tank' : 'minecart';
       let vx = t.x + 0.5, vy = t.y + 1, vz = t.z + 0.5;
       if (hid === I.MINECART) {
         if (t.id !== B.RAIL) { if (!this.toldRails) { this.toldRails = true; toast('Minecarts go on rails. Put some rails down first.', 3); } return false; }
@@ -748,9 +750,9 @@ function drawFirstPerson(pl, s, world) {
     M4.rotZ(_hm, _hm, 0.1);
     M4.scale(_hm, _hm, 1 / 16, 1 / 16, 1 / 16);
     M4.translate(_hm, _hm, 6, -22, 0);
-    drawPart(playerModelFor(PROFILE.skin).parts.rarm, _hm);
+    drawPart(playerModelFor(mySkin()).parts.rarm, _hm);
     const ch = pl.inv[ARMOR_INV + 1], ca = ch && armorOf(ch.id);
-    if (ca) drawPart(MODELS['armor_' + ARMOR_MATS[ca.mat] + '_1'].parts.rarm, _hm);   // a chestplate's sleeve
+    if (ca) drawPart(MODELS[ca.model || 'armor_' + ARMOR_MATS[ca.mat] + '_1'].parts.rarm, _hm);   // a chestplate's sleeve
   } else if (held.id !== I.SHIELD) {
     entityBegin(texTiles, R.handProj);
     gl.uniform2f(P.u.uFog, 100, 200); gl.uniform1f(P.u.uBright, bright);
@@ -849,7 +851,7 @@ function playerPose(pl, t) {
   if (sh && pl.blocking) { if (sh === 'main') pose.rarm = [-0.95, -0.45, 0]; else pose.larm = [-0.95, 0.45, 0]; }   // holding a shield up
   return pose;
 }
-function drawPlayerModel(game, s, t, cam) { if (!inRocket(game.player)) drawHumanoid(game.player, playerModelFor(PROFILE.skin), game.player.heldId(), s, t, cam); }   // (inside a rocket you can't be seen)
+function drawPlayerModel(game, s, t, cam) { if (!inRocket(game.player)) drawHumanoid(game.player, playerModelFor(mySkin()), game.player.heldId(), s, t, cam); }   // (inside a rocket you can't be seen)
 function drawHumanoid(pl, model, heldId, s, t, cam) {
   const P = PROG.entity, sc = model.scale;
   gl.uniform1f(P.u.uBright, brightAt(game.world, pl.x, pl.y + 1.2, pl.z, s));

@@ -112,6 +112,7 @@ const game = {
     if (ui.screen === 'scr-plans') { closePlans(); return; }
     if (ui.screen === 'scr-sign') { closeSign(); return; }
     if (ui.screen === 'scr-board') { closeBoard(); return; }
+    if (ui.screen === 'scr-falls') return;   // (pick who you are first)
     closeInv();
     showScreen(null);
     this.releaseKeys();
@@ -119,7 +120,7 @@ const game = {
   },
   pause() {
     if (this.state !== 'playing' || this.paused) return;
-    if (this.uiOpen) { if (ui.screen === 'scr-book') closeBook(null); else if (ui.screen === 'scr-sign') closeSign(); else if (ui.screen === 'scr-board') closeBoard(); else if (ui.screen !== 'scr-plans') closeInv(); }
+    if (this.uiOpen) { if (ui.screen === 'scr-book') closeBook(null); else if (ui.screen === 'scr-sign') closeSign(); else if (ui.screen === 'scr-board') closeBoard(); else if (ui.screen !== 'scr-plans' && ui.screen !== 'scr-falls') closeInv(); }
     this.uiOpen = false;
     this.paused = true;
     this.releaseKeys();
@@ -376,6 +377,7 @@ const game = {
     const pl = this.player = new Player();
     this.stats = {}; this.day = m.day; this.hostAfterLoad = false;
     if (m.you && m.you.kit) this.stats.hogKit = 1;   // (already given a wand and a broom at Hogwarts here)
+    if (m.you) { this.stats.fc = m.you.fc | 0; this.stats.myst = m.you.myst | 0; this.stats.seen = m.you.seen | 0; }   // (in Declan Falls: who you are, and what you have found)
     this.worldSpawn = m.spawn && m.spawn.length === 3 ? m.spawn.slice() : this.gen.spawnPoint(this.mapId, this.seed);
     const you = m.you;
     this.setMode(you ? you.mode : m.mode);
@@ -466,7 +468,7 @@ const game = {
       if (vyaw !== null && off(pl.yaw) < 0.3) pl.pitch = clamp(Math.atan2(v[1] + 2 - (pl.y + 1.6), vd), -0.15, 0.2);
       if (this.mapId === 'hogwarts') { pl.yaw = 0; pl.pitch = 0.15; }   // (facing the Great Hall)
       pl.bodyYaw = pl.yaw;
-      if (this.mapId === 'hogwarts') { /* (the welcome to Hogwarts comes below) */ }
+      if (this.mapId === 'hogwarts' || this.mapId === 'falls') { /* (the welcome comes below) */ }
       else if (this.mode === 'survival') chat('Welcome to ' + MAPS[this.mapId].name + '! Punch a tree to get started.', '#ffff55');
       else chat('Creative mode: every block is in your inventory (E). Double-tap jump to fly.', '#ffff55');
       if (vyaw !== null) {
@@ -485,6 +487,7 @@ const game = {
     if (this.robotsAlong) { if (MP.role !== 'guest') bringRobots(this, this.robotsAlong); this.robotsAlong = null; }   // (robots that came along with you)
     if (this.dim === 'moon') moonArrival(this);
     if (atHogwarts()) hogwartsWelcome(this);
+    if (atFalls()) fallsWelcome(this);
     if (came) this.save();
     if (this.hostAfterLoad) { this.hostAfterLoad = false; MP.startHosting(); }
     MP.updateUI();
@@ -1056,6 +1059,8 @@ function frame(ts) {
     updateEntities(game, dt);
     updateParticles(w, dt);
     wxTick(game, dt);
+    if (atFalls()) fallsTick(game, dt);
+    else if (el('myst-count') && !el('myst-count').hidden) el('myst-count').hidden = true;
     if (atHogwarts()) hogwartsTick(game, dt);
     else if (el('qscore') && el('qscore').style.display !== 'none') el('qscore').style.display = 'none';   // (the Quidditch score: only at Hogwarts)
     planTick(game, dt);

@@ -235,7 +235,7 @@ function drawPreview(rect, pose, yaw, t, target, mdl) {
   entityBegin(texSkins, _pv);
   gl.uniform2f(PROG.entity.u.uFog, 1000, 2000);
   M4.identity(_pb); M4.rotY(_pb, _pb, yaw);
-  const model = mdl || playerModelFor(PROFILE.skin), sc = model.scale;
+  const model = mdl || playerModelFor(mySkin()), sc = model.scale;
   if (pose && pose._hs === undefined) pose._hs = headScaleFor(model.skin);
   M4.scale(_pb, _pb, sc, sc, sc);
   gl.enable(gl.CULL_FACE);

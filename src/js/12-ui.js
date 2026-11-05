@@ -1,6 +1,6 @@
 /* ===================== Interface ===================== */
 const ui = { dirty: true, cursor: null, screen: 'scr-title', inv: null, hoverRef: null, hbEls: [], hearts: -1, food: -1, air: -1, armor: -1, xp: -1, nameT: 0, toastT: 0, back: 'scr-title', px: 0, py: 0 };
-const SCREENS = ['scr-title', 'scr-worlds', 'scr-loading', 'scr-pause', 'scr-settings', 'scr-help', 'scr-death', 'scr-inv', 'scr-mp', 'scr-join', 'scr-char', 'scr-msg', 'scr-book', 'scr-sign', 'scr-maker', 'scr-board', 'scr-plans'];
+const SCREENS = ['scr-title', 'scr-worlds', 'scr-loading', 'scr-pause', 'scr-settings', 'scr-help', 'scr-death', 'scr-inv', 'scr-mp', 'scr-join', 'scr-char', 'scr-msg', 'scr-book', 'scr-sign', 'scr-maker', 'scr-board', 'scr-plans', 'scr-falls'];
 const SPLASHES = ['Now with Sky Islands!', 'Made for Declan!', '100% blocks!', 'Punch a tree!', 'Watch out for creepers!', 'Blonde hair, blue eyes!',
   'Build a castle!', 'Diamonds hide deep down!', 'Sleep tight!', 'Never dig straight down!', 'Pigs say oink!', 'Build it big!', 'Also try bridges!', 'Torches keep monsters away!',
   'Now with villagers!', 'Hrmm!', 'Trade for emeralds!', 'Play together!', 'Now with the Nether!', 'Mind the lava!', 'Light the portal!'];
@@ -8,9 +8,10 @@ const MAPS = {
   valley: { name: 'Sunny Valley', desc: 'Rolling hills, forests, lakes and beaches, deep caves full of ore, and snowy mountain peaks.' },
   sky: { name: 'Sky Islands', desc: 'Floating islands above a sea of clouds. Build bridges between them, and mind the edge!' },
   hogwarts: { name: 'Hogwarts', desc: 'The castle above the Black Lake, the Forbidden Forest, Hogsmeade, and a Quidditch pitch. You get a wand and a broomstick!' },
+  falls: { name: 'Declan Falls', desc: 'A little town in a tall pine forest by a lake, with the Mystery Shack. Be Dipper, Mabel, Grunkle Stan, Soos or Wendy, and find six mysteries!' },
 };
 /* the saved worlds: each has its own save, and the land it is made of (Hardcore is a Sunny Valley you only get one life in) */
-const SLOTS = { valley: { map: 'valley' }, sky: { map: 'sky' }, hogwarts: { map: 'hogwarts' }, hardcore: { map: 'valley', hardcore: true } };
+const SLOTS = { valley: { map: 'valley' }, sky: { map: 'sky' }, hogwarts: { map: 'hogwarts' }, falls: { map: 'falls' }, hardcore: { map: 'valley', hardcore: true } };
 const HC_LAST_KEY = 'declancraft:v1:hardcore-last';
 /* Hardcore is always at least Normal */
 const difficulty = () => game.hardcore ? Math.max(2, game.settings.difficulty) : game.settings.difficulty;
@@ -528,6 +529,7 @@ function drawThumb(cv, map) {
   const W = 160, H = 70, ctx = cv.getContext('2d');
   cv.width = W; cv.height = H;
   if (map === 'hogwarts') { drawHogwartsThumb(ctx, W, H); return; }
+  if (map === 'falls') { drawFallsThumb(ctx, W, H); return; }
   const r = mulberry32(map === 'sky' ? 7 : 3);
   const g = ctx.createLinearGradient(0, 0, 0, H);
   g.addColorStop(0, '#5f8ff0'); g.addColorStop(1, map === 'sky' ? '#d8e8ff' : '#a9c8ff');
@@ -559,7 +561,7 @@ function buildWorldCards() {
   const wrap = el('world-cards');
   wrap.textContent = '';
   el('worlds-h').textContent = ui.hostMode ? 'Choose a World to Share' : 'Choose a World';
-  for (const id of ['valley', 'sky', 'hogwarts', 'hardcore']) {
+  for (const id of ['valley', 'sky', 'hogwarts', 'falls', 'hardcore']) {
     const hc = !!SLOTS[id].hardcore, info = hc ? { name: 'Hardcore', desc: 'Sunny Valley, but you only get one life! If you die, the world is gone and you start a new one.' } : MAPS[id], save = loadSaveMeta(id);
     const card = h('article', { class: 'card' + (hc ? ' hardcore' : '') });
     const cv = h('canvas', { 'aria-hidden': 'true' });
@@ -793,6 +795,12 @@ function buildHelp() {
     '<section><h3>Robots</h3><ul>' +
     '<li>Robot (glass and 5 iron ingots): keep it in your bag, and tap the ground to let it out.</li>' +
     '<li>Tap your robot to change what it does: follow you, guard you (it zaps monsters), collect things for you, or stay. Hit it to put it back in your bag.</li></ul></section>' +
+    '<section><h3>Tanks</h3><ul>' +
+    '<li>Tank (3 iron blocks with wool on top: the wool picks its colour): put it down, get in, and drive with the joystick. The gun points where you look.</li>' +
+    '<li>Tap to fire a paint shell! Paint never hurts anyone or breaks anything, but it paints sheep.</li></ul></section>' +
+    '<section><h3>Quidditch and Declan Falls</h3><ul>' +
+    '<li>At Hogwarts, fly onto the Quidditch pitch to start a match. Fly into the Quaffle to grab it, tap to throw it through the hoops at the east end, and catch the Snitch to end the match.</li>' +
+    '<li>In Declan Falls, pick who you are: Dipper, Mabel, Grunkle Stan, Soos or Wendy. Look for six mysteries in the town and the forest, and read Journal 3 for clues.</li></ul></section>' +
     '<section><h3>Villagers and trading</h3><ul>' +
     '<li>Villages have a well, houses and gardens. A new Sunny Valley world starts next to one. Type /locate village to find one.</li>' +
     '<li>Tap a villager (or right-click) to trade. Each job trades different things.</li>' +

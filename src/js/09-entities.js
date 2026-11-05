@@ -32,6 +32,10 @@ const MOB_DEFS = {
   student: { model: 'student_0', w: 0.3, h: 1.75, hp: 20, speed: 1.6, student: true, special: true, unhurt: true, xp: [0, 0], drops: [], sound: 'student' },
   qplayer: { model: 'student_0', w: 0.3, h: 1.6, hp: 20, speed: 8, qplayer: true, special: true, unhurt: true, xp: [0, 0], drops: [], sound: 'student' },
   quaffle: { model: 'quaffle', w: 0.22, h: 0.44, hp: 1, speed: 10, ball: true, special: true, unhurt: true, xp: [0, 0], drops: [], sound: 'quaffle' },
+  // Declan Falls (see 12f-falls.js): garden gnomes, the lake monster, and glowing lights in the forest; nothing hurts them
+  gnome: { model: 'gnome', w: 0.22, h: 0.8, hp: 10, speed: 2.6, gnome: true, special: true, unhurt: true, xp: [0, 0], drops: [], sound: 'gnome' },
+  lakemon: { model: 'lakemon', w: 1.1, h: 2.6, hp: 500, speed: 2, lakemon: true, special: true, unhurt: true, xp: [0, 0], drops: [], sound: 'lakemon' },
+  wisp: { model: 'wisp', w: 0.18, h: 0.36, hp: 1, speed: 2, wisp: true, special: true, unhurt: true, glow: true, xp: [0, 0], drops: [], sound: 'wisp' },
 };
 const MOB_TYPES = Object.keys(MOB_DEFS);
 let ENTITY_NID = 0;
@@ -486,6 +490,8 @@ function updateMob(game, e, dt) {
   if (d.snitch) { updateSnitch(game, e, dt); return; }
   if (d.qplayer) { updateQPlayer(game, e, dt); return; }
   if (d.ball) { updateQuaffle(game, e, dt); return; }
+  if (d.lakemon) { updateLakemon(game, e, dt); return; }
+  if (d.wisp) { updateWisp(game, e, dt); return; }
   if (d.ender) { enderTick(game, e, dt); if (e.removed || e.dead) return; }
   if (d.fish) { updateFish(game, e, d, dt); return; }
   if (d.swimmer) { updateSnork(game, e, d, dt); return; }
@@ -514,6 +520,9 @@ function updateMob(game, e, dt) {
     mx = st[0]; mz = st[1]; speed *= st[2];
   } else if (d.guard) {
     const st = golemSteer(game, e, dt);
+    mx = st[0]; mz = st[1]; speed *= st[2];
+  } else if (d.gnome) {
+    const st = gnomeSteer(game, e, dt);
     mx = st[0]; mz = st[1]; speed *= st[2];
   } else if (d.student) {
     const st = studentSteer(game, e, dt);
@@ -600,6 +609,7 @@ function spawnTick(game) {
   if (world.map === 'moon') return;   // (nothing lives on the Moon)
   spawnerTick(game);   // (a dungeon's monster spawners)
   if (world.map === 'hogwarts') { snitchTick(game); studentTick(game); qmatchTick(game); }
+  if (world.map === 'falls') fallsSpawnTick(game);
   if (game.settings.animals) { fishSpawnTick(game); snorkSpawnTick(game); }
   const players = allPlayers(game).filter(p => p.alive && (p === game.player ? game.mode : p.mode) === 'survival');
   if (!players.length || difficulty() === 0) return;
@@ -671,6 +681,8 @@ function mobPose(e, t) {
   if (e.type === 'villager') return { head, rleg: [a, 0, 0], lleg: [-a, 0, 0], rarmU: [-0.75, 0, 0], larmU: [-0.75, 0, 0] };
   if (e.type === 'snitch') { const f = Math.sin(e.walk) * 0.9; return { lwing: [0, 0, f], rwing: [0, 0, -f] }; }   // (its wings a blur)
   if (e.type === 'student') { const wv = e.waveT > 0 ? Math.sin(t * 12) * 0.35 : 0; return { head, rleg: [a, 0, 0], lleg: [-a, 0, 0], rarm: e.waveT > 0 ? [-2.7 + wv, 0, 0.25] : [-a * 0.8, 0, 0], larm: [a * 0.8, 0, 0] }; }
+  if (e.type === 'gnome') return { head, rleg: [a, 0, 0], lleg: [-a, 0, 0], rarm: [-a * 0.9, 0, 0.1], larm: [a * 0.9, 0, -0.1] };
+  if (e.type === 'lakemon') { const sw = Math.sin(t * 0.7) * 0.12; return { neck: [sw - 0.1, Math.sin(t * 0.4) * 0.25, 0], lfl: [0, 0, Math.sin(t * 2) * 0.4], rfl: [0, 0, -Math.sin(t * 2) * 0.4], tail: [0, Math.sin(t * 1.3) * 0.3, 0] }; }
   if (e.type === 'qplayer') return { head, rleg: [-0.55, 0.1, 0.12], lleg: [-0.55, -0.1, -0.12], rarm: e.hold ? [-2.4, 0, 0.2] : [-1.2, -0.15, 0], larm: [-1.2, 0.15, 0] };   // astride a broomstick (one arm up with the Quaffle)
   if (e.type === 'patronus') { const g = Math.sin(e.walk) * 0.9 * e.walkAmt; return { head: [0.15, 0, 0], fl: [g, 0, 0], fr: [-g * 0.7, 0, 0], bl: [-g, 0, 0], br: [g * 0.7, 0, 0] }; }   // galloping
   if (e.type === 'snork') {   // swimming: legs kick, arms paddle (and wave about when it is happy)
@@ -718,7 +730,7 @@ function drawEntities(game, s, t, cam) {
     if (e.vehicle) { drawVehicle(game, e, dx, dy, dz, s); continue; }
     if (mobInvisible(e)) continue;
     const def = MOB_DEFS[e.type], model = MODELS[e.type === 'villager' ? 'villager_' + (e.prof || 'farmer') : e.type === 'ghast' && e.firing > 0 ? 'ghast_fire' : e.type === 'snork' ? 'snork_' + (e.variant | 0) : e.type === 'student' || e.type === 'qplayer' ? 'student_' + ((e.variant | 0) % STUDENT_LOOKS) : def.model];
-    gl.uniform1f(P.u.uBright, Math.max(def.swimmer ? 0.6 : def.robot ? 0.4 : 0, brightAt(world, e.x, e.y + e.h * 0.7, e.z, s)));   // (snorks stay bright and colourful deep in the sea)
+    gl.uniform1f(P.u.uBright, Math.max(def.glow ? 1 : def.swimmer || def.lakemon ? 0.6 : def.robot ? 0.4 : 0, brightAt(world, e.x, e.y + e.h * 0.7, e.z, s)));   // (snorks stay bright and colourful deep in the sea)
     let tint = e.hurt > 0 || e.dead ? [0.8, 0.1, 0.1, 0.45] : e.frozen > 0 ? (e.stun > 0 ? [1, 0.95, 0.5, 0.2] : [0.6, 0.85, 1, 0.5]) : [0, 0, 0, 0];
     let sc = model.scale;
     if (e.type === 'creeper' && e.fuse > 0) {

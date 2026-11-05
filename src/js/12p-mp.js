@@ -37,10 +37,10 @@ const STATE_LEN = 13;
 function encodeState(p) {
   const rd = p.riding, aim = p.drawT > 0 || p.loadT > 0 || p.heldId() === I.CROSSBOW_LOADED, sh = shieldHand(p);
   const f = (p.sneaking ? 1 : 0) | (p.flying ? 2 : 0) | (p.alive ? 4 : 0) | (game.mode === 'creative' ? 8 : 0) | (game.sleeping > 0 ? 16 : 0) |
-    (rd ? 32 : 0) | (rd && (rd.type === 'car' || rd.type === 'flycar' || isPlane(rd)) ? 64 : 0) | (aim ? 128 : 0) | (sh === 'off' ? 256 : 0) | (p.blocking ? 512 : 0) |
+    (rd ? 32 : 0) | (rd && (rd.type === 'car' || rd.type === 'flycar' || rd.type === 'tank' || rd.type === 'golfcart' || isPlane(rd)) ? 64 : 0) | (aim ? 128 : 0) | (sh === 'off' ? 256 : 0) | (p.blocking ? 512 : 0) |
     (rd && rd.type === 'boat' ? 1024 : 0) | (rd && rd.type === 'submarine' ? 2048 : 0) | (rd && rd.type === 'broom' ? 4096 : 0) | (rd && rd.type === 'rocket' ? 8192 : 0) | (p.chute ? 16384 : 0) | ((p.seat & 7) << 15) | (rd && isPlane(rd) ? 1 << 18 : 0);   // (in a plane, and which seat: 1-5 behind the pilot)
   const b = p.bobber && !p.bobber.removed ? [r2(p.bobber.x), r2(p.bobber.y), r2(p.bobber.z)] : 0;
-  return [r2(p.x), r2(p.y), r2(p.z), r2(p.yaw), r2(p.pitch), r2(p.bodyYaw), f, p.heldId(), p.swings || 0, wornArmor(p), wornGlint(p), effectBits(p), b];
+  return [r2(p.x), r2(p.y), r2(p.z), r2(p.yaw), r2(p.pitch), r2(p.bodyYaw), f, p.heldId(), p.swings || 0, wornArmor(p), wornGlint(p), effectBits(p), b, fallsChar()];
 }
 function applyState(r, a) {
   if (!Array.isArray(a) || a.length < 9 || !a.slice(0, 6).every(v => typeof v === 'number' && isFinite(v))) return;
@@ -56,6 +56,7 @@ function applyState(r, a) {
   r.shield = r.held === I.SHIELD ? 'main' : (f & 256) ? 'off' : null; r.blocking = !!(f & 512) && !!r.shield;
   r.armor = [0, 1, 2, 3].map(k => { const id = Array.isArray(a[9]) ? a[9][k] | 0 : 0, ar = armorOf(id); return ar && ar.slot === k ? id : 0; });
   r.glint = (a[10] | 0) & 31;
+  r.fc = clamp(a[13] | 0, 0, FALLS_CHARS.length);   // (who they are in Declan Falls)
   r.fxBits = (a[11] | 0) & ((1 << EFFECTS.length) - 1);
   r.bobberAt = okXYZ(a[12]) && r.held === I.FISHING_ROD && Math.hypot(a[12][0] - a[0], a[12][2] - a[2]) < 40 ? a[12] : null;   // their fishing bobber
   if ((a[8] | 0) !== r.swings) { r.swings = a[8] | 0; r.swingP = 0; }
@@ -90,7 +91,7 @@ function encodeEnt(e) {
       : e.type === 'snork' ? (e.variant | 0) | (e.tootT > 0 ? 16 : 0) | (e.happy > 0 ? 32 : 0)
       : e.type === 'robot' ? (e.variant | 0) | (Math.max(0, ROBOT_MODES.indexOf(e.mode)) << 3)
       : e.type === 'student' ? (e.variant | 0) | (e.waveT > 0 ? 8 : 0) : e.type === 'qplayer' ? (e.variant | 0) | (game.qm && game.qm.ball.holder === e.nid ? 8 : 0) | ((e.team | 0) << 4)
-      : e.type === 'quaffle' ? qEncode(e) : 0;
+      : e.type === 'quaffle' ? qEncode(e) : e.type === 'wisp' ? (e.variant | 0) : 0;
     const a = [e.nid, MOB_TYPES.indexOf(e.type), r2(e.x), r2(e.y), r2(e.z), r2(e.bodyYaw), r2(e.headYaw), r2(e.pitch), r2(e.walkAmt), flags, r2(e.fuse || 0), extra];
     if (e.type === 'robot') a.push(e.owner || '');   // (who it belongs to)
     if (e.type === 'quaffle') a.push(typeof e.holder === 'string' ? e.holder : '');   // (the player who has it)
@@ -103,7 +104,7 @@ function encodeEnt(e) {
   if (e.type === 'xp') return [e.nid, -7, r2(e.x), r2(e.y), r2(e.z), e.value];
   return null;
 }
-const ENT_CODE = { '-1': 'tnt', '-2': 'falling', '-3': 'proj', '-5': 'minecart', '-6': 'car', '-7': 'xp', '-8': 'boat', '-9': 'submarine', '-10': 'flycar', '-11': 'broom', '-12': 'rocket', '-13': 'plane', '-14': 'jet', '-15': 'airliner', '-16': 'tank' };
+const ENT_CODE = { '-1': 'tnt', '-2': 'falling', '-3': 'proj', '-5': 'minecart', '-6': 'car', '-7': 'xp', '-8': 'boat', '-9': 'submarine', '-10': 'flycar', '-11': 'broom', '-12': 'rocket', '-13': 'plane', '-14': 'jet', '-15': 'airliner', '-16': 'tank', '-17': 'golfcart' };
 /* guest: creatures from the host glide to their latest positions */
 function updateProxy(e, dt) {
   e.age += dt;
@@ -155,6 +156,7 @@ function cleanGuestSave(d) {
     health: num(d.health, 1, 20, 20), food: num(d.food, 0, 20, 20), air: num(d.air, 0, 10, 10), inv, sel: num(d.sel | 0, 0, 8, 0), spawn: sp,
     mode: d.mode === 'creative' ? 'creative' : 'survival', flying: !!d.flying, dim: okDim(d.dim),
     xp: num(d.xp, 0, 1e7, 0), enchSeed: num(d.enchSeed, 0, 2147483647, 0) | 0, kit: d.kit ? 1 : 0,
+    fc: num(d.fc | 0, 0, FALLS_CHARS.length, 0), myst: num(d.myst | 0, 0, 63, 0), seen: num(d.seen | 0, 0, 255, 0),   // (Declan Falls: who they are, the mysteries and creatures they have found)
     effects: d.effects && typeof d.effects === 'object' ? Object.fromEntries(EFFECTS.filter(k => +d.effects[k] > 0).map(k => [k, Math.min(600, +d.effects[k])])) : {},
   };
 }
@@ -180,7 +182,7 @@ function cleanDataTiles(td) {
   return out;
 }
 const FX_KINDS = ['break', 'place', 'door', 'boom', 'sfx', 'party', 'ice', 'tele', 'smoke', 'xpb', 'splash', 'spell', 'zap', 'paint'];
-const SFX_NET = ['leverClick', 'buttonClick', 'honk', 'bowShoot', 'crossbowShoot', 'pearlThrow', 'dispense', 'dispenseFail', 'ghastShoot', 'endermanPortal', 'sonar', 'tvOn', 'tvOff', 'golemBuilt', 'snorkHappy', 'snorkToot', 'spellCast', 'patronus', 'camSwitch', 'airlockDrain', 'airlockHiss', 'planeTakeoff', 'chuteOpen', 'tankFire', 'studentHi', 'whistle', 'quaffleCatch', 'quaffleThrow'];
+const SFX_NET = ['leverClick', 'buttonClick', 'honk', 'bowShoot', 'crossbowShoot', 'pearlThrow', 'dispense', 'dispenseFail', 'ghastShoot', 'endermanPortal', 'sonar', 'tvOn', 'tvOff', 'golemBuilt', 'snorkHappy', 'snorkToot', 'spellCast', 'patronus', 'camSwitch', 'airlockDrain', 'airlockHiss', 'planeTakeoff', 'chuteOpen', 'tankFire', 'studentHi', 'whistle', 'quaffleCatch', 'quaffleThrow', 'gnomeGiggle', 'lakemonSay', 'mystery'];
 const GUEST_SFX = new Set(['leverClick', 'buttonClick', 'honk', 'sonar', 'tvOn', 'tvOff', 'snorkHappy', 'snorkToot', 'camSwitch', 'planeTakeoff', 'chuteOpen']);   // the sounds a guest can send
 const LINK_FAIL = "Found the game, but the two iPads couldn't connect to each other. Put both on the same Wi-Fi, then try again.";
 const STALE_T = new Set(['st', 'set', 'open', 'tile', 'close', 'tnt', 'egg', 'portal', 'shoot', 'mount', 'veh', 'dismount', 'veh+', 'sign', 'board', 'rocket', 'launch', 'snitch', 'robot+', 'robot', 'quaffle']);
@@ -671,7 +673,7 @@ const MP = {
   sendSave() {
     if (this.role !== 'guest' || !this.welcomed) return;
     const pl = game.player, at = pl.alive ? restPos(pl) : game.spawnPos();
-    this.send({ t: 'save', d: { x: r2(at[0]), y: r2(at[1]), z: r2(at[2]), yaw: r2(pl.yaw), pitch: r2(pl.pitch), health: pl.alive ? pl.health : 20, food: pl.alive ? pl.food : 20, air: pl.air, inv: pl.inv, sel: pl.sel, spawn: pl.spawn, mode: game.mode, flying: pl.flying, dim: game.dim, xp: pl.xp, enchSeed: pl.enchSeed, effects: pl.alive ? saveEffects(pl) : {}, kit: game.stats.hogKit ? 1 : 0 } });
+    this.send({ t: 'save', d: { x: r2(at[0]), y: r2(at[1]), z: r2(at[2]), yaw: r2(pl.yaw), pitch: r2(pl.pitch), health: pl.alive ? pl.health : 20, food: pl.alive ? pl.food : 20, air: pl.air, inv: pl.inv, sel: pl.sel, spawn: pl.spawn, mode: game.mode, flying: pl.flying, dim: game.dim, xp: pl.xp, enchSeed: pl.enchSeed, effects: pl.alive ? saveEffects(pl) : {}, kit: game.stats.hogKit ? 1 : 0, fc: game.stats.fc | 0, myst: game.stats.myst | 0, seen: game.stats.seen | 0 } });
   },
   guestMsg(m) {
     if (this.role !== 'guest') return;
@@ -874,6 +876,7 @@ const MP = {
         if (e.type === 'robot') { if (e.variant !== (x & 7)) { e.variant = clamp(x & 7, 0, ROBOT_COLORS.length - 1); e.color = robotColor(e.variant); } if (!(e.modeT > game.t)) e.mode = ROBOT_MODES[(x >> 3) & 3]; e.owner = String(a[12] || ''); }
         if (e.type === 'student') { e.variant = x & 7; e.waveT = (x & 8) ? 0.4 : 0; }
         if (e.type === 'qplayer') { e.variant = x & 7; e.hold = !!(x & 8); e.team = (x >> 4) & 1; }
+        if (e.type === 'wisp' && e.variant !== x) { e.variant = clamp(x, 0, WISP_COLORS.length - 1); e.color = hexRGB(WISP_COLORS[e.variant]).map(v => v / 255); }
         if (e.type === 'quaffle') { e.qx = x; e.holder = String(a[12] || '').slice(0, 40); }
         e.frozen = (f & 16) ? 1 : 0;
         e.fireT = (f & 32) ? 0.3 : 0;
@@ -1142,7 +1145,7 @@ function drawRemotePlayers(game, s, t, cam) {
     if (r.inPlane) seatRemote(game, r);
     entityBegin(texSkins);
     gl.enable(gl.CULL_FACE);
-    drawHumanoid(r, playerModelFor(r.skin), r.held, s, t, cam);
+    drawHumanoid(r, playerModelFor(r.fc ? 'falls_' + (r.fc - 1) : r.skin), r.held, s, t, cam);
   }
   entityBegin(texSkins);
 }

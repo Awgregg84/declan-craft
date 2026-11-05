@@ -18,3 +18,14 @@ Object.assign(SFX, {
   quaffleThrow: (v, p) => nz({ f: 600, fEnd: 1400, q: 0.9, dur: 0.25, vol: 0.18 * v, pan: p }),
   quaffleHurt: (v, p) => nz({ f: 500, q: 1.2, dur: 0.08, vol: 0.15 * v, pan: p }),
 });
+Object.assign(SFX, {
+  // Declan Falls: a golf cart's electric hum, a gnome's giggle and squeak, the lake monster's deep call, a forest light's
+  // chime, and a magical twinkle when you find a mystery
+  cartHum: (v, p) => tone({ f: 260 + 140 * v, dur: 0.2, type: 'sine', vol: 0.04 * v, pan: p }),
+  gnomeGiggle: (v, p) => { for (let i = 0; i < 4; i++) tone({ f: 980 + (i % 2) * 160, fEnd: 1250, dur: 0.07, type: 'triangle', vol: 0.06 * v, when: i * 0.09, pan: p }); },
+  gnomeHurt: (v, p) => tone({ f: 1300, fEnd: 800, dur: 0.12, type: 'triangle', vol: 0.08 * v, pan: p }),
+  lakemonSay: (v, p) => { tone({ f: 72, fEnd: 54, dur: 1.6, type: 'sawtooth', vol: 0.14 * v, lp: 320, vib: [4, 5], attack: 0.3, pan: p }); tone({ f: 108, fEnd: 82, dur: 1.4, type: 'sine', vol: 0.1 * v, attack: 0.3, pan: p }); },
+  lakemonHurt: (v, p) => tone({ f: 90, fEnd: 70, dur: 0.5, type: 'sawtooth', vol: 0.1 * v, lp: 300, pan: p }),
+  wispHurt: (v, p) => tone({ f: 1760, dur: 0.3, type: 'sine', vol: 0.05 * v, pan: p }),
+  mystery: (v, p) => { [523, 659, 784, 1047, 1319].forEach((f, i) => tone({ f, dur: 0.35, type: 'triangle', vol: 0.06 * v, when: i * 0.09, pan: p })); nzLong({ f: 6000, type: 'highpass', dur: 0.8, vol: 0.03 * v, attack: 0.2, when: 0.2, pan: p }); },
+});

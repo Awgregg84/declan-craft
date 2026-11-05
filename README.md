@@ -68,6 +68,12 @@ Build a frame of obsidian 4 wide and 5 tall (the corners can be left out) and li
 - **Doors.** Birch and spruce doors (from their own planks), glass doors (glass), iron doors (iron: only a lever or a button opens them), and garage doors (planks round an iron ingot): put the panels up side by side and on top of each other, and a tap rolls the whole door up, wide enough to drive or fly through.
 - **Airlocks.** An airlock door (iron and glass) can go in underwater, and no water comes through it. When it shuts, it pumps the water out of the closed room behind it, so you can build a dry base under the sea. Airlock doors shut by themselves: build a little room with one at each end, and when you go in, the door shuts behind you, it pumps, and the inside door opens.
 
+## The fifth wish list
+
+- **Tanks in six colours.** Green, desert, blue, red, pink and black tanks, each made from three iron blocks with that colour of wool on top. A tank drives slowly and steadily, turns on the spot, climbs one-block steps and sinks in water, and its tracks run as it moves. The turret and gun turn to wherever the driver looks, and a tap fires a paint shell: a puff, a splat of paint in the tank's colour and a fun sound. Paint never hurts anyone and breaks nothing; it gives creatures a gentle shove and paints a sheep's wool. Each tank keeps its colour when the world is saved.
+- **More people at Hogwarts.** Students in black robes with their house colours walk about the Great Hall, the courtyard and Hogsmeade, and wave and say hello when you come near. Fly onto the Quidditch pitch and a match starts: your house (the host's house, or Gryffindor before the Sorting Hat has spoken) against another house, three players a side on broomsticks, passing the Quaffle and throwing it through the other team's hoops. Fly up to the Quaffle to grab it (or steal it), tap to throw it, and score through the hoops at the east end; the score is at the top of the screen. Catching the Golden Snitch ends the match: 150 points to your team, and the team with the most points wins.
+- **Declan Falls.** A new world: a little town in a tall pine forest by a lake, with the Mystery Shack (a wooden gift shop with its name on the roof), a water tower, a diner and a few houses. When you arrive you pick who you are: Dipper (Journal 3, and his pine tree cap), Mabel (lots of colourful sweaters), Grunkle Stan (his fez and lots of money), Soos (a golf cart to drive, and pizza) or Wendy (an axe, and her flannel shirt). Money and shops aren't in the game yet, so Grunkle Stan's money is gold ingots and emeralds for now. Six mysteries are hidden about the town and the forest ("Mysteries found 3/6"), garden gnomes giggle and run off, glowing lights float about in the forest, and something big lives in the lake; Journal 3 keeps track of what you have found. Who you are and what you have found are saved with the world, and a guest picks their own character.
+
 ## Playing together
 
 Both devices need the internet.
@@ -77,7 +83,7 @@ Both devices need the internet.
 3. On the other device: **Play Together**, **Join a Game**, type the code, then **Join**. A small typing mistake (WORSE8 for HORSE8) is corrected automatically.
 4. The host taps **Let them in**.
 
-The shared world, and everything a guest collects there, is saved on the host's device. A guest who leaves and joins again gets their things back. When one player goes through a Nether portal, everyone travels together. Arrows, TNT, levers, dispensers, minecarts, cars, boats and submarines, armor, enchanting, potions, brewing, fishing, signs, coloring boards and TVs, the weather, flying cars and brooms, the rocket, wands, Quidditch, plans, cameras, dungeons, robots, planes, the new doors and airlocks all work for every player; a guest drives a car or a boat on their own device and the host follows along, and a friend can ride in a plane someone else is flying. Both devices need this version of the game.
+The shared world, and everything a guest collects there, is saved on the host's device. A guest who leaves and joins again gets their things back. When one player goes through a Nether portal, everyone travels together. Arrows, TNT, levers, dispensers, minecarts, cars, boats and submarines, armor, enchanting, potions, brewing, fishing, signs, coloring boards and TVs, the weather, flying cars and brooms, the rocket, wands, Quidditch, plans, cameras, dungeons, robots, planes, the new doors and airlocks, tanks, the Hogwarts students and Quidditch teams, and Declan Falls all work for every player; a guest drives a car or a boat on their own device and the host follows along, and a friend can ride in a plane someone else is flying. Both devices need this version of the game.
 
 If joining doesn't work, tap **Check Connection** on the Play Together screen on both devices. It tests each matchmaking service and the network, and failed joins show a short code (for example `S0` for no internet, `G1` for a wrong room code, `D1` when the two devices can't reach each other).
 
@@ -89,20 +95,21 @@ Requires Node.js.
 
 - `node build.mjs` writes `dist/site/` (the website, published on the `gh-pages` branch) and `dist/declan-craft.html` (a single file that opens in a desktop browser).
 - `node tools/make-assets.mjs` regenerates the icons and link-preview picture in `assets/`. It needs Playwright.
-- `test/` holds browser tests that use Playwright with Chromium, for example `node test/site.mjs`. `test/wishlist.mjs` covers the bows, TNT, machines, endermen, ghasts and vehicles, `test/wishlist2.mjs` the armor, enchanting, books, potions, fish, boats, TVs, coloring boards, Hardcore and made characters, and `test/wishlist3.mjs` the golems, weather, Snorks, flying, the Moon, wands, plans, cameras, dungeons, robots and Hogwarts, and `test/wishlist4.mjs` the doors, airlocks, garage doors and planes (sections can be picked: `node test/wishlist2.mjs fish boats`). `test/upgrade-wishlist2.mjs <previous build>` opens a world saved by the previous version. `test/loading.mjs` checks that a world always finishes loading (at every render distance, and when part of it never arrives). The playing-together tests (`test/mp.mjs`, `test/mp-touch.mjs`, `test/mp-nether.mjs`, `test/mp-backup.mjs`, `test/mp-wishlist.mjs`, `test/mp-wishlist2.mjs`, `test/mp-wishlist3.mjs`, `test/mp-wishlist4.mjs`) run local copies of the PeerJS and MQTT services; install them first with `npm install` in `tools/`.
+- `test/` holds browser tests that use Playwright with Chromium, for example `node test/site.mjs`. `test/wishlist.mjs` covers the bows, TNT, machines, endermen, ghasts and vehicles, `test/wishlist2.mjs` the armor, enchanting, books, potions, fish, boats, TVs, coloring boards, Hardcore and made characters, and `test/wishlist3.mjs` the golems, weather, Snorks, flying, the Moon, wands, plans, cameras, dungeons, robots and Hogwarts, `test/wishlist4.mjs` the doors, airlocks, garage doors and planes, and `test/wishlist5.mjs` the tanks, the Hogwarts students and Quidditch, and Declan Falls (sections can be picked: `node test/wishlist2.mjs fish boats`). `test/upgrade-wishlist2.mjs <previous build>` opens a world saved by the previous version. `test/loading.mjs` checks that a world always finishes loading (at every render distance, and when part of it never arrives). The playing-together tests (`test/mp.mjs`, `test/mp-touch.mjs`, `test/mp-nether.mjs`, `test/mp-backup.mjs`, `test/mp-wishlist.mjs`, `test/mp-wishlist2.mjs`, `test/mp-wishlist3.mjs`, `test/mp-wishlist4.mjs`, `test/mp-wishlist5.mjs`) run local copies of the PeerJS and MQTT services; install them first with `npm install` in `tools/`.
 
 ## Layout
 
 - `src/js/`: game code, joined in file-name order
   - `02-gen.js`: terrain, trees, caves, ores, villages and the Nether
-  - `02b-gen3.js`: the Moon, Hogwarts and dungeons
+  - `02b-gen3.js`: the Moon, Hogwarts, Declan Falls and dungeons
   - `03b-tiles2.js`, `07b-models2.js`: pictures, skins and models for the second wish list
   - `03c-tiles3.js`, `07c-models3.js`, `11b-audio3.js`: pictures, skins, models and sounds for the third wish list
   - `07d-models4.js`, `11c-audio4.js`: models, skins and sounds for the fourth wish list (its pictures are in `03c-tiles3.js`)
+  - `07e-art5.js`, `11d-audio5.js`: pictures, skins, models and sounds for the fifth wish list
   - `08c-dyntex.js`: live pictures (sign words, coloring boards, TV shows)
   - `09a-armor.js`: armor and shields
   - `09b-books.js`: paper, books, story books and signs
-  - `09c-vehicles.js`: rails, minecarts and the car
+  - `09c-vehicles.js`: rails, minecarts, the car and the golf cart
   - `09d-boats.js`: the boat and the submarine
   - `09e-ender.js`: endermen and ghasts
   - `09f-fish.js`: fish and fishing
@@ -120,6 +127,7 @@ Requires Node.js.
   - `09r-redstone.js`: levers, buttons and dispensers
   - `09s-cameras.js`: security cameras and monitors
   - `09t-tv.js`: TVs and coloring boards
+  - `09u-tanks.js`: tanks and paint shells
   - `09v-villagers.js`: trading and how villagers move about
   - `09w-weather.js`: rain, snow and thunder
   - `09x-wand.js`: magic wands and spells
@@ -127,7 +135,9 @@ Requires Node.js.
   - `09z-robots.js`: robots
   - `12b-looks.js`: making your own characters
   - `12c-character.js`: character look and name
+  - `12f-falls.js`: Declan Falls: picking who you are, the mysteries, the gnomes, the lake monster and the forest lights, and Journal 3
   - `12h-hogwarts.js`: Hogwarts: the Sorting Hat, Quidditch and the Golden Snitch
+  - `12i-students.js`: Hogwarts students, and Quidditch matches with two teams and the Quaffle
   - `12n-net.js`: room codes and direct connections
   - `12p-mp.js`: playing together (host and guest)
   - `12q-portal.js`: Nether portals (frames, linking, building the other side)

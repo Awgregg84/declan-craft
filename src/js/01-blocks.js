@@ -33,6 +33,8 @@ const I = {
   WAND: 402, BROOM: 403, FLYING_CAR: 404, ROCKET: 405, SPACE_HELMET: 406, PLAN_BOOK: 407, ROBOT: 408, CHEESE: 409,
   BIRCH_DOOR: 410, SPRUCE_DOOR: 411, IRON_DOOR: 412, GLASS_DOOR: 413, AIRLOCK: 414, PLANE: 415, JET: 416, AIRLINER: 417,
   TANK: 418, // 418..423 tanks, in TANK_COLORS order
+  JOURNAL: 424, PINE_CAP: 425, SWEATER: 426, // 426..430 sweaters, in SWEATERS order
+  FEZ: 431, GOLF_CART: 432, PIZZA: 433,
   POTION: 370, // 370..381 potions, 390..401 splash potions, in POTIONS order
   SPLASH: 390,
   ARMOR: 350, // 350..365 = material*4 + slot
@@ -306,6 +308,14 @@ const TANK_COLORS = ['#5f7a3a', '#c8a46a', '#3a6ad0', '#c8382a', '#ff86c0', '#34
 const TANK_NAMES = ['Green', 'Desert', 'Blue', 'Red', 'Pink', 'Black'];
 const TANK_WOOL = [13, 12, 11, 14, 6, 15];   // the wool in each one's recipe (and the colour a sheep's wool is painted)
 TANK_COLORS.forEach((c, i) => defItem(I.TANK + i, TANK_NAMES[i] + ' Tank', { tex: 'tank_' + i, stack: 1 }));
+/* Declan Falls (see 12f-falls.js): Journal 3, Dipper's pine-tree cap, Mabel's sweaters, Grunkle Stan's fez, Soos's golf cart and pizza */
+const SWEATERS = [['Pink', '#ff7ab8', 6], ['Purple', '#9a5ae0', 10], ['Sky Blue', '#5ab8f0', 3], ['Green', '#58c84a', 5], ['Yellow', '#f2cf3a', 4]];   // [name, colour, the wool it is knitted from]
+defItem(I.JOURNAL, 'Journal 3', { tex: 'journal', stack: 1 });
+defItem(I.PINE_CAP, 'Pine Tree Cap', { tex: 'pine_cap', stack: 1, armor: { slot: 0, def: 1, mat: 0, model: 'pine_cap' } });
+SWEATERS.forEach(([n], i) => defItem(I.SWEATER + i, n + ' Sweater', { tex: 'sweater_' + i, stack: 1, armor: { slot: 1, def: 2, mat: 0, model: 'sweater_' + i } }));
+defItem(I.FEZ, 'Fez', { tex: 'fez', stack: 1, armor: { slot: 0, def: 1, mat: 0, model: 'fez' } });
+defItem(I.GOLF_CART, 'Golf Cart', { tex: 'golf_cart', stack: 1 });
+defItem(I.PIZZA, 'Pizza', { tex: 'pizza', food: 7 });
 defItem(I.WAND, 'Magic Wand', { tex: 'wand', stack: 1 });   // (see 09x-wand.js)
 defItem(I.PLAN_BOOK, 'Book of Building Plans', { tex: 'plan_book', stack: 1 });   // (see 09q-plans.js)
 defItem(I.ROBOT, 'Robot', { tex: 'robot', stack: 1 });   // (see 09z-robots.js)
@@ -461,6 +471,12 @@ shaped(I.PLANE, 1, [' I ', 'WIW', ' I '], { I: I.IRON_INGOT, W: 'wool' });   // 
 shapeless(I.JET, 1, [I.PLANE, I.GUNPOWDER, I.GUNPOWDER, I.IRON_INGOT, I.IRON_INGOT]);
 shapeless(I.AIRLINER, 1, [I.PLANE, I.PLANE, B.IRON_BLOCK]);
 TANK_WOOL.forEach((wl, i) => shaped(I.TANK + i, 1, [' W ', 'III'], { W: B.WOOL + wl, I: B.IRON_BLOCK }));   // (a wool turret on an iron body)
+shapeless(I.JOURNAL, 1, [I.BOOK, I.GOLD_INGOT]);   // (a gold hand with six fingers on the cover)
+shapeless(I.PINE_CAP, 1, [B.WOOL + 11, B.WOOL, B.SPRUCE_SAPLING]);
+SWEATERS.forEach(([n, c, wl], i) => shaped(I.SWEATER + i, 1, ['W W', 'WWW', 'WWW'], { W: B.WOOL + wl }));
+shapeless(I.FEZ, 1, [B.WOOL + 14, B.WOOL + 14, I.STRING]);
+shaped(I.GOLF_CART, 1, ['WWW', 'III', 'C C'], { W: 'wool', I: I.IRON_INGOT, C: I.COAL });   // (a cloth roof over a little iron cart)
+shapeless(I.PIZZA, 2, [I.BREAD, I.CHEESE]);
 shaped(I.BROOM, 1, ['  S', ' S ', 'F  '], { S: I.STICK, F: I.FEATHER });
 shaped(I.ROCKET, 1, [' I ', 'IGI', 'IFI'], { I: I.IRON_INGOT, G: B.GLASS, F: B.FURNACE });   // (the furnace is the engine)
 shapeless(I.WAND, 1, [I.STICK, I.FEATHER, I.GOLD_INGOT]);   // (a phoenix feather inside)
@@ -565,7 +581,7 @@ const CREATIVE_LIST = [
   B.COAL_ORE, B.IRON_ORE, B.GOLD_ORE, B.DIAMOND_ORE, B.EMERALD_ORE, B.LAPIS_ORE, B.COAL_BLOCK, B.IRON_BLOCK, B.GOLD_BLOCK, B.DIAMOND_BLOCK, B.EMERALD_BLOCK, B.LAPIS_BLOCK,
   B.NETHERRACK, B.SOUL_SAND, B.NETHER_QUARTZ_ORE, B.QUARTZ_BLOCK, B.NETHER_BRICKS,
   B.GLOWSTONE, B.TORCH, B.JACK_O_LANTERN, B.PUMPKIN, B.TNT, B.MEGA_TNT, B.ICE_TNT, B.DIG_TNT, B.PARTY_TNT, B.CLUSTER_TNT,
-  B.CRAFTING_TABLE, B.FURNACE, B.CHEST, B.BOOKSHELF, B.ENCH_TABLE, B.BREWING_STAND, B.SIGN, B.BOARD, B.TV, B.MONITOR, B.CAMERA, B.BED, I.DOOR, I.BIRCH_DOOR, I.SPRUCE_DOOR, I.GLASS_DOOR, I.IRON_DOOR, I.AIRLOCK, B.GARAGE_DOOR, B.DISPENSER, B.LEVER, B.BUTTON, B.RAIL, I.MINECART, I.CAR, I.FLYING_CAR, I.BROOM, I.ROCKET, I.PLANE, I.JET, I.AIRLINER, ...TANK_COLORS.map((c, i) => I.TANK + i), I.SPACE_HELMET, I.BOAT, I.SUBMARINE,
+  B.CRAFTING_TABLE, B.FURNACE, B.CHEST, B.BOOKSHELF, B.ENCH_TABLE, B.BREWING_STAND, B.SIGN, B.BOARD, B.TV, B.MONITOR, B.CAMERA, B.BED, I.DOOR, I.BIRCH_DOOR, I.SPRUCE_DOOR, I.GLASS_DOOR, I.IRON_DOOR, I.AIRLOCK, B.GARAGE_DOOR, B.DISPENSER, B.LEVER, B.BUTTON, B.RAIL, I.MINECART, I.CAR, I.FLYING_CAR, I.BROOM, I.ROCKET, I.PLANE, I.JET, I.AIRLINER, ...TANK_COLORS.map((c, i) => I.TANK + i), I.GOLF_CART, I.SPACE_HELMET, I.BOAT, I.SUBMARINE,
   B.CACTUS, B.SUGAR_CANE, B.TALL_GRASS, B.DANDELION, B.POPPY, B.CORNFLOWER, B.DEAD_BUSH, B.OAK_SAPLING, B.BIRCH_SAPLING, B.SPRUCE_SAPLING,
   B.WATER, B.LAVA, B.CORAL_RED, B.CORAL_YELLOW, B.CORAL_BLUE, B.MOON_DUST, B.MOON_ROCK, B.MOON_CHEESE, B.FLAG, B.SLATE, B.STAINED_GLASS, B.CANDLE, B.SORTING_HAT,
   ...TAGS.wool,
@@ -577,7 +593,8 @@ const CREATIVE_LIST = [
   I.PAPER, I.BOOK, I.WRITABLE_BOOK, I.PLAN_BOOK, I.ROBOT, I.SUGAR, I.XP_BOTTLE, I.MAGMA_CREAM, I.GLASS_BOTTLE,
   ...POTIONS.map((pt, k) => potionId(k, false)), ...POTIONS.map((pt, k) => potionId(k, true)),
   I.APPLE, I.BREAD, I.PORKCHOP, I.COOKED_PORKCHOP, I.BEEF, I.STEAK, I.CHICKEN, I.COOKED_CHICKEN, I.ROTTEN_FLESH,
-  I.COD, I.COOKED_COD, I.SALMON, I.COOKED_SALMON, I.TROPICAL_FISH, I.PUFFERFISH, I.CHEESE,
+  I.COD, I.COOKED_COD, I.SALMON, I.COOKED_SALMON, I.TROPICAL_FISH, I.PUFFERFISH, I.CHEESE, I.PIZZA,
+  I.JOURNAL, I.PINE_CAP, I.FEZ, ...SWEATERS.map((s, i) => I.SWEATER + i),
   ...EGG_MOBS.map((m, i) => I.EGG + i),
 ];
 

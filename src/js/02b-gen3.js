@@ -476,5 +476,225 @@ function genModule3(B, H) {
     return { at, near, nearest, build };
   }
 
-  return { moonGen, hogwartsGen, HW, dungeonPlanner };
+  /* ========== Declan Falls: a little town among tall pines by a lake. The Mystery Shack (a wooden gift shop with its
+     name on the roof), a water tower, a diner and a few houses; and out in the forest, six mysteries to find. ========== */
+  const FF = {
+    town: { x: 0, z: -8, r: 54, y: 66 },
+    lake: { x: 0, z: 76, rx: 46, rz: 28, y: 62 },
+    shack: { x0: -10, x1: 10, z0: -40, z1: -26 },
+    tower: { x: 28, z: -22 },
+    diner: { x0: 4, x1: 24, z0: 16, z1: 24 },
+    houses: [[-32, 20], [-17, 20], [36, 20]],
+    spawn: [0.5, 67, 3.5],
+    // the six mysteries: where each is (y: only that high, for one underground), and how close you must come
+    myst: [
+      { x: 4, y: 60, z: -50, r: 4.5 },    // the secret lab under the Shack (through a hidden door at its back)
+      { x: -74, z: -40, r: 3.5 },         // a strange glowing rock
+      { x: 40, z: -86, r: 7 },            // a secret code on a stone wall
+      { x: -30, z: -92, r: 2.2 },         // a lost Journal page in a hollow tree
+      { x: 72, z: -6, r: 7 },             // the gnomes' hideout
+      { x: -70, z: 34, r: 8 },            // a crashed flying saucer
+    ],
+  };
+  const FONT = ['###|#.#|###|#.#|#.#', '##.|#.#|##.|#.#|##.', '###|#..|#..|#..|###', '##.|#.#|#.#|#.#|##.', '###|#..|##.|#..|###', '###|#..|##.|#..|#..',
+    '###|#..|#.#|#.#|###', '#.#|#.#|###|#.#|#.#', '###|.#.|.#.|.#.|###', '..#|..#|..#|#.#|###', '#.#|#.#|##.|#.#|#.#', '#..|#..|#..|#..|###', '#.#|###|###|#.#|#.#',
+    '###|#.#|#.#|#.#|#.#', '###|#.#|#.#|#.#|###', '###|#.#|###|#..|#..', '###|#.#|#.#|###|..#', '###|#.#|##.|#.#|#.#', '###|#..|###|..#|###', '###|.#.|.#.|.#.|.#.',
+    '#.#|#.#|#.#|#.#|###', '#.#|#.#|#.#|#.#|.#.', '#.#|#.#|###|###|#.#', '#.#|#.#|.#.|#.#|#.#', '#.#|#.#|.#.|.#.|.#.', '###|..#|.#.|#..|###'].map(t => t.split('|'));
+  /* letters three blocks wide and five high, read from the south (x to the right), with their top row at y */
+  function writeText(P, text, x, y, z, id) {
+    for (const ch of text) {
+      const g = FONT[ch.charCodeAt(0) - 65];
+      if (g) for (let r = 0; r < 5; r++) for (let c = 0; c < 3; c++) if (g[r][c] === '#') P.set(x + c, y - r, z, id);
+      x += 4;
+    }
+  }
+  function fallsGen(seed) {
+    const nA = makeNoise(seed ^ 0xfa11a), nB = makeNoise(seed ^ 0xfa11b), nC = makeNoise(seed ^ 0xfa11c), smooth = t => t * t * (3 - 2 * t);
+    const T = FF.town, L = FF.lake, S = FF.shack, Y = T.y + 1;
+    const lakeD = (x, z) => Math.hypot((x - L.x) / L.rx, (z - L.z) / L.rz);
+    const raw = (x, z) => {
+      let h = 67 + fbm2(nA, x * 0.01, z * 0.01, 3) * 9 + fbm2(nB, x * 0.04, z * 0.04, 2) * 1.5;
+      const far = Math.hypot(x, z);   // mountains far off all round
+      if (far > 220) h += Math.min(50, (far - 220) * 0.4) * (0.6 + 0.4 * fbm2(nC, x * 0.01, z * 0.01, 3));
+      return h;
+    };
+    const mystY = FF.myst.map(m => Math.round(raw(m.x, m.z)));
+    function column(x, z) {
+      let h = raw(x, z);
+      const flat = (d, rin, rout, to) => { if (d < rout) h += (to - h) * smooth(d <= rin ? 1 : 1 - (d - rin) / (rout - rin)); };
+      flat(Math.hypot(x - T.x, z - T.z), T.r - 6, T.r + 16, T.y);   // the town
+      FF.myst.forEach((m, i) => { if (i) flat(Math.hypot(x - m.x, z - m.z), m.r + 4, m.r + 12, mystY[i]); });   // (a level patch round each mystery in the forest)
+      const ld = lakeD(x, z);
+      if (ld < 1) h = Math.min(h, L.y - 1 - (1 - ld * ld) * 12);
+      else if (ld < 1.15) h = Math.min(h, L.y - 1 + (h - L.y + 1) * smooth((ld - 1) / 0.15));
+      return Math.round(clamp(h, 8, WH - 16));
+    }
+    const clear = (x, z) => Math.hypot(x - T.x, z - T.z) < T.r + 2 || lakeD(x, z) < 1.18 || FF.myst.some((m, i) => i && Math.hypot(x - m.x, z - m.z) < m.r + 5);
+    /* a tall pine: a long bare trunk, and layers of branches getting smaller to a point */
+    function tallPine(P, x, y, z, hgt) {
+      const top = y + hgt, low = y + Math.floor(hgt * 0.3);
+      for (let yy = top + 1; yy >= low; yy--) {
+        const t = (top + 1 - yy) / (top + 1 - low), rad = (0.6 + t * 2.6) * ((top - yy) % 3 === 2 ? 0.65 : 1);
+        for (let dx = -3; dx <= 3; dx++) for (let dz = -3; dz <= 3; dz++) if (Math.hypot(dx, dz) <= rad + 0.2 && P.get(x + dx, yy, z + dz) === B.AIR) P.set(x + dx, yy, z + dz, B.SPRUCE_LEAVES);
+      }
+      for (let k = 0; k < hgt; k++) P.set(x, y + k, z, B.SPRUCE_LOG);
+    }
+    /* ---- the town ---- */
+    function paintShack(P) {
+      if (!P.near(S.x0 - 6, S.z0 - 16, S.x1 + 6, S.z1 + 6)) return;
+      const W = B.SPRUCE_PLANKS, LOG = B.SPRUCE_LOG;
+      P.box(S.x0, Y, S.z0, S.x1, Y + 5, S.z1, B.AIR);
+      P.walls(S.x0, T.y, S.z0, S.x1, Y + 5, S.z1, W);
+      P.box(S.x0 + 1, T.y, S.z0 + 1, S.x1 - 1, T.y, S.z1 - 1, B.OAK_PLANKS);
+      for (const [x, z] of [[S.x0, S.z0], [S.x1, S.z0], [S.x0, S.z1], [S.x1, S.z1]]) P.box(x, Y, z, x, Y + 5, z, LOG);
+      for (let k = 0; k <= 8; k++) P.box(S.x0 - 1, Y + 6 + k, S.z0 - 1 + k, S.x1 + 1, Y + 6 + k, S.z1 + 1 - k, k === 8 ? LOG : B.SPRUCE_PLANKS);   // the roof
+      for (let k = 0; k < 8; k++) { P.box(S.x0 + 1, Y + 6 + k, S.z0 + k, S.x1 - 1, Y + 6 + k, S.z1 - k, B.AIR); }
+      P.box(S.x0 + 1, Y + 6, S.z0 + 1, S.x1 - 1, Y + 6, S.z1 - 1, B.AIR);
+      // the front: a door, windows, and a porch with posts
+      P.box(-1, Y, S.z1, 1, Y + 2, S.z1, B.AIR);
+      for (const x of [-7, -6, 6, 7]) P.box(x, Y + 1, S.z1, x, Y + 2, S.z1, B.GLASS);
+      P.box(S.x0, T.y, S.z1 + 1, S.x1, T.y, S.z1 + 3, B.SPRUCE_PLANKS);
+      for (const x of [S.x0, -3, 3, S.x1]) { P.box(x, Y, S.z1 + 3, x, Y + 3, S.z1 + 3, LOG); }
+      P.box(S.x0, Y + 4, S.z1 + 1, S.x1, Y + 4, S.z1 + 3, B.SPRUCE_PLANKS);
+      // its name on a big board on the roof: MYSTERY SHACK
+      const bz = S.z1 - 2;
+      P.box(-15, Y + 7, bz, 15, Y + 19, bz, B.SPRUCE_PLANKS);
+      for (const x of [-12, 12]) P.box(x, Y + 4, bz, x, Y + 6, bz, LOG);
+      writeText(P, 'MYSTERY', -13, Y + 18, bz, B.WOOL);
+      writeText(P, 'SHACK', -9, Y + 12, bz, B.WOOL);
+      // inside: the gift shop (shelves, a counter, odd things for sale)
+      P.box(S.x0 + 1, Y, S.z0 + 1, S.x0 + 1, Y + 2, S.z1 - 2, B.BOOKSHELF);
+      P.box(S.x1 - 1, Y, S.z0 + 1, S.x1 - 1, Y + 2, S.z1 - 2, B.BOOKSHELF);
+      P.box(-6, Y, -33, -2, Y, -33, B.SPRUCE_PLANKS); P.set(-6, Y + 1, -33, B.PUMPKIN); P.set(-3, Y + 1, -33, B.GLASS);
+      P.box(2, Y, -30, 6, Y, -30, B.OAK_PLANKS); P.set(4, Y + 1, -30, B.JACK_O_LANTERN);
+      for (const [x, z] of [[-5, -29], [5, -36], [-5, -37]]) P.set(x, Y + 3, z, B.GLOWSTONE);
+      for (let x = S.x0 + 2; x <= S.x1 - 2; x++) P.set(x, Y, S.z0 + 1, B.BOOKSHELF);
+      // the hidden door: a gap behind the shelves at the back, and steps down to a secret lab under the ground
+      P.box(8, Y, S.z0, 8, Y + 1, S.z0, B.AIR); P.set(8, Y, S.z0 + 1, B.AIR); P.set(8, Y + 1, S.z0 + 1, B.AIR);
+      const m = FF.myst[0], F = m.y - 1;   // the lab
+      P.box(-3, F - 1, -55, 11, F + 5, -46, B.STONE_BRICKS);
+      P.box(-2, F + 1, -54, 10, F + 4, -47, B.AIR);
+      for (const [x, z] of [[-1, -53], [9, -53], [-1, -48], [9, -48]]) P.set(x, F + 4, z, B.GLOWSTONE);
+      P.box(1, F + 1, -54, 7, F + 3, -54, B.IRON_BLOCK); P.box(2, F + 2, -54, 6, F + 2, -54, B.STAINED_GLASS); P.set(4, F + 3, -53, B.LEVER);   // a strange machine
+      P.set(-1, F + 1, -50, B.BOOKSHELF); P.set(-1, F + 2, -50, B.BOOKSHELF); P.set(0, F + 1, -47, B.CRAFTING_TABLE);
+      for (let k = 0; k <= 6; k++) { const z = S.z0 - 1 - k, f = Y - 2 - k; P.box(7, f - 1, z, 9, Y + 3, z, B.STONE_BRICKS); P.box(8, f + 1, z, 8, f + 3, z, B.AIR); P.set(8, f, z, B.SPRUCE_PLANKS); }
+    }
+    function paintTower(P) {   // the water tower: four legs, a round white tank with a blue band, and a pointed roof
+      const { x, z } = FF.tower;
+      if (!P.near(x - 7, z - 7, x + 7, z + 7)) return;
+      for (const [dx, dz] of [[-4, -4], [4, -4], [-4, 4], [4, 4]]) P.box(x + dx, Y, z + dz, x + dx, Y + 15, z + dz, B.SPRUCE_LOG);
+      for (const k of [5, 10]) { P.line(x - 4, z - 4, x + 4, z - 4, Y + k, Y + k, B.SPRUCE_PLANKS); P.line(x - 4, z + 4, x + 4, z + 4, Y + k, Y + k, B.SPRUCE_PLANKS); }
+      for (let k = 0; k < 16; k++) P.set(x + 5, Y + k, z, B.IRON_BARS);   // a ladder of sorts
+      P.disc(x, z, 5, Y + 16, Y + 16, B.QUARTZ_BLOCK, false);
+      P.disc(x, z, 5, Y + 17, Y + 23, B.QUARTZ_BLOCK, true);
+      P.disc(x, z, 5, Y + 20, Y + 20, B.WOOL + 3, true);
+      P.cone(x, z, 5.6, Y + 24, 5, B.SLATE);
+    }
+    function paintDiner(P) {   // a long white diner with a red stripe, big windows and DINER on the roof
+      const D = FF.diner;
+      if (!P.near(D.x0 - 2, D.z0 - 2, D.x1 + 2, D.z1 + 2)) return;
+      P.box(D.x0, Y, D.z0, D.x1, Y + 4, D.z1, B.AIR);
+      P.walls(D.x0, T.y, D.z0, D.x1, Y + 4, D.z1, B.QUARTZ_BLOCK);
+      P.box(D.x0, Y + 3, D.z0, D.x1, Y + 3, D.z0, B.WOOL + 14);
+      P.box(D.x0, Y + 5, D.z0, D.x1, Y + 5, D.z1, B.QUARTZ_BLOCK);
+      P.box(D.x0 + 1, T.y, D.z0 + 1, D.x1 - 1, T.y, D.z1 - 1, B.WOOL);
+      for (let x = D.x0 + 1; x < D.x1; x++) if ((x - D.x0) % 2) P.box(x, T.y, D.z0 + 1, x, T.y, D.z1 - 1, B.WOOL + 15);   // a black-and-white floor
+      for (let x = D.x0 + 2; x <= D.x1 - 2; x++) if (Math.abs(x - 14) > 1) P.box(x, Y + 1, D.z0, x, Y + 2, D.z0, B.GLASS);
+      P.box(13, Y, D.z0, 15, Y + 2, D.z0, B.AIR);   // the door, onto the street
+      P.box(D.x0 + 2, Y, D.z1 - 2, D.x1 - 2, Y, D.z1 - 2, B.QUARTZ_BLOCK);   // the counter
+      for (const x of [D.x0 + 3, D.x0 + 7, D.x1 - 7, D.x1 - 3]) { P.set(x, Y, D.z0 + 3, B.WOOL + 14); P.set(x, Y, D.z0 + 4, B.OAK_PLANKS); }
+      P.set(D.x0 + 3, Y + 4, D.z0 + 4, B.GLOWSTONE); P.set(D.x1 - 3, Y + 4, D.z0 + 4, B.GLOWSTONE);
+      P.box(D.x0 + 1, Y + 6, D.z0 + 4, D.x1 - 1, Y + 11, D.z0 + 4, B.QUARTZ_BLOCK);
+      writeText(P, 'DINER', D.x0 + 1, Y + 10, D.z0 + 4, B.WOOL + 14);
+    }
+    function paintHouses(P) {
+      for (const [hx, hz] of FF.houses) {
+        if (!P.near(hx - 6, hz - 6, hx + 6, hz + 6)) continue;
+        P.box(hx - 3, Y, hz - 3, hx + 3, Y + 4, hz + 3, B.AIR);
+        P.walls(hx - 3, T.y, hz - 3, hx + 3, Y + 3, hz + 3, hx < 0 ? B.SPRUCE_PLANKS : B.BIRCH_PLANKS);
+        P.box(hx - 2, T.y, hz - 2, hx + 2, T.y, hz + 2, B.OAK_PLANKS);
+        P.box(hx - 1, Y + 1, hz + 3, hx + 1, Y + 2, hz + 3, B.GLASS);
+        P.box(hx, Y, hz - 3, hx, Y + 1, hz - 3, B.AIR);   // the door, onto the street
+        P.box(hx + 2, Y + 1, hz - 3, hx + 2, Y + 2, hz - 3, B.GLASS);
+        for (let k = 0; k <= 3; k++) P.box(hx - 4, Y + 4 + k, hz - 3 + k, hx + 4, Y + 4 + k, hz + 3 - k, B.SPRUCE_PLANKS);
+        P.set(hx, Y + 2, hz, B.TORCH);
+      }
+    }
+    function paintStreets(P) {
+      P.box(-1, T.y, S.z1 + 4, 1, T.y, 10, B.GRAVEL);   // up to the Shack
+      P.box(-44, T.y, 10, 44, T.y, 12, B.GRAVEL);   // the main street
+      P.box(-1, T.y, 13, 1, T.y, 44, B.GRAVEL);   // down to the lake
+      for (let x = -40; x <= 40; x += 10) if (Math.abs(x) > 2) { P.box(x, Y, 9, x, Y + 2, 9, B.SPRUCE_LOG); P.set(x, Y + 3, 9, B.TORCH); }   // lamp posts
+      P.box(-3, T.y - 1, 46, 3, T.y - 1, 54, B.SPRUCE_PLANKS);   // a jetty out over the lake
+    }
+    /* ---- the mysteries out in the forest ---- */
+    function paintMysteries(P) {
+      const M = FF.myst;
+      { const m = M[1], y = mystY[1] + 1; if (P.near(m.x - 3, m.z - 3, m.x + 3, m.z + 3)) {   // a strange glowing rock on a mossy mound
+        P.disc(m.x, m.z, 2.2, y - 1, y - 1, B.MOSSY_COBBLE, false); P.box(m.x - 1, y, m.z - 1, m.x + 1, y, m.z + 1, B.OBSIDIAN); P.set(m.x, y + 1, m.z, B.GLOWSTONE); P.set(m.x, y, m.z, B.GLOWSTONE);
+      } }
+      { const m = M[2], y = mystY[2] + 1; if (P.near(m.x - 14, m.z - 2, m.x + 14, m.z + 2)) {   // a stone wall with a secret code on it
+        P.box(m.x - 13, y, m.z, m.x + 13, y + 6, m.z, B.STONE_BRICKS); P.box(m.x - 13, y + 7, m.z, m.x + 13, y + 7, m.z, B.MOSSY_COBBLE);
+        writeText(P, 'GHFODQ', m.x - 11, y + 5, m.z, B.WOOL + 15);
+      } }
+      { const m = M[3], y = mystY[3] + 1; if (P.near(m.x - 4, m.z - 4, m.x + 4, m.z + 4)) {   // a huge old hollow tree, with a Journal page inside
+        P.box(m.x - 1, y, m.z - 1, m.x + 1, y + 12, m.z + 1, B.OAK_LOG); P.box(m.x, y, m.z, m.x, y + 3, m.z, B.AIR); P.box(m.x, y, m.z + 1, m.x, y + 1, m.z + 1, B.AIR);
+        P.set(m.x, y, m.z, B.BOOKSHELF);
+        P.disc(m.x, m.z, 4, y + 11, y + 13, B.OAK_LEAVES, false); P.disc(m.x, m.z, 2.5, y + 14, y + 14, B.OAK_LEAVES, false);
+      } }
+      { const m = M[4], y = mystY[4] + 1; if (P.near(m.x - 8, m.z - 8, m.x + 8, m.z + 8)) {   // the gnomes' hideout: little toadstool houses
+        for (const [dx, dz] of [[-4, -2], [0, -5], [4, -1], [-2, 4], [3, 4]]) {
+          P.box(m.x + dx, y, m.z + dz, m.x + dx, y + 1, m.z + dz, B.BIRCH_LOG);
+          P.disc(m.x + dx, m.z + dz, 1.5, y + 2, y + 2, B.WOOL + 14, false); P.set(m.x + dx, y + 3, m.z + dz, B.WOOL + 14); P.set(m.x + dx + 1, y + 2, m.z + dz, B.WOOL);
+        }
+        P.disc(m.x, m.z, 1, y - 1, y - 1, B.GRAVEL, false);
+      } }
+      { const m = M[5], y = mystY[5] + 1; if (P.near(m.x - 9, m.z - 9, m.x + 9, m.z + 9)) {   // a crashed flying saucer, tipped up and half buried
+        for (let dx = -7; dx <= 7; dx++) for (let dz = -7; dz <= 7; dz++) {
+          const d = Math.hypot(dx, dz); if (d > 7.2) continue;
+          const tilt = Math.round(dx * 0.35), yy = y - 1 + tilt;
+          P.set(m.x + dx, yy, m.z + dz, d > 6 ? B.IRON_BARS : B.IRON_BLOCK);
+          if (d < 5.5) P.set(m.x + dx, yy + 1, m.z + dz, d > 4.5 ? B.GLOWSTONE : d < 3 ? B.GLASS : B.IRON_BLOCK);
+          if (d < 3) { P.set(m.x + dx, yy + 2, m.z + dz, B.GLASS); if (d < 2) P.set(m.x + dx, yy + 3, m.z + dz, B.GLASS); }
+        }
+        for (let dx = -9; dx <= -6; dx++) P.box(m.x + dx, y - 1, m.z - 1, m.x + dx, y - 1, m.z + 1, B.DIRT);   // the furrow it dug
+      } }
+    }
+    function generate(cx, cz) {
+      const blocks = new Uint8Array(CVOL), x0 = cx * 16, z0 = cz * 16, cols = new Int32Array(256), r = mulberry32(hash3(seed ^ 0xfa1, cx, cz));
+      for (let lz = 0; lz < 16; lz++) for (let lx = 0; lx < 16; lx++) {
+        const x = x0 + lx, z = z0 + lz, h = column(x, z), shore = h <= L.y && lakeD(x, z) < 1.25;
+        cols[lz * 16 + lx] = h;
+        for (let y = 0; y <= Math.max(h, L.y - 1); y++) {
+          let b;
+          if (y === 0 || (y < 3 && r() < 0.6)) b = B.BEDROCK;
+          else if (y < h - 3) b = B.STONE;
+          else if (y < h) b = shore ? B.SAND : B.DIRT;
+          else if (y === h) b = h < L.y - 3 ? B.GRAVEL : shore ? B.SAND : B.GRASS;
+          else b = B.WATER;
+          blocks[idx(lx, y, lz)] = b;
+        }
+      }
+      oreVeins(blocks, r, B.STONE, [[B.COAL_ORE, 16, 5, 100, 9], [B.IRON_ORE, 10, 5, 64, 7], [B.GOLD_ORE, 3, 5, 32, 6], [B.DIAMOND_ORE, 2, 5, 16, 5], [B.EMERALD_ORE, 2, 5, 40, 1]]);
+      for (let lz = 0; lz < 16; lz++) for (let lx = 0; lx < 16; lx++) { const x = x0 + lx, z = z0 + lz; if (!clear(x, z) || (Math.hypot(x - T.x, z - T.z) < T.r && r() < 0.3)) decorate(blocks, r, lx, lz, cols[lz * 16 + lx], clear(x, z) ? PLAINS : FOREST); }
+      const P = painter(blocks, cx, cz);
+      for (let ncz = cz - 1; ncz <= cz + 1; ncz++) for (let ncx = cx - 1; ncx <= cx + 1; ncx++) {   // tall pines (from the chunks round about too, so they cross borders)
+        const tr = mulberry32(hash3(seed ^ 0x9e1, ncx, ncz));
+        for (let k = 0; k < 7; k++) {
+          const tx = ncx * 16 + ((tr() * 16) | 0), tz = ncz * 16 + ((tr() * 16) | 0), hr = tr();
+          if (clear(tx, tz)) continue;
+          const own = ncx === cx && ncz === cz, th = own ? cols[(tz - z0) * 16 + (tx - x0)] : column(tx, tz);
+          if (th <= L.y || th > WH - 30) continue;
+          if (own && blocks[idx(tx - x0, th, tz - z0)] !== B.GRASS) continue;
+          tallPine(P, tx, th + 1, tz, 11 + ((hr * 9) | 0));
+        }
+      }
+      paintStreets(P); paintShack(P); paintTower(P); paintDiner(P); paintHouses(P); paintMysteries(P);
+      return { blocks, spawns: [] };
+    }
+    function spawn() { return FF.spawn.slice(); }
+    return { generate, spawn, column, mystY };
+  }
+
+  return { moonGen, hogwartsGen, HW, fallsGen, FF, dungeonPlanner };
 }

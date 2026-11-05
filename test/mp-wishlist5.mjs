@@ -162,6 +162,35 @@ const GID = GUEST.pid;
     await G.evaluate(() => { game.view = 0; });
   }
 
+  if (on('falls')) {
+    // 4. Declan Falls: each of them picks who they are
+    await H.evaluate(() => game.quitToTitle());
+    await waitFor(G, () => game.state === 'title', 15000);
+    await H.evaluate(() => { ui.hostMode = true; game.startWorld('falls', 'survival', true); });
+    await waitFor(H, () => game.state === 'playing' && MP.roomOpen && ui.screen === 'scr-falls', 150000);
+    await H.evaluate(() => document.querySelectorAll('#falls-chars button')[0].click());
+    const code3 = await H.evaluate(() => MP.code);
+    await G.evaluate(() => showScreen('scr-title'));
+    await G.evaluate(code => { MP.join(code); }, code3);
+    await waitFor(H, () => !el('join-prompt').hidden, 30000);
+    await H.evaluate(() => MP.answerPrompt(true));
+    check('she joins Declan Falls, and is asked who she is', await waitFor(G, () => game.state === 'playing' && MP.welcomed && game.mapId === 'falls' && ui.screen === 'scr-falls', 150000));
+    await G.evaluate(() => document.querySelectorAll('#falls-chars button')[1].click());
+    check('she is Mabel, in a sweater', await G.evaluate(() => game.stats.fc === 2 && mySkin() === 'falls_1' && game.player.inv[ARMOR_INV + 1] && game.player.inv[ARMOR_INV + 1].id === I.SWEATER));
+    check('the host sees her as Mabel, and she sees him as Dipper', await waitFor(H, gid => { const r = MP.remotes.get(gid); return r && r.fc === 2 && r.armor[1] === I.SWEATER; }, 8000, GID) && await waitFor(G, () => [...MP.remotes.values()].some(r => r.fc === 1), 8000));
+    // she finds a mystery: it is kept for her on the host
+    await G.evaluate(() => { const m = game.gen.falls.myst[1]; Object.assign(game.player, { x: m.x + 0.5, y: game.gen.fallsGround(game.seed, m.x, m.z) + 1, z: m.z + 0.5, vx: 0, vy: 0, vz: 0 }); });
+    check('she finds the glowing rock', await waitFor(G, () => mystCount() === 1 && el('myst-count').textContent === 'Mysteries found 1/6', 8000));
+    check('...and the host hears about it', await waitFor(H, () => T.chat(/Cora found a mystery: The glowing rock!/), 6000));
+    await sleep(800);
+    await H.evaluate(() => game.save());
+    const saved = await H.evaluate(gid => { const d = JSON.parse(store.get(saveKey('falls'))), me = d.stats; return { her: d.players[gid] && { fc: d.players[gid].fc, myst: d.players[gid].myst }, me: { fc: me.fc } }; }, GID);
+    check('who she is and what she found are kept with the world on the host', saved.her && saved.her.fc === 2 && saved.her.myst === 2 && saved.me.fc === 1, saved);
+    await H.evaluate(gid => { const r = MP.remotes.get(gid); Object.assign(game.player, { x: r.tx + 3, y: r.ty, z: r.tz, yaw: Math.PI / 2 }); }, GID);
+    await sleep(800);
+    await H.screenshot({ path: path.join(out, 'mp5-host-sees-mabel.png') });
+  }
+
   check('no page errors', H.errs.length === 0 && G.errs.length === 0, H.errs.concat(G.errs).slice(0, 6));
   console.log(fails ? fails + ' FAILED' : 'ALL PASSED');
   await browser.close(); server.close(); peer.close && peer.close();
