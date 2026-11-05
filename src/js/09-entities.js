@@ -618,6 +618,7 @@ function spawnTick(game) {
   if (world.map === 'hogwarts') { snitchTick(game); studentTick(game); qmatchTick(game); }
   if (world.map === 'falls') fallsSpawnTick(game);
   if (world.map === 'ghost') { ghostSpawnTick(game); return; }   // (spooky, but no monsters)
+  if (world.map === 'life') { lifeSpawnTick(game); return; }   // (a friendly city: no monsters)
   if (game.settings.animals) { fishSpawnTick(game); snorkSpawnTick(game); }
   const players = allPlayers(game).filter(p => p.alive && (p === game.player ? game.mode : p.mode) === 'survival');
   if (!players.length || difficulty() === 0) return;

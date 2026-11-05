@@ -107,6 +107,7 @@ function rebuildTrade(tr) {
 
 /* Walking about: stay near home (closer at night), run from zombies, look at nearby players. Returns [mx, mz, speed multiplier]. */
 function villagerSteer(game, e, dt) {
+  if (e.caretaker) { const c = caretakerSteer(game, e); if (c) return c; }   // (in the Life Cycle world: near the babies)
   if (e.tradeT > 0) e.tradeT -= dt;
   let near = null, nd = 7;
   for (const p of allPlayers(game)) {

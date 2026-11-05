@@ -232,6 +232,7 @@ function mountVehicle(game, v) {
   const pl = game.player;
   if (v.removed || pl.riding) return;
   if (v.rider && !hasSeats(v)) { toast('Someone is already in it.', 2); return; }
+  if (!v.rider && !lifeCan('drive')) return;   // (in the Life Cycle world: only grown-ups drive; anyone can ride along)
   if (MP.role === 'guest') { if (!v.askT || performance.now() - v.askT > 1500) { v.askT = performance.now(); MP.send({ t: 'mount', e: v.nid }); } return; }   // the host says yes or no
   if (v.rider) { const k = freeSeat(v); if (k) boardSeat(game, v, k); else toast(isPlane(v) ? 'This plane is full.' : 'The train is full.', 2); return; }   // (a plane's pilot is already in: a passenger seat)
   boardVehicle(game, v);

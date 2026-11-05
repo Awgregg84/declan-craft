@@ -72,12 +72,13 @@ const GID = GUEST.pid;
 
   const want = process.argv.slice(2), on = k => !want.length || want.includes(k);
   /* the host starts another world and she joins it again */
-  async function hostAgain(slot) {
+  async function hostAgain(slot, before) {
     await G.evaluate(() => game.quitToTitle());
     await H.evaluate(() => game.quitToTitle());
     await sleep(1500);
     await H.evaluate(slot => { ui.hostMode = true; game.startWorld(slot, 'survival', true); }, slot);
     await waitFor(H, () => game.state === 'playing' && MP.roomOpen, 120000);
+    if (before) await H.evaluate(before);
     const code = await H.evaluate(() => MP.code);
     await G.evaluate(code => { MP.join(code); }, code);
     await waitFor(H, () => !el('join-prompt').hidden, 30000);
@@ -206,6 +207,19 @@ const GID = GUEST.pid;
     check('the host keeps her count with her things', await waitFor(H, gid => MP.guestSaves[gid] && MP.guestSaves[gid].gh === 1, 8000, GID));
     await H.evaluate(gid => { const r = MP.remotes.get(gid), e = spawnMob(game, 'slimer', r.tx + 3, r.ty + 1, r.tz); e.home = [r.tx + 3, r.tz]; }, GID);
     check('a slimy ghost slimes her (slowed a moment, not hurt)', await waitFor(G, () => hasEffect(game.player, 'slowness'), 12000) && await G.evaluate(() => game.player.health === 20));
+  }
+
+  if (on('life')) {
+    // Life Cycle: the host is already a kid when she joins, so she starts as a baby; each grows up from when they came
+    check('the host shares the Life Cycle world (already on day 5) and she joins', await hostAgain('life', () => { game.day = 5; MP.syncTime(); }));
+    await sleep(2500);
+    const ages = { host: await H.evaluate(() => [lifeDay(), lifeStage().key]), her: await G.evaluate(() => [lifeDay(), lifeStage().key]) };
+    check('she starts as a baby while the host is a kid', ages.host.join() === '5,kid' && ages.her.join() === '1,baby', ages);
+    check('each iPad sees the other the right size', await waitFor(H, gid => MP.remotes.get(gid).life === 1, 8000, GID) && await waitFor(G, () => MP.remotes.get('host').life === 3, 8000));
+    check('a grown-up comes to look after her', await waitFor(H, gid => { const r = MP.remotes.get(gid); return game.entities.some(e => e.caretaker && Math.hypot(e.x - r.tx, e.z - r.tz) < 4); }, 30000, GID));
+    await H.evaluate(() => { game.day += 2; MP.syncTime(); });
+    check('two days later (the host\'s clock) she is a toddler, and the host a teen', await waitFor(G, () => lifeStage().key === 'toddler', 8000) && await H.evaluate(() => lifeStage().key === 'teen'));
+    check('the host keeps her birthday with her things', await waitFor(H, gid => MP.guestSaves[gid] && MP.guestSaves[gid].lb === 5, 10000, GID));
   }
 
   check('no page errors', H.errs.length === 0 && G.errs.length === 0, H.errs.concat(G.errs).slice(0, 6));

@@ -383,6 +383,43 @@ const FRONT_FACE_OF = d => [4, 1, 5, 0][d & 3];
     check('the ghosts you caught are kept with the world', gs === 1, gs);
   }
 
+  if (on('life')) {
+    // ---------- the Life Cycle world ----------
+    await E(() => { game.startWorld('life', 'survival', true); });
+    await waitFor(() => game.state === 'playing' && game.mapId === 'life', 90000);
+    await sleep(2500);
+    const b = await E(() => { const pl = game.player; return { card: !!MAPS.life && !!SLOTS.life, hud: el('hud-count').textContent, h: pl.h, eye: pl.eye, speed: lifeSpeed(), dayLen: dayLength(), stage: lifeStage().key, hello: Array.from(document.querySelectorAll('#chat-log div')).some(d => /brand new baby/.test(d.textContent)) }; });
+    check('a Life Cycle world: you start as a baby, small and slow; a day lasts 3 minutes', b.card && b.hud === 'Day 1 of 10: Baby' && b.h < 1 && b.eye < 0.9 && b.speed < 0.6 && b.dayLen === 180 && b.stage === 'baby' && b.hello, b);
+    check('grown-ups look after you at home, and the family car is out front', await waitFor(() => game.entities.filter(e => e.caretaker && !e.removed).length === 2 && T.ents('car').length === 1, 15000),
+      await E(() => ({ care: game.entities.filter(e => e.caretaker).length, car: T.ents('car').length })));
+    await E(() => { T.put(0.5, 65, 4.5, { yaw: Math.PI, pitch: 0.1 }); game.view = 1; }); await sleep(2000); await shot('life-baby'); await E(() => { game.view = 0; });
+    const lim = await E(() => new Promise(res => {
+      const pl = game.player; T.put(30.5, 65, 0.5);
+      setTimeout(() => {
+        const o = { back: Math.abs(pl.x) < 13, toast: window.__toasts.slice(-1)[0] };
+        o.mine = lifeCan('mine', true); o.build = lifeCan('build', true); o.drive = lifeCan('drive', true);
+        pl.food = 5; setTimeout(() => { o.fed = pl.food === 20; res(o); }, 300);
+      }, 300);
+    }));
+    check("a baby can't leave the garden, dig, build or drive, and is kept fed", lim.back && /stay at home/.test(lim.toast) && !lim.mine && !lim.build && !lim.drive && lim.fed, lim);
+    const grow = await E(() => new Promise(res => {
+      const out = [];
+      const step = days => new Promise(r => { game.day = game.stats.born + days - 1; setTimeout(() => { const pl = game.player; out.push({ d: lifeDay(), stage: lifeStage().key, hud: el('hud-count').textContent, big: el('big-text').textContent, toast: window.__toasts.slice(-1)[0], h: Math.round(pl.h * 100) / 100, leave: lifeCan('leave', true), mine: lifeCan('mine', true), drive: lifeCan('drive', true) }); r(); }, 400); });
+      (async () => { for (const d of [3, 4, 6, 8, 10]) await step(d); res(out); })();
+    }));
+    check('each day you grow up: "Day 3: You\'re a toddler!"', grow[0].stage === 'toddler' && grow[0].big === 'Day 3' && /Day 3: You're a toddler!/.test(grow[0].toast) && grow[0].hud === 'Day 3 of 10: Toddler', grow[0]);
+    check('a kid can go out, a teen can use tools, a grown-up can drive and build; you get bigger', grow[1].stage === 'kid' && grow[1].leave && !grow[1].mine && grow[2].stage === 'teen' && grow[2].mine && !grow[2].drive && grow[3].stage === 'grownup' && grow[3].drive && grow[3].h > grow[1].h && grow[1].h > grow[0].h && grow[4].stage === 'old', grow);
+    await E(() => { game.day = game.stats.born + 3; T.put(36.5, 65, -2.5, { yaw: Math.PI / 2, pitch: -0.05 }); }); await sleep(2000); await shot('life-playground');
+    const end = await E(() => new Promise(res => { game.day = game.stats.born + 10; setTimeout(() => { const e = el('life-end'); res({ shown: !!e, text: e && e.textContent }); }, 500); }));
+    check('after the last day: "The End: what a life!" with a few things you did', end.shown && /The End: what a life!/.test(end.text) && /Blocks built/.test(end.text), end);
+    await shot('life-end');
+    await E(() => document.querySelector('#life-end .btn').click());
+    await waitFor(() => game.state === 'playing' && game.mapId === 'life' && !el('life-end'), 90000);
+    await sleep(1500);
+    const again = await E(() => ({ day: lifeDay(), stage: lifeStage().key, worldDay: game.day }));
+    check('tap, and a new game starts: a baby again', again.day === 1 && again.stage === 'baby' && again.worldDay === 1, again);
+  }
+
   console.log(errs.length ? 'ERRORS:\n' + errs.join('\n') : 'no page errors');
   console.log(fails ? fails + ' FAILED' : 'ALL PASSED');
   await browser.close(); server.close();

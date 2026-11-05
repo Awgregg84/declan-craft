@@ -116,7 +116,7 @@ class Player {
     else {
     if ((inp.sprint || inp.joySprint) && fz > 0.5 && !this.sneaking && (this.food > 6 || creative)) this.sprinting = true;
     if (fz <= 0.2 || this.sneaking || (this.collidedH && !this.flying)) this.sprinting = false;
-    let speed = this.flying ? (this.sprinting ? 21.6 : 10.9) : this.sneaking ? 1.3 : this.sprinting ? 5.6 : 4.317;
+    let speed = (this.flying ? (this.sprinting ? 21.6 : 10.9) : this.sneaking ? 1.3 : this.sprinting ? 5.6 : 4.317) * lifeSpeed();   // (a baby crawls along; see 12l-life.js)
     if ((this.inWater || this.inLava) && !this.flying) speed *= this.inLava ? 0.35 : 0.55 + enchLvl(this.inv[ARMOR_INV + 3], 'depth_strider') * 0.15;
     if (this.eatT > 0 || this.drawT > 0 || this.loadT > 0) speed *= 0.4;
     if (this.blocking) speed *= 0.35;
@@ -170,8 +170,9 @@ class Player {
       }
     }
     }
-    this.h = this.sneaking ? 1.5 : 1.8;
-    const eyeT = this.sneaking ? 1.27 : 1.62;
+    const ls = lifeScaleOf(this);   // (smaller when you are little: see 12l-life.js)
+    this.h = (this.sneaking ? 1.5 : 1.8) * Math.max(0.5, ls);
+    const eyeT = (this.sneaking ? 1.27 : 1.62) * ls;
     this.eye += (eyeT - this.eye) * Math.min(1, dt * 12);
     this.collidedH = this.collidedH || false;
     const eb = world.getBlock(Math.floor(this.x), Math.floor(this.y + this.eye), Math.floor(this.z));
@@ -301,7 +302,8 @@ class Player {
             this.addFoodExhaust(0.5);
           }
         }
-      } else if (this.target) {
+      } else if (this.target && BLOCKS[this.target.id] && BLOCKS[this.target.id].hardness > 0 && !lifeCan('mine', !inp.minePressed)) { this.mining = null; if (inp.minePressed) this.swing(); }   // (too little to dig: Life Cycle)
+      else if (this.target) {
         const t = this.target;
         if (creative) {
           if (this.breakCd <= 0 && !(toolOf(hid) && toolOf(hid).kind === 'sword')) { this.breakBlock(t.x, t.y, t.z, false); this.breakCd = 0.22; this.swing(); }
@@ -577,6 +579,7 @@ class Player {
       return true;
     }
     if (!hid || hid >= 256) return false;
+    if (!lifeCan('build')) return false;   // (only grown-ups build, in the Life Cycle world)
     let px = t.x + DX[t.face], py = t.y + DY[t.face], pz = t.z + DZ[t.face];
     if (t.face < 0) return false;
     if (hid === B.FLAG) {   // a flag stands on top of a block, turned toward you
@@ -870,7 +873,7 @@ function playerPose(pl, t) {
 }
 function drawPlayerModel(game, s, t, cam) { if (!inRocket(game.player)) drawHumanoid(game.player, playerModelFor(mySkin()), game.player.heldId(), s, t, cam); }   // (inside a rocket you can't be seen)
 function drawHumanoid(pl, model, heldId, s, t, cam) {
-  const P = PROG.entity, sc = model.scale;
+  const P = PROG.entity, sc = model.scale * lifeScaleOf(pl);
   gl.uniform1f(P.u.uBright, brightAt(game.world, pl.x, pl.y + 1.2, pl.z, s));
   gl.uniform4fv(P.u.uTint, pl.invuln > 0.25 ? [0.8, 0.1, 0.1, 0.4] : [0, 0, 0, 0]);
   M4.identity(_pmB);

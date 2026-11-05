@@ -40,7 +40,7 @@ function encodeState(p) {
     (rd ? 32 : 0) | (rd && (rd.type === 'car' || rd.type === 'flycar' || rd.type === 'tank' || rd.type === 'golfcart' || isPlane(rd)) ? 64 : 0) | (aim ? 128 : 0) | (sh === 'off' ? 256 : 0) | (p.blocking ? 512 : 0) |
     (rd && rd.type === 'boat' ? 1024 : 0) | (rd && rd.type === 'submarine' ? 2048 : 0) | (rd && rd.type === 'broom' ? 4096 : 0) | (rd && rd.type === 'rocket' ? 8192 : 0) | (p.chute ? 16384 : 0) | ((p.seat & 7) << 15) | (rd && hasSeats(rd) ? 1 << 18 : 0);   // (in a plane, and which seat: 1-5 behind the pilot)
   const b = p.bobber && !p.bobber.removed ? [r2(p.bobber.x), r2(p.bobber.y), r2(p.bobber.z)] : 0;
-  return [r2(p.x), r2(p.y), r2(p.z), r2(p.yaw), r2(p.pitch), r2(p.bodyYaw), f, p.heldId(), p.swings || 0, wornArmor(p), wornGlint(p), effectBits(p), b, fallsChar()];
+  return [r2(p.x), r2(p.y), r2(p.z), r2(p.yaw), r2(p.pitch), r2(p.bodyYaw), f, p.heldId(), p.swings || 0, wornArmor(p), wornGlint(p), effectBits(p), b, fallsChar(), lifeStageNum()];
 }
 function applyState(r, a) {
   if (!Array.isArray(a) || a.length < 9 || !a.slice(0, 6).every(v => typeof v === 'number' && isFinite(v))) return;
@@ -57,6 +57,7 @@ function applyState(r, a) {
   r.armor = [0, 1, 2, 3].map(k => { const id = Array.isArray(a[9]) ? a[9][k] | 0 : 0, ar = armorOf(id); return ar && ar.slot === k ? id : 0; });
   r.glint = (a[10] | 0) & 31;
   r.fc = clamp(a[13] | 0, 0, FALLS_CHARS.length);   // (who they are in Declan Falls)
+  r.life = clamp(a[14] | 0, 0, LIFE_STAGES.length);   // (how grown-up they are, in the Life Cycle world)
   r.fxBits = (a[11] | 0) & ((1 << EFFECTS.length) - 1);
   r.bobberAt = okXYZ(a[12]) && r.held === I.FISHING_ROD && Math.hypot(a[12][0] - a[0], a[12][2] - a[2]) < 40 ? a[12] : null;   // their fishing bobber
   if ((a[8] | 0) !== r.swings) { r.swings = a[8] | 0; r.swingP = 0; }
@@ -157,7 +158,7 @@ function cleanGuestSave(d) {
     mode: d.mode === 'creative' ? 'creative' : 'survival', flying: !!d.flying, dim: okDim(d.dim),
     xp: num(d.xp, 0, 1e7, 0), enchSeed: num(d.enchSeed, 0, 2147483647, 0) | 0, kit: d.kit ? 1 : 0,
     fc: num(d.fc | 0, 0, FALLS_CHARS.length, 0), myst: num(d.myst | 0, 0, 63, 0), seen: num(d.seen | 0, 0, 255, 0),   // (Declan Falls: who they are, the mysteries and creatures they have found)
-    gh: num(d.gh | 0, 0, 1e6, 0), gk: d.gk ? 1 : 0,   // (Ghostbusters: how many ghosts they have caught, and whether they have had their equipment)
+    gh: num(d.gh | 0, 0, 1e6, 0), gk: d.gk ? 1 : 0, lb: num(d.lb | 0, 0, 1e7, 0), ls: num(d.ls | 0, 0, 99, 0),   // (Life Cycle: the day they were born, and the last birthday they were told about)   // (Ghostbusters: how many ghosts they have caught, and whether they have had their equipment)
     effects: d.effects && typeof d.effects === 'object' ? Object.fromEntries(EFFECTS.filter(k => +d.effects[k] > 0).map(k => [k, Math.min(600, +d.effects[k])])) : {},
   };
 }
@@ -683,7 +684,7 @@ const MP = {
   sendSave() {
     if (this.role !== 'guest' || !this.welcomed) return;
     const pl = game.player, at = pl.alive ? restPos(pl) : game.spawnPos();
-    this.send({ t: 'save', d: { x: r2(at[0]), y: r2(at[1]), z: r2(at[2]), yaw: r2(pl.yaw), pitch: r2(pl.pitch), health: pl.alive ? pl.health : 20, food: pl.alive ? pl.food : 20, air: pl.air, inv: pl.inv, sel: pl.sel, spawn: pl.spawn, mode: game.mode, flying: pl.flying, dim: game.dim, xp: pl.xp, enchSeed: pl.enchSeed, effects: pl.alive ? saveEffects(pl) : {}, kit: game.stats.hogKit ? 1 : 0, fc: game.stats.fc | 0, myst: game.stats.myst | 0, seen: game.stats.seen | 0, gh: game.stats.ghosts | 0, gk: game.stats.ghKit ? 1 : 0 } });
+    this.send({ t: 'save', d: { x: r2(at[0]), y: r2(at[1]), z: r2(at[2]), yaw: r2(pl.yaw), pitch: r2(pl.pitch), health: pl.alive ? pl.health : 20, food: pl.alive ? pl.food : 20, air: pl.air, inv: pl.inv, sel: pl.sel, spawn: pl.spawn, mode: game.mode, flying: pl.flying, dim: game.dim, xp: pl.xp, enchSeed: pl.enchSeed, effects: pl.alive ? saveEffects(pl) : {}, kit: game.stats.hogKit ? 1 : 0, fc: game.stats.fc | 0, myst: game.stats.myst | 0, seen: game.stats.seen | 0, gh: game.stats.ghosts | 0, gk: game.stats.ghKit ? 1 : 0, lb: game.stats.born | 0, ls: game.stats.lifeSeen | 0 } });
   },
   guestMsg(m) {
     if (this.role !== 'guest') return;

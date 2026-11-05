@@ -939,5 +939,128 @@ function genModule3(B, H) {
     return { generate, spawn, column };
   }
 
-  return { moonGen, marsGen, jupiterGen, uranusGen, planetLanding, nearestRover, hogwartsGen, HW, fallsGen, FF, ghostGen, GB, dungeonPlanner };
+  /* ========== Life Cycle (the sixth wish list): a friendly little city. Your home with its fenced garden in the middle,
+     a playground, the school, the park, streets, and neighbours' houses. ========== */
+  const LC = {
+    town: { x: 0, z: 0, r: 80, y: 64 },
+    home: { x: 0, z: 0, r: 12 },   // the garden fence: babies and toddlers stay inside it
+    house: { x0: -5, x1: 5, z0: -10, z1: -2 },
+    playground: { x0: 26, x1: 46, z0: -12, z1: 10 },
+    school: { x0: -18, x1: 18, z0: -58, z1: -34 },
+    park: { x0: -48, x1: -26, z0: -12, z1: 12 },
+    houses: [[-40, 32], [-20, 32], [20, 32], [40, 32], [-62, -30], [62, -30]],
+    car: [8.5, 65, 17.5],
+    spawn: [0.5, 65, -0.5],
+  };
+  function lifeGen(seed) {
+    const nA = makeNoise(seed ^ 0x11fe), smooth = t => t * t * (3 - 2 * t), T = LC.town, Y = T.y + 1;
+    function column(x, z) {
+      let h = 66 + fbm2(nA, x * 0.01, z * 0.01, 3) * 7;
+      const d = Math.hypot(x - T.x, z - T.z);
+      if (d < T.r + 20) h += (T.y - h) * smooth(d <= T.r ? 1 : 1 - (d - T.r) / 20);
+      return Math.round(clamp(h, 8, WH - 16));
+    }
+    const inTown = (x, z) => Math.hypot(x - T.x, z - T.z) < T.r + 2;
+    const WOOLS = [14, 4, 11, 5, 1, 6, 3, 10];
+    function paintHome(P) {
+      const H = LC.home, D = LC.house;
+      if (!P.near(-14, -14, 14, 14)) return;
+      for (let x = -H.r; x <= H.r; x++) for (const z of [-H.r, H.r]) P.set(x, Y, z, B.BIRCH_PLANKS);   // the garden fence
+      for (let z = -H.r; z <= H.r; z++) for (const x of [-H.r, H.r]) P.set(x, Y, z, B.BIRCH_PLANKS);
+      P.box(-1, Y, H.r, 1, Y, H.r, B.AIR);   // the gate
+      P.box(-1, T.y, 1, 1, T.y, H.r + 3, B.GRAVEL);   // the path to it
+      P.box(D.x0, Y, D.z0, D.x1, Y + 9, D.z1, B.AIR);
+      P.walls(D.x0, T.y, D.z0, D.x1, Y + 3, D.z1, B.BRICKS);
+      P.box(D.x0 + 1, T.y, D.z0 + 1, D.x1 - 1, T.y, D.z1 - 1, B.OAK_PLANKS);
+      for (let k = 0; k <= 5; k++) P.box(D.x0 - 1 + k, Y + 4 + k, D.z0 - 1, D.x1 + 1 - k, Y + 4 + k, D.z1 + 1, k === 5 ? B.BRICKS : B.SPRUCE_PLANKS);
+      for (let k = 0; k < 5; k++) P.box(D.x0 + k, Y + 4 + k, D.z0, D.x1 - k, Y + 4 + k, D.z1, B.AIR);
+      P.box(0, Y, D.z1, 0, Y + 1, D.z1, B.AIR);   // the door
+      for (const x of [-3, 3]) P.box(x, Y + 1, D.z1, x, Y + 2, D.z1, B.GLASS);
+      P.set(D.x0 + 1, Y, D.z0 + 1, B.BED); P.set(D.x1 - 1, Y, D.z0 + 1, B.CRAFTING_TABLE); P.set(D.x1 - 1, Y, D.z0 + 2, B.FURNACE);
+      P.set(-2, Y, -6, B.WOOL + 14); P.set(-1, Y, -6, B.WOOL + 4); P.set(-2, Y + 1, -6, B.WOOL + 11);   // a pile of toy blocks
+      P.set(0, Y + 3, -6, B.GLOWSTONE);
+      // the garden: flowers, a sandpit, a little tree
+      P.box(5, T.y, 4, 8, T.y, 7, B.SAND);
+      for (const [x, z] of [[-8, 4], [-9, 6], [-7, 8], [-10, 9], [9, -5], [10, -8]]) P.set(x, Y, z, (x + z) & 1 ? B.POPPY : B.DANDELION);
+    }
+    function paintPlayground(P) {   // soft sand, a slide, swings, a climbing frame and a roundabout
+      const D = LC.playground;
+      if (!P.near(D.x0 - 2, D.z0 - 2, D.x1 + 2, D.z1 + 2)) return;
+      P.box(D.x0, T.y, D.z0, D.x1, T.y, D.z1, B.SAND);
+      for (let k = 0; k < 5; k++) { P.set(30 + k, Y + 4 - k, -6, B.QUARTZ_BLOCK); }   // the slide
+      P.box(29, Y, -7, 29, Y + 4, -7, B.IRON_BARS); P.box(29, Y, -5, 29, Y + 4, -5, B.IRON_BARS); P.set(29, Y + 4, -6, B.QUARTZ_BLOCK);
+      for (let k = 0; k <= 4; k++) P.set(28, Y + k, -6, k % 2 ? B.AIR : B.OAK_PLANKS);
+      P.box(36, Y, 2, 36, Y + 4, 2, B.OAK_LOG); P.box(42, Y, 2, 42, Y + 4, 2, B.OAK_LOG); P.box(36, Y + 5, 2, 42, Y + 5, 2, B.OAK_LOG);   // the swings
+      for (const x of [38, 40]) { P.box(x, Y + 2, 2, x, Y + 4, 2, B.IRON_BARS); P.set(x, Y + 1, 2, B.WOOL + (x === 38 ? 14 : 11)); }
+      for (let x = 32; x <= 36; x++) for (let z = 4; z <= 8; z++) if (x === 32 || x === 36 || z === 4 || z === 8) P.box(x, Y, z, x, Y + 3, z, B.IRON_BARS);   // the climbing frame
+      P.box(32, Y + 4, 4, 36, Y + 4, 8, B.SPRUCE_PLANKS);
+      P.disc(42, -6, 2.2, Y, Y, B.WOOL + 5, false); P.set(42, Y + 1, -6, B.IRON_BARS);   // the roundabout
+    }
+    function paintSchool(P) {   // red brick, big windows, SCHOOL on the front, desks and a blackboard
+      const D = LC.school;
+      if (!P.near(D.x0 - 2, D.z0 - 2, D.x1 + 2, D.z1 + 4)) return;
+      P.box(D.x0, Y, D.z0, D.x1, Y + 16, D.z1, B.AIR);
+      P.walls(D.x0, T.y, D.z0, D.x1, Y + 6, D.z1, B.BRICKS);
+      P.box(D.x0, Y + 7, D.z0, D.x1, Y + 7, D.z1, B.STONE_BRICKS);
+      P.box(D.x0 + 1, T.y, D.z0 + 1, D.x1 - 1, T.y, D.z1 - 1, B.OAK_PLANKS);
+      for (let x = D.x0 + 2; x <= D.x1 - 2; x += 3) if (Math.abs(x) > 2) P.box(x, Y + 2, D.z1, x + 1, Y + 4, D.z1, B.GLASS);
+      P.box(-1, Y, D.z1, 1, Y + 2, D.z1, B.AIR);   // the doors
+      P.box(D.x0 + 4, Y + 1, D.z0 + 1, D.x1 - 4, Y + 4, D.z0 + 1, B.WOOL + 15);   // the blackboard
+      for (let z = D.z0 + 5; z <= D.z1 - 4; z += 3) for (let x = D.x0 + 4; x <= D.x1 - 4; x += 4) { P.set(x, Y, z, B.OAK_PLANKS); P.set(x + 1, Y, z, B.OAK_PLANKS); }   // desks
+      for (const x of [-10, 0, 10]) P.set(x, Y + 6, -46, B.GLOWSTONE);
+      P.box(-11, Y + 8, D.z1, 11, Y + 15, D.z1, B.QUARTZ_BLOCK);
+      writeText(P, 'SCHOOL', -11, Y + 14, D.z1, B.WOOL + 11);
+      P.box(D.x0, T.y, D.z1 + 1, D.x1, T.y, D.z1 + 8, B.STONE_BRICKS);   // the schoolyard
+    }
+    function paintPark(P) {
+      const D = LC.park;
+      if (!P.near(D.x0 - 8, D.z0 - 8, D.x1 + 8, D.z1 + 8)) return;
+      P.disc(-37, 0, 4.5, T.y, T.y, B.WATER, false);
+      for (const [x, z] of [[-44, -8], [-30, -9], [-45, 8], [-29, 9]]) placeTree(P.blocks, P.cx, P.cz, x, Y, z, 0, 0.5);
+      for (const [x, z] of [[-37, -7], [-37, 7]]) P.box(x - 1, Y, z, x + 1, Y, z, B.SPRUCE_PLANKS);
+      for (let x = D.x0; x <= D.x1; x += 2) P.set(x, Y, D.z1 + 1, x % 4 ? B.POPPY : B.CORNFLOWER);
+    }
+    function paintStreets(P) {
+      P.box(-78, T.y, 15, 78, T.y, 20, B.STONE_BRICKS);   // the main street, past the front gate
+      P.box(18, T.y, -60, 23, T.y, 15, B.STONE_BRICKS);   // a street north to the school
+      P.box(-23, T.y, -33, 23, T.y, -28, B.STONE_BRICKS);
+      for (let x = -70; x <= 70; x += 14) { P.box(x, Y, 14, x, Y + 2, 14, B.SPRUCE_LOG); P.set(x, Y + 3, 14, B.GLOWSTONE); }
+    }
+    function paintHouses(P) {   // the neighbours: little houses in bright colours
+      LC.houses.forEach(([hx, hz], i) => {
+        if (!P.near(hx - 6, hz - 6, hx + 6, hz + 6)) return;
+        const c = B.WOOL + WOOLS[i % WOOLS.length], north = hz > 0;
+        P.box(hx - 4, Y, hz - 4, hx + 4, Y + 8, hz + 4, B.AIR);
+        P.walls(hx - 4, T.y, hz - 4, hx + 4, Y + 3, hz + 4, c);
+        P.box(hx - 3, T.y, hz - 3, hx + 3, T.y, hz + 3, B.OAK_PLANKS);
+        const dz = north ? hz - 4 : hz + 4;
+        P.box(hx, Y, dz, hx, Y + 1, dz, B.AIR); P.box(hx + 2, Y + 1, dz, hx + 2, Y + 2, dz, B.GLASS); P.box(hx - 2, Y + 1, dz, hx - 2, Y + 2, dz, B.GLASS);
+        for (let k = 0; k <= 4; k++) P.box(hx - 5 + k, Y + 4 + k, hz - 5, hx + 5 - k, Y + 4 + k, hz + 5, B.BRICKS);
+        P.set(hx, Y + 2, hz, B.TORCH);
+      });
+    }
+    function generate(cx, cz) {
+      const blocks = new Uint8Array(CVOL), x0 = cx * 16, z0 = cz * 16, cols = new Int32Array(256), r = mulberry32(hash3(seed ^ 0x11f, cx, cz));
+      for (let lz = 0; lz < 16; lz++) for (let lx = 0; lx < 16; lx++) {
+        const x = x0 + lx, z = z0 + lz, h = column(x, z);
+        cols[lz * 16 + lx] = h;
+        for (let y = 0; y <= h; y++) blocks[idx(lx, y, lz)] = y === 0 || (y < 3 && r() < 0.6) ? B.BEDROCK : y < h - 3 ? B.STONE : y < h ? B.DIRT : B.GRASS;
+      }
+      oreVeins(blocks, r, B.STONE, [[B.COAL_ORE, 14, 5, 100, 9], [B.IRON_ORE, 8, 5, 64, 7], [B.GOLD_ORE, 3, 5, 32, 6], [B.DIAMOND_ORE, 1, 5, 16, 4]]);
+      for (let lz = 0; lz < 16; lz++) for (let lx = 0; lx < 16; lx++) if (!inTown(x0 + lx, z0 + lz) || r() < 0.08) decorate(blocks, r, lx, lz, cols[lz * 16 + lx], PLAINS);
+      const P = painter(blocks, cx, cz);
+      P.blocks = blocks; P.cx = cx; P.cz = cz;
+      for (let k = 0; k < 2; k++) {
+        const lx = 2 + ((r() * 12) | 0), lz = 2 + ((r() * 12) | 0), x = x0 + lx, z = z0 + lz;
+        if (inTown(x, z) || r() < 0.4) continue;
+        placeTree(blocks, cx, cz, x, cols[lz * 16 + lx] + 1, z, r() < 0.7 ? 0 : 1, r());
+      }
+      paintStreets(P); paintHome(P); paintPlayground(P); paintSchool(P); paintPark(P); paintHouses(P);
+      return { blocks, spawns: [] };
+    }
+    function spawn() { return LC.spawn.slice(); }
+    return { generate, spawn, column };
+  }
+
+  return { moonGen, marsGen, jupiterGen, uranusGen, planetLanding, nearestRover, hogwartsGen, HW, fallsGen, FF, ghostGen, GB, lifeGen, LC, dungeonPlanner };
 }

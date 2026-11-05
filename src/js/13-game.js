@@ -382,7 +382,7 @@ const game = {
     const pl = this.player = new Player();
     this.stats = {}; this.day = m.day; this.hostAfterLoad = false;
     if (m.you && m.you.kit) this.stats.hogKit = 1;   // (already given a wand and a broom at Hogwarts here)
-    if (m.you) { this.stats.fc = m.you.fc | 0; this.stats.myst = m.you.myst | 0; this.stats.seen = m.you.seen | 0; this.stats.ghosts = m.you.gh | 0; this.stats.ghKit = m.you.gk | 0; }   // (in Declan Falls: who you are, and what you have found)
+    if (m.you) { this.stats.fc = m.you.fc | 0; this.stats.myst = m.you.myst | 0; this.stats.seen = m.you.seen | 0; this.stats.ghosts = m.you.gh | 0; this.stats.ghKit = m.you.gk | 0; if (m.you.lb) { this.stats.born = m.you.lb; this.stats.lifeSeen = m.you.ls | 0; } }   // (in Declan Falls: who you are, and what you have found)
     this.worldSpawn = m.spawn && m.spawn.length === 3 ? m.spawn.slice() : this.gen.spawnPoint(this.mapId, this.seed);
     const you = m.you;
     this.setMode(you ? you.mode : m.mode);
@@ -494,6 +494,7 @@ const game = {
     if (atHogwarts()) hogwartsWelcome(this);
     if (atFalls()) fallsWelcome(this);
     if (atGhost()) ghostWelcome(this);
+    if (atLife()) lifeWelcome(this);
     if (came) this.save();
     if (this.hostAfterLoad) { this.hostAfterLoad = false; MP.startHosting(); }
     MP.updateUI();
@@ -1075,6 +1076,7 @@ function frame(ts) {
     else if (el('myst-count') && !el('myst-count').hidden) el('myst-count').hidden = true;
     planetTick(game, dt);   // (on another planet: Jupiter's wind, Mars rovers, Uranus's ice)
     if (atGhost()) ghostTick(game, dt);
+    else if (atLife()) lifeTick(game, dt);
     else { hudCount(null); if (el('pke') && !el('pke').hidden) el('pke').hidden = true; }
     if (atHogwarts()) hogwartsTick(game, dt);
     else if (el('qscore') && el('qscore').style.display !== 'none') el('qscore').style.display = 'none';   // (the Quidditch score: only at Hogwarts)
@@ -1086,7 +1088,7 @@ function frame(ts) {
       if (!game.net && game.sleeping <= 0.9 && w.time > 0.5) { w.time = 0.01; game.day++; chat('Good morning! Day ' + game.day + '.'); if (WX.on) wxSet('clear'); }
       if (game.sleeping <= 0) el('fx-fade').style.opacity = 0;
     } else {
-      w.time += dt / DAY_LENGTH;
+      w.time += dt / dayLength();   // (short days in the Life Cycle world)
       if (w.time >= 1) { w.time -= 1; game.day++; }
     }
     if (game.state === 'playing') {

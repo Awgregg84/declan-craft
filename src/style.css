@@ -432,3 +432,10 @@ textarea.book-page:focus-visible { border-color: #4a6ac8; }
 .pke-lights span.on:nth-child(n+4) { background: #ff6a3a; box-shadow: 0 0 12px #ff3a1a; }
 .pke-say { margin-top: 4px; font-size: 18px; font-weight: bold; color: #fff; text-shadow: 1px 1px 0 #000; }
 #pke[data-level="5"] .pke-say, #pke[data-level="6"] .pke-say { color: #ff8a5a; }
+
+/* the end of a life (the Life Cycle world) */
+.life-end { position: fixed; inset: 0; z-index: 70; display: flex; align-items: center; justify-content: center; padding: 16px; background: rgba(255, 220, 240, 0.55); }
+.life-end .panel { width: min(460px, 100%); text-align: center; }
+.life-end h2 { font-size: 28px; margin: 6px 0 10px; }
+.life-stats { list-style: none; padding: 0; margin: 10px 0 14px; font-size: 18px; line-height: 1.6; }
+.life-end .btn { font-size: 20px; padding: 10px 18px; }
