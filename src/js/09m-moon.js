@@ -17,16 +17,20 @@ function bigText(text, secs) {
 const wearsSpaceHelmet = p => !!(p.inv && p.inv[ARMOR_INV] && p.inv[ARMOR_INV].id === I.SPACE_HELMET);
 const inRocket = p => !!(p.riding && p.riding.type === 'rocket');
 /* can this player breathe where they are? (on the Moon: only in a space helmet, or inside the rocket) */
-const canBreatheHere = p => game.dim !== 'moon' || wearsSpaceHelmet(p) || inRocket(p);
+const canBreatheHere = p => !isSpace(game.dim) || wearsSpaceHelmet(p) || inRocket(p);
 
 /* tap inside a rocket: the countdown starts (and everyone playing together is told) */
 function rocketLaunch(game, pl, v) {
   if (v.launchT > 0 || v.landing) return;
   if (game.dim === 'nether') { toast("A rocket can't take off in the Nether: there's a roof in the way!", 3); return; }
-  v.launchT = 0.001; v.shown = 0; v.lifted = false; v.gone = false;
-  game.viewBefore = game.view; game.view = 1;   // (watch it go from behind)
-  chat(game.dim === 'moon' ? '3, 2, 1... off home we go!' : '3, 2, 1... off to the Moon!', '#ffd24a');
-  if (game.net) MP.rocketLaunch(game.dim === 'moon');
+  const go = to => {
+    if (v.removed || pl.riding !== v || v.launchT > 0) return;
+    v.dest = to; v.launchT = 0.001; v.shown = 0; v.lifted = false; v.gone = false;
+    game.viewBefore = game.view; game.view = 1;   // (watch it go from behind)
+    chat(isSpace(game.dim) ? '3, 2, 1... off home we go!' : '3, 2, 1... off to ' + PLANETS[to].name + '!', '#ffd24a');
+    if (game.net) MP.rocketLaunch(isSpace(game.dim), to);
+  };
+  if (isSpace(game.dim)) go(null); else pickPlanet(game, pl, v, go);   // (at home: pick a planet first)
 }
 function rocketFlames(e, k) {
   for (let i = 0; i < 3 && PARTICLES.length < 1500; i++) {
@@ -49,7 +53,7 @@ function rocketStep(game, e, dt) {
       smokeParticles(e.x, e.y + 0.3, e.z, 14, 1.4, true);
       if (me) {
         if (game.viewBefore !== undefined) { game.view = game.viewBefore; game.viewBefore = undefined; }
-        toast(game.dim === 'moon' ? 'You landed on the Moon! Press Sneak to get out.' : 'Home again! Press Sneak to get out.', 4);
+        toast(isSpace(game.dim) ? 'You landed on ' + PLANETS[game.dim].name + '! Press Sneak to get out.' : 'Home again! Press Sneak to get out.', 4);
       }
     }
     e.fallDist = 0;
@@ -75,8 +79,8 @@ function rocketStep(game, e, dt) {
     rocketFlames(e, 1);
     if (e.launchT > ROCKET_UP && me && !e.gone) {   // out of sight: off to the other world, everyone together
       e.gone = true;
-      if (MP.role === 'guest') MP.send({ t: 'rocket', e: e.nid });
-      else game.rocketTravel(null, e);
+      if (MP.role === 'guest') MP.send({ t: 'rocket', e: e.nid, to: e.dest || 'moon' });
+      else game.rocketTravel(null, e, e.dest);
     }
     if (e.launchT > ROCKET_UP + 10) { e.launchT = 0; e.lifted = false; e.gone = false; e.vy = 0; e.landing = true; }   // (it couldn't go after all: back down)
     return;
@@ -86,16 +90,7 @@ function rocketStep(game, e, dt) {
   e.fallDist = 0;
 }
 /* arriving on the Moon (or loading a world there, or waking up there): a space helmet for anyone without one */
-function moonArrival(game) {
-  const pl = game.player;
-  if (game.dim !== 'moon' || game.mode !== 'survival' || !pl.alive) return;
-  if (!game.stats.moon) { game.stats.moon = 1; chat('Welcome to the Moon! There is no air here, so keep your space helmet on. Jump: you can go really high!', '#ffd24a'); }
-  if (wearsSpaceHelmet(pl) || pl.inv.some(s => s && s.id === I.SPACE_HELMET)) return;
-  if (!pl.inv[ARMOR_INV]) pl.inv[ARMOR_INV] = { id: I.SPACE_HELMET, count: 1 };
-  else if (pl.give(I.SPACE_HELMET, 1) > 0) dropItem(game, pl.x, pl.y + 1, pl.z, I.SPACE_HELMET, 1);
-  else toast('You have a space helmet in your bag. Put it on so you can breathe!', 4);
-  ui.dirty = true; ui.armor = -2;
-}
+const moonArrival = game => spaceArrival(game);   // (see 09ma-planets.js: every planet works the same way)
 /* a flag standing on its block, turned toward whoever put it up */
 const _fg = M4.create();
 SPECIAL_DRAW[B.FLAG] = (w, x, y, z, data, s, t, cam) => {

@@ -56,6 +56,110 @@ function genModule3(B, H) {
     return { generate, spawn };
   }
 
+  /* ========== The other planets (the sixth wish list): Mars, Jupiter and Uranus, reached by rocket ========== */
+  const ROVER_CELL = 96, ISLE_CELL = 44;
+  /* Mars: red dust over dark red rock, rolling hills cut by deep canyons, boulders, and a little rover in each 96-block square */
+  function roverAt(seed, gx, gz) { const r = mulberry32(hash3(seed ^ 0x40e, gx, gz)); return { x: Math.floor((gx + 0.2 + r() * 0.6) * ROVER_CELL), z: Math.floor((gz + 0.2 + r() * 0.6) * ROVER_CELL), yaw: (r() * 4) | 0 }; }
+  function marsGen(seed) {
+    const nA = makeNoise(seed ^ 0x3a5a), nB = makeNoise(seed ^ 0x3a5b), nC = makeNoise(seed ^ 0x3a5c);
+    function column(x, z) {
+      const base = 54 + fbm2(nA, x * 0.006, z * 0.006, 3) * 12 + fbm2(nB, x * 0.05, z * 0.05, 2) * 1.5;
+      const c = Math.abs(fbm2(nC, x * 0.004, z * 0.004, 2)), cut = c < 0.07 ? (1 - c / 0.07) : 0;   // a winding canyon where the noise crosses zero
+      return Math.round(clamp(base - Math.pow(cut, 0.6) * 26, 8, WH - 24));
+    }
+    function generate(cx, cz) {
+      const blocks = new Uint8Array(CVOL), x0 = cx * 16, z0 = cz * 16, r = mulberry32(hash3(seed ^ 0x3a5, cx, cz));
+      for (let lz = 0; lz < 16; lz++) for (let lx = 0; lx < 16; lx++) {
+        const h = column(x0 + lx, z0 + lz);
+        for (let y = 0; y <= h; y++) blocks[idx(lx, y, lz)] = y === 0 || (y < 3 && r() < 0.6) ? B.BEDROCK : y > h - 3 ? B.MARS_DUST : (y % 7 === 3 ? B.MARS_DUST : B.MARS_ROCK);   // (layers in the canyon walls)
+      }
+      for (let k = 0; k < 3; k++) {   // red boulders
+        if (r() > 0.4) continue;
+        const lx = 2 + ((r() * 12) | 0), lz = 2 + ((r() * 12) | 0), h = column(x0 + lx, z0 + lz), s = r() < 0.3 ? 2 : 1;
+        for (let dy = 1; dy <= s; dy++) for (let dx = 0; dx < s; dx++) for (let dz = 0; dz < s; dz++) if (h + dy < WH) blocks[idx(lx + dx, h + dy, lz + dz)] = B.MARS_ROCK;
+      }
+      // the rover: six wheels, a white body, a mast with a camera, and blue solar panels
+      const gx = Math.floor((x0 + 8) / ROVER_CELL), gz = Math.floor((z0 + 8) / ROVER_CELL);
+      for (let dgz = -1; dgz <= 1; dgz++) for (let dgx = -1; dgx <= 1; dgx++) {
+        const v = roverAt(seed, gx + dgx, gz + dgz);
+        if (v.x < x0 - 4 || v.x > x0 + 19 || v.z < z0 - 4 || v.z > z0 + 19) continue;
+        const h = column(v.x, v.z), sw = v.yaw & 1, P = (a, b, y, id) => { const x = v.x + (sw ? b : a), z = v.z + (sw ? a : b); if (x >= x0 && x < x0 + 16 && z >= z0 && z < z0 + 16 && y > 0 && y < WH) blocks[idx(x - x0, y, z - z0)] = id; };
+        for (let a = -2; a <= 2; a++) for (let b = -1; b <= 1; b++) for (let y = h - 2; y <= h; y++) P(a, b, y, B.MARS_ROCK);   // (flat ground under it)
+        for (let a = -2; a <= 2; a++) for (let b = -1; b <= 1; b++) for (let y = h + 1; y <= h + 6; y++) P(a, b, y, B.AIR);
+        for (const a of [-2, 0, 2]) for (const b of [-1, 1]) P(a, b, h + 1, B.COAL_BLOCK);
+        for (let a = -2; a <= 2; a++) P(a, 0, h + 2, B.IRON_BLOCK);
+        for (let a = -1; a <= 1; a++) { P(a, -1, h + 2, B.QUARTZ_BLOCK); P(a, 1, h + 2, B.QUARTZ_BLOCK); }
+        for (let a = -2; a <= 0; a++) for (const b of [-1, 0, 1]) P(a, b, h + 3, B.LAPIS_BLOCK);
+        P(2, 0, h + 3, B.IRON_BARS); P(2, 0, h + 4, B.IRON_BARS); P(2, 0, h + 5, B.GLASS);
+      }
+      return { blocks, spawns: [] };
+    }
+    function spawn() { return [0.5, column(0, 0) + 1, 0.5]; }
+    return { generate, spawn, column };
+  }
+  /* Jupiter: nobody can stand on a gas giant, so: floating islands of cloud, one in each 44-block square, over nothing */
+  function isleAt(seed, gx, gz) {
+    const r = mulberry32(hash3(seed ^ 0x1f9, gx, gz));
+    return { x: Math.floor((gx + 0.3 + r() * 0.4) * ISLE_CELL), z: Math.floor((gz + 0.3 + r() * 0.4) * ISLE_CELL), y: 60 + ((r() * 18) | 0), r: 7 + r() * 6, k: r() };
+  }
+  function jupiterGen(seed) {
+    const nA = makeNoise(seed ^ 0x1f1);
+    function generate(cx, cz) {
+      const blocks = new Uint8Array(CVOL), x0 = cx * 16, z0 = cz * 16, r = mulberry32(hash3(seed ^ 0x1f2, cx, cz));
+      const gx = Math.floor((x0 + 8) / ISLE_CELL), gz = Math.floor((z0 + 8) / ISLE_CELL);
+      for (let dgz = -1; dgz <= 1; dgz++) for (let dgx = -1; dgx <= 1; dgx++) {
+        const s = isleAt(seed, gx + dgx, gz + dgz);
+        if (s.x + s.r + 2 < x0 || s.x - s.r - 2 > x0 + 15 || s.z + s.r + 2 < z0 || s.z - s.r - 2 > z0 + 15) continue;
+        for (let lz = 0; lz < 16; lz++) for (let lx = 0; lx < 16; lx++) {
+          const x = x0 + lx, z = z0 + lz, d = Math.hypot(x - s.x, z - s.z) / (s.r * (0.85 + 0.15 * nA.n2(x * 0.15, z * 0.15)));
+          if (d >= 1) continue;
+          const top = s.y + Math.round((1 - d * d) * 2), bot = s.y - Math.round((1 - d) * s.r * 0.8) - 1;
+          for (let y = Math.max(1, bot); y <= top; y++) blocks[idx(lx, y, lz)] = (y === top) ? B.CLOUD : ((y + Math.floor(s.k * 5)) % 4 === 0 ? B.WOOL + 1 : (y % 4 === 2 ? B.WOOL + 12 : B.CLOUD));   // stripes of orange and brown
+        }
+      }
+      return { blocks, spawns: [] };
+    }
+    function spawn() { const s = isleAt(seed, 0, 0); return [s.x + 0.5, s.y + 3, s.z + 0.5]; }
+    return { generate, spawn };
+  }
+  /* Uranus: icy blue-green ground, smooth and cold, with tall ice crystals growing out of it */
+  function uranusGen(seed) {
+    const nA = makeNoise(seed ^ 0x0a1), nB = makeNoise(seed ^ 0x0a2);
+    function column(x, z) { return Math.round(clamp(52 + fbm2(nA, x * 0.008, z * 0.008, 3) * 8 + fbm2(nB, x * 0.06, z * 0.06, 1) * 1.2, 8, WH - 30)); }
+    function generate(cx, cz) {
+      const blocks = new Uint8Array(CVOL), x0 = cx * 16, z0 = cz * 16, r = mulberry32(hash3(seed ^ 0x0a3, cx, cz));
+      for (let lz = 0; lz < 16; lz++) for (let lx = 0; lx < 16; lx++) {
+        const h = column(x0 + lx, z0 + lz);
+        for (let y = 0; y <= h; y++) blocks[idx(lx, y, lz)] = y === 0 || (y < 3 && r() < 0.6) ? B.BEDROCK : y > h - 4 ? B.URANUS_ICE : B.ICE;
+      }
+      for (let k = 0; k < 3; k++) {   // ice crystals: tall pointed spikes
+        if (r() > 0.45) continue;
+        const lx = 2 + ((r() * 12) | 0), lz = 2 + ((r() * 12) | 0), h = column(x0 + lx, z0 + lz), tall = 4 + ((r() * 8) | 0), id = r() < 0.5 ? B.ICE : B.URANUS_ICE;
+        for (let y = 1; y <= tall && h + y < WH; y++) {
+          blocks[idx(lx, h + y, lz)] = id;
+          if (y < tall * 0.45) for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { const ax = lx + dx, az = lz + dz; if (ax >= 0 && ax < 16 && az >= 0 && az < 16) blocks[idx(ax, h + y, az)] = id; }
+        }
+      }
+      return { blocks, spawns: [] };
+    }
+    function spawn() { return [0.5, column(0, 0) + 1, 0.5]; }
+    return { generate, spawn, column };
+  }
+  /* where a rocket comes down: on Jupiter, the cloud island nearest to where it took off from home */
+  function planetLanding(map, seed, x, z) {
+    if (map !== 'jupiter') return [x, z];
+    let best = null, bd = Infinity;
+    const gx = Math.floor(x / ISLE_CELL), gz = Math.floor(z / ISLE_CELL);
+    for (let dz = -1; dz <= 1; dz++) for (let dx = -1; dx <= 1; dx++) { const s = isleAt(seed, gx + dx, gz + dz), d = Math.hypot(s.x - x, s.z - z); if (d < bd) { bd = d; best = s; } }
+    return [best.x, best.z];
+  }
+  function nearestRover(seed, x, z) {
+    let best = null, bd = Infinity;
+    const gx = Math.floor(x / ROVER_CELL), gz = Math.floor(z / ROVER_CELL);
+    for (let dz = -1; dz <= 1; dz++) for (let dx = -1; dx <= 1; dx++) { const v = roverAt(seed, gx + dx, gz + dz), d = Math.hypot(v.x - x, v.z - z); if (d < bd) { bd = d; best = v; } }
+    return best;
+  }
+
   /* ========== Hogwarts: the castle above the Black Lake, the Quidditch pitch, Hagrid's hut by the Forbidden Forest,
      and Hogsmeade in the snow. The places are the same in every Hogwarts world; the hills and trees around them differ. ========== */
   const HW = {
@@ -723,5 +827,5 @@ function genModule3(B, H) {
     return { generate, spawn, column, mystY };
   }
 
-  return { moonGen, hogwartsGen, HW, fallsGen, FF, dungeonPlanner };
+  return { moonGen, marsGen, jupiterGen, uranusGen, planetLanding, nearestRover, hogwartsGen, HW, fallsGen, FF, dungeonPlanner };
 }

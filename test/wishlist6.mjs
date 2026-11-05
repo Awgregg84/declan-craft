@@ -255,6 +255,73 @@ const FRONT_FACE_OF = d => [4, 1, 5, 0][d & 3];
     await E(() => { for (const v of T.ents('train')) v.removed = true; game.view = 0; game.setMode('survival'); });
   }
 
+  if (on('planets')) {
+    // ---------- other planets by rocket ----------
+    const tiles = await E(() => ({ blockTiles: Math.max(...['mars_dust', 'mars_rock', 'cloud', 'uranus_ice', 'station_top', 'station_side'].map(n => TILE[n])), dims: DIMS.slice() }));
+    check('new places go on the end of the list, and block pictures stay below tile 256', tiles.blockTiles < 256 && tiles.dims.join() === 'over,nether,moon,mars,jupiter,uranus', tiles);
+    const P = area(0, 40);
+    await goto(P);
+    await E(P => { T.stage(P.x, P.y, P.z, 6, 8); T.clearMobs(); game.setMode('survival'); const pl = game.player; for (let i = 0; i < 41; i++) pl.inv[i] = null; T.put(P.x + 2.5, P.y, P.z + 0.5); game.world.time = 0.3; }, P);
+    const pick = await E(P => new Promise(res => {
+      const r = spawnVehicle(game, 'rocket', P.x + 0.5, P.y, P.z + 0.5, 0); boardVehicle(game, r);
+      rocketLaunch(game, game.player, r);
+      const box = el('planet-pick'), names = Array.from(document.querySelectorAll('.planet-btn .planet-name')).map(e => e.textContent);
+      const shown = box && !box.hidden;
+      document.querySelector('.planet-btn[data-planet="mars"]').click();
+      setTimeout(() => res({ shown, names, dest: r.dest, counting: r.launchT > 0, hidden: box.hidden }), 300);
+    }), P);
+    check('blast off from home: pick the Moon, Mars, Jupiter or Uranus', pick.shown && pick.names.join() === 'The Moon,Mars,Jupiter,Uranus' && pick.dest === 'mars' && pick.counting && pick.hidden, pick);
+    const visit = async (dest, look) => {
+      await E(dest => { const r = T.ents('rocket')[0]; game.rocketTravel(null, r, dest); }, dest);
+      await waitFor(dest => game.state === 'playing' && game.dim === dest && !game.arrival, 90000, dest);
+      await waitFor(() => !T.ents('rocket').some(r => r.landing), 20000);
+      await E(() => { if (game.player.riding) dismountVehicle(game); });
+      await sleep(1500);
+      const o = await E(() => {
+        const pl = game.player, w = game.world, below = w.getBlock(Math.floor(pl.x), Math.floor(pl.y - 0.5), Math.floor(pl.z));
+        return { dim: game.dim, map: w.map, below: BLOCKS[below] && BLOCKS[below].name, helmet: wearsSpaceHelmet(pl), breathe: canBreatheHere(pl), g: gravOf(w.map), sky: skyState(0.3, w.map).space, chat: Array.from(document.querySelectorAll('#chat-log div')).slice(-4).map(d => d.textContent) };
+      });
+      if (look) { await E(look => { const pl = game.player; pl.yaw = look[0]; pl.pitch = look[1]; game.view = 0; }, look); await sleep(1200); await shot('planet-' + dest); }
+      return o;
+    };
+    const mars = await visit('mars', [0.6, 0.15]);
+    check('Mars: red dust, a space helmet, low gravity, a dusty sky', mars.dim === 'mars' && /Mars/.test(mars.below) && mars.helmet && mars.breathe && mars.g < 0.5 && mars.sky, mars);
+    const rover = await E(() => { const pl = game.player, v = game.gen.nearestRover(game.seed, pl.x, pl.z); return { v, dist: Math.hypot(v.x - pl.x, v.z - pl.z), hint: Array.from(document.querySelectorAll('#chat-log div')).some(d => /rover is about/.test(d.textContent)) }; });
+    check('a rover to find (the helmet radio says where)', rover.dist < 140 && rover.hint, rover);
+    const found = await E(async v => {
+      const pl = game.player; T.put(v.x + 0.5, 110, v.z + 4.5, { flying: true });
+      await new Promise(r => { const t0 = performance.now(), k = () => (game.world.readyAround(v.x, v.z, 1) >= 1 || performance.now() - t0 > 30000) ? r() : setTimeout(k, 200); k(); });
+      const w = game.world, top = w.topSolid(v.x, v.z), id = w.getBlock(v.x, top, v.z);
+      T.put(v.x + 0.5, top + 1, v.z + 3.5, { flying: false });
+      await new Promise(r => setTimeout(r, 1200));
+      return { top: BLOCKS[id] && BLOCKS[id].name, found: !!game.stats.rover };
+    }, rover.v);
+    check('walk up to it: "You found a Mars rover!"', found.found && /Iron|Lapis|Glass|Bars/.test(found.top), found);
+    await E(() => { const pl = game.player; game.view = 1; pl.yaw += Math.PI; pl.pitch = -0.25; }); await sleep(1000); await shot('planet-mars-rover'); await E(() => { game.view = 0; });
+    // home, then Jupiter
+    await E(() => { const pl = game.player, r = spawnVehicle(game, 'rocket', pl.x, pl.y, pl.z, 0); });
+    const home = await visit('over');
+    check('the rocket flies home from Mars', home.dim === 'over' && !home.sky, home);
+    await E(() => { const pl = game.player; spawnVehicle(game, 'rocket', pl.x, pl.y, pl.z, 0); });
+    const jup = await visit('jupiter', [0.4, 0.25]);
+    check('Jupiter: you land on a floating island of cloud, under a stormy sky', jup.dim === 'jupiter' && /Cloud|Wool/.test(jup.below) && jup.helmet && jup.g > 1 && jup.sky, jup);
+    const gust = await E(() => new Promise(res => { const pl = game.player; Object.assign(pl, { y: 12, vy: -20, flying: false }); setTimeout(() => res({ y: pl.y, toast: window.__toasts.slice(-1)[0] }), 600); }));
+    check('fall off an island and the wind blows you back', gust.y > 40 && /gust/.test(gust.toast), gust);
+    await E(() => { const pl = game.player; spawnVehicle(game, 'rocket', pl.x, pl.y, pl.z, 0); });
+    await visit('over');
+    await E(() => { const pl = game.player; spawnVehicle(game, 'rocket', pl.x, pl.y, pl.z, 0); });
+    const ura = await visit('uranus', [1.2, 0.35]);
+    check('Uranus: blue-green ice, very cold, rings in the sky', ura.dim === 'uranus' && /Ice/.test(ura.below) && ura.helmet && ura.sky && ura.chat.some(c => /cold/.test(c)), ura);
+    await E(() => game.save());
+    const sv = await E(() => { const d = JSON.parse(store.get(saveKey('valley'))); return { dim: d.dim, has: ['mars', 'jupiter', 'uranus'].filter(k => d[k]), ps: Object.keys(d.planetSpawn || {}) }; });
+    check('the planets are kept with the world, and you are still on Uranus', sv.dim === 'uranus' && sv.has.length === 3 && sv.ps.length === 3, sv);
+    await E(() => { game.startWorld('valley', 'survival', false); });
+    await waitFor(() => game.state === 'playing', 90000);
+    check('load it again: back on Uranus', await E(() => game.dim === 'uranus' && game.world.map === 'uranus'));
+    await E(() => { const pl = game.player; spawnVehicle(game, 'rocket', pl.x, pl.y, pl.z, 0); });
+    await visit('over');
+  }
+
   console.log(errs.length ? 'ERRORS:\n' + errs.join('\n') : 'no page errors');
   console.log(fails ? fails + ' FAILED' : 'ALL PASSED');
   await browser.close(); server.close();

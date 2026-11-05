@@ -573,7 +573,7 @@ function buildWorldCards() {
     card.appendChild(h('p', { text: info.desc }));
     let last = null;
     if (hc) { try { last = JSON.parse(store.get(HC_LAST_KEY) || 'null'); } catch (e) { last = null; } }
-    card.appendChild(h('p', { class: 'status', text: save ? 'Saved world - ' + (hc ? 'Hardcore' : save.mode === 'creative' ? 'Creative' : 'Survival') + ', day ' + (save.day || 1) + (save.nether ? ', in the Nether' : save.moon ? ', on the Moon' : '')
+    card.appendChild(h('p', { class: 'status', text: save ? 'Saved world - ' + (hc ? 'Hardcore' : save.mode === 'creative' ? 'Creative' : 'Survival') + ', day ' + (save.day || 1) + (save.nether ? ', in the Nether' : save.space ? ', on ' + PLANETS[save.space].name : '')
       : 'New world' + (last && last.days ? '. Last time you lasted ' + last.days + (last.days === 1 ? ' day' : ' days') + '.' : '') }));
     const actions = h('div', { class: 'actions' });
     let mode = save ? save.mode : 'survival';

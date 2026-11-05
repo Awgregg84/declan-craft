@@ -142,7 +142,7 @@ class Player {
       if (inp.jump) {
         if (this.inWater || this.inLava) this.vy = Math.min(this.vy + 26 * dt, 3.4);
         else if (this.onGround && this.jumpCd <= 0) {
-          this.vy = hasEffect(this, 'leaping') ? 11.2 : 8.7; this.jumpCd = 0.12;
+          this.vy = (hasEffect(this, 'leaping') ? 11.2 : 8.7) * Math.sqrt(Math.max(1, gravOf(world.map))); this.jumpCd = 0.12;   // (on Jupiter: a harder jump, to get as high)
           if (this.sprinting) { this.vx += -sy * 1.4; this.vz += -cy * 1.4; }
           this.addFoodExhaust(this.sprinting ? 0.8 : 0.2);
         }
@@ -158,7 +158,7 @@ class Player {
       physicsStep(world, this, dt, 30);
       chuteStep(this);
       if (this.landed) {
-        const safe = hasEffect(this, 'leaping') ? 5.5 : 3.5, fall = this.fallDist * (world.map === 'moon' ? MOON_G : 1);   // (leaping: a softer landing too; on the Moon, much softer)
+        const safe = hasEffect(this, 'leaping') ? 5.5 : 3.5, fall = this.fallDist * Math.min(1, gravOf(world.map));   // (leaping: a softer landing too; on the Moon, much softer)
         if (fall > safe && !creative && !(this.partyT > 0)) this.damage(Math.floor(fall - safe + 0.5), 'fall');
         if (this.fallDist > 1.2) sfx('step_' + SOUND_OF(world.getBlock(Math.floor(this.x), Math.floor(this.y - 0.2), Math.floor(this.z))), this.x, this.y, this.z, 0.6);
         this.fallDist = 0;
@@ -166,7 +166,7 @@ class Player {
       if (this.onGround) this.fallDist = 0;
       if (game.settings.autoJump && this.onGround && this.collidedH && len > 0.3) {
         const dirx = wx / (speed || 1), dirz = wz / (speed || 1);
-        if (boxFree(world, this.x + dirx * 0.45, this.y + 1.05, this.z + dirz * 0.45, this.w, this.h)) this.vy = world.map === 'moon' ? 5.2 : 8.7;   // (just up the step, even on the Moon)
+        if (boxFree(world, this.x + dirx * 0.45, this.y + 1.05, this.z + dirz * 0.45, this.w, this.h)) this.vy = world.map === 'moon' ? 5.2 : 8.7 * Math.sqrt(gravOf(world.map));   // (just up the step, even on the Moon or Jupiter)
       }
     }
     }
@@ -532,7 +532,7 @@ class Player {
       sfx('flint', fx + 0.5, fy + 0.5, fz + 0.5);
       const p = lightPortalAt(game, fx, fy, fz);
       if (p) sfx('portalLight', fx + 0.5, fy + 0.5, fz + 0.5);
-      else if (game.dim === 'moon' && findPortalFrame(game.world, fx, fy, fz)) toast("A portal won't light on the Moon. Fly home in the rocket!", 4);
+      else if (isSpace(game.dim) && findPortalFrame(game.world, fx, fy, fz)) toast("A portal won't light out in space. Fly home in the rocket!", 4);
       else if (this.inv[this.sel] && !this.usedFlint) { this.usedFlint = true; toast('Build an obsidian frame (at least 4 wide and 5 tall), then light it inside.', 4); }
       smokeParticles(fx + 0.5, fy + 0.3, fz + 0.5, p ? 14 : 4, p ? 0.8 : 0.15, false);
       if (!creative) this.damageTool(1);
@@ -587,7 +587,8 @@ class Player {
       if (game.net) MP.localFx('place', px, py, pz, hid);
       this.swing();
       if (!creative) this.consumeHeld(1);
-      if (game.dim === 'moon' && !game.stats.moonFlag) { game.stats.moonFlag = 1; chat(playerName() + ' put up a flag on the Moon!', '#ffd24a'); sfx('levelUp'); if (game.net) MP.system(playerName() + ' put up a flag on the Moon!'); }
+      const fk = game.dim === 'moon' ? 'moonFlag' : 'flag_' + game.dim;
+      if (isSpace(game.dim) && !game.stats[fk]) { game.stats[fk] = 1; const line = playerName() + ' put up a flag on ' + PLANETS[game.dim].name + '!'; chat(line, '#ffd24a'); sfx('levelUp'); if (game.net) MP.system(line); }
       return true;
     }
     if (hid === B.CAMERA) {   // on top of a block: on its stand, looking at you; on a side: out from the wall, looking away from it

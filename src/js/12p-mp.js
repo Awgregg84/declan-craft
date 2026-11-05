@@ -325,12 +325,12 @@ const MP = {
         if (v && Math.hypot(v.x - r.tx, v.y - (r.ty + 0.9), v.z - r.tz) < 4) catchSnitch(game, v, r);
         break;
       }
-      case 'launch': { const line = r.name + "'s rocket is blasting off " + (m.home ? 'for home' : 'to the Moon') + '! Everyone is coming along!'; chat(line, '#ffd24a'); this.broadcast({ t: 'chat', m: line, c: '#ffd24a' }, r.id); break; }
+      case 'launch': { const line = r.name + "'s rocket is blasting off " + (m.home ? 'for home' : 'to ' + PLANETS[isSpace(m.to) ? m.to : 'moon'].name) + '! Everyone is coming along!'; chat(line, '#ffd24a'); this.broadcast({ t: 'chat', m: line, c: '#ffd24a' }, r.id); break; }
       case 'rocket': {   // a guest's rocket has gone up out of sight: everyone goes
         const v = game.entities.find(q => q.nid === m.e && q.type === 'rocket' && q.rider === r.id && !q.removed);
         if (!v || game.dim === 'nether' || game.arrival) break;
         if (game.state !== 'playing') { if (r.link) r.link.send({ t: 'chat', m: playerName() + " can't come just now. Try again in a moment!", c: '#ffd24a' }); break; }   // (the host is reading the death screen: the rocket comes back down)
-        game.rocketTravel(r.name, v);
+        game.rocketTravel(r.name, v, isSpace(m.to) ? m.to : 'moon');
         break;
       }
       case 'veh+': {   // a guest put down a minecart, a car, a boat or a submarine
@@ -454,7 +454,7 @@ const MP = {
     for (const o of this.remotes.values()) if (o !== r) players.push({ id: o.id, name: o.name, skin: o.look ? 'declan' : o.skin, look: o.look });
     l.send({
       t: 'welcome', v: MP_PROTO, map: game.mapId, hc: game.hardcore ? 1 : 0, seed: game.seed, vb: game.overVB, mode: game.mode, time: w.time, day: game.day, clock: w.clock, wx: wxBits(),
-      spawn: game.worldSpawn, edits: w.serialize().edits, td: dataTiles(w), you, at, host: playerName(), players, dim: game.dim, we: this.we, ns: game.netherSpawn, ms: game.moonSpawn,
+      spawn: game.worldSpawn, edits: w.serialize().edits, td: dataTiles(w), you, at, host: playerName(), players, dim: game.dim, we: this.we, ns: game.netherSpawn, ms: game.spaceSpawn(game.dim),
       wait: game.arrival ? 1 : 0,   // we are on the way through a portal: where to step out comes when we get there
     });
     this.broadcast({ t: 'pj', id: hi.pid, name: hi.name, skin: hi.skin, look: hi.look }, hi.pid);
@@ -692,7 +692,7 @@ const MP = {
         for (const e of this.proxies.values()) e.removed = true;
         this.proxies.clear();
         for (const r of this.remotes.values()) { r.has = false; r.lastState = null; }
-        game.guestDim({ dim: m.dim, edits: m.edits && typeof m.edits === 'object' ? m.edits : {}, td: cleanDataTiles(m.td), at: m.at, time: m.time, clock: m.clock, ns: m.dim === 'nether' && okXYZ(m.ns) ? m.ns : null, ms: m.dim === 'moon' && okXYZ(m.ms) ? m.ms : null });
+        game.guestDim({ dim: m.dim, edits: m.edits && typeof m.edits === 'object' ? m.edits : {}, td: cleanDataTiles(m.td), at: m.at, time: m.time, clock: m.clock, ns: m.dim === 'nether' && okXYZ(m.ns) ? m.ns : null, ms: isSpace(m.dim) && okXYZ(m.ms) ? m.ms : null });
         break;
       }
       case 'tp': {   // where to step out of the portal
@@ -701,7 +701,7 @@ const MP = {
         [pl.x, pl.y, pl.z] = m.at; pl.vx = pl.vy = pl.vz = 0; pl.fallDist = 0; pl.portalLock = true;
         if (isFinite(+m.yaw)) pl.yaw = pl.bodyYaw = +m.yaw;
         if (game.dim === 'nether') game.netherSpawn = m.at.slice();
-        if (game.dim === 'moon') game.moonSpawn = m.at.slice();
+        if (isSpace(game.dim)) game.setSpaceSpawn(game.dim, m.at.slice());
         game.awaitTp = 0;
         break;
       }
@@ -1086,15 +1086,15 @@ const MP = {
     const w = game.world, pl = game.player, edits = w.serialize().edits;
     for (const r of this.remotes.values()) { r.lastState = null; r.has = false; r.sleepT = 0; r.tx = r.x = pl.x; r.ty = r.y = pl.y; r.tz = r.z = pl.z; }   // they are coming here
     for (const t of w.tiles.values()) if (t.viewers) t.viewers.clear();
-    const line = (who || playerName()) + (game.dim === 'nether' ? ' went into the Nether' : game.dim === 'moon' ? ' blasted off to the Moon' : game.prevDim === 'moon' ? ' flew home to ' + MAPS[game.mapId].name : ' went back to ' + MAPS[game.mapId].name) + '. Everyone travels together!';
+    const line = (who || playerName()) + (game.dim === 'nether' ? ' went into the Nether' : isSpace(game.dim) ? ' blasted off to ' + PLANETS[game.dim].name : isSpace(game.prevDim) ? ' flew home to ' + MAPS[game.mapId].name : ' went back to ' + MAPS[game.mapId].name) + '. Everyone travels together!';
     chat(line, '#ff9966');
-    this.broadcast({ t: 'dim', dim: game.dim, we: this.we, edits, td: dataTiles(w), at: [r2(pl.x), r2(pl.y), r2(pl.z)], time: w.time, clock: w.clock, ns: game.netherSpawn, ms: game.moonSpawn });
+    this.broadcast({ t: 'dim', dim: game.dim, we: this.we, edits, td: dataTiles(w), at: [r2(pl.x), r2(pl.y), r2(pl.z)], time: w.time, clock: w.clock, ns: game.netherSpawn, ms: game.spaceSpawn(game.dim) });
     this.broadcast({ t: 'chat', m: line, c: '#ff9966' });
   },
   /* a rocket's countdown has started: tell everyone (a guest asks the host to) */
-  rocketLaunch(home) {
-    if (this.role === 'guest') { this.send({ t: 'launch', home: home ? 1 : 0 }); return; }
-    if (this.role === 'host') this.broadcast({ t: 'chat', m: playerName() + "'s rocket is blasting off " + (home ? 'for home' : 'to the Moon') + '! Everyone is coming along!', c: '#ffd24a' });
+  rocketLaunch(home, to) {
+    if (this.role === 'guest') { this.send({ t: 'launch', home: home ? 1 : 0, to }); return; }
+    if (this.role === 'host') this.broadcast({ t: 'chat', m: playerName() + "'s rocket is blasting off " + (home ? 'for home' : 'to ' + PLANETS[isSpace(to) ? to : 'moon'].name) + '! Everyone is coming along!', c: '#ffd24a' });
   },
   /* host: the rocket is coming down here: everyone else waits round it, on the ground */
   landed(x, y, z) {

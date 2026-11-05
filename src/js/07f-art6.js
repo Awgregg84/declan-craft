@@ -2,9 +2,17 @@
 // Story books of old tales; and (further down) the laser blaster, money and the store, the train, the planets,
 // the Ghostbusters world and the Life Cycle world.
 function buildBlockTiles6() {
+  buildPlanetTiles();
   // a train station's platform: stone slabs with a yellow safety line along the edge
   addTile('station_top', p => { p.fill((x, y) => { const v = 150 + ((x * 7 + y * 13) % 5) * 4; return (x === 0 || x === 15) ? [92, 92, 92] : y < 3 ? (y === 2 ? C('#3a3a3a') : C('#f2cf3a')) : [v, v, v]; }); });
   addTile('station_side', p => { p.fill((x, y) => y < 3 ? C('#f2cf3a') : y === 3 ? C('#3a3a3a') : ((y - 4) % 6 === 5 || (x + ((y - 4) / 6 | 0) * 8) % 16 === 0) ? [84, 84, 84] : [128 + (x * 5 % 9), 128 + (x * 5 % 9), 128 + (x * 5 % 9)]); });
+}
+/* the planets' ground: red Mars dust and rock, Jupiter's cloud, and Uranus's blue-green ice */
+function buildPlanetTiles() {
+  addTile('mars_dust', p => { const f = vfield(p.r, 4); p.fill((x, y) => { const v = f(x, y) * 18 + (p.r() * 16 - 8); return p.r() < 0.05 ? [130 + v, 52 + v * 0.5, 30] : [196 + v, 96 + v * 0.6, 58 + v * 0.4]; }); });
+  addTile('mars_rock', p => { paintStone(p); const d = p.d; for (let i = 0; i < 256; i++) { const g = d[i * 4]; d[i * 4] = Math.min(255, g * 1.05 + 30); d[i * 4 + 1] = g * 0.5; d[i * 4 + 2] = g * 0.36; } });
+  addTile('cloud', p => { const f = vfield(p.r, 3); p.fill((x, y) => { const v = 236 + f(x, y) * 14 + (p.r() * 6 - 3); return [v, v * 0.96, v * 0.86]; }); });
+  addTile('uranus_ice', p => { const f = vfield(p.r, 4); p.fill((x, y) => { const v = f(x, y) * 20 + (p.r() * 10 - 5); return (x + y * 3) % 11 === 0 ? [200, 250, 250] : [110 + v, 200 + v, 205 + v]; }); });
 }
 function buildItemTiles6() {
   // an old tale: a book in its own colour, with a little gold picture on the cover

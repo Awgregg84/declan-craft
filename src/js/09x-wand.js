@@ -135,7 +135,7 @@ function accioBlock(game, x, y, z, who) {
 function floatTick(world, e, dt, grav) {
   if (!(e.floatT > 0)) return false;
   e.floatT -= dt;
-  e.vy = clamp((e.floatY - e.y) * 3, -2, 3) + grav * (world.map === 'moon' ? MOON_G : 1) * dt;   // (gravity is taken off again in physicsStep)
+  e.vy = clamp((e.floatY - e.y) * 3, -2, 3) + grav * gravOf(world.map) * dt;   // (gravity is taken off again in physicsStep)
   e.fallDist = 0;
   if (Math.random() < dt * 6 && PARTICLES.length < 1500) PARTICLES.push({ x: e.x + randRange(-0.4, 0.4), y: e.y + randRange(0, 0.6), z: e.z + randRange(-0.4, 0.4), vx: 0, vy: 0.3, vz: 0, life: 0.6, tile: TILE.spark_blue, u: 0, v: 0, us: 16, size: 0.04, grav: 0, bright: 1 });
   return true;

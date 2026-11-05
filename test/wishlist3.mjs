@@ -339,6 +339,8 @@ const FRONT_FACE_OF = d => [4, 1, 5, 0][d & 3];
     await E(() => { boardVehicle(game, T.ents('rocket')[0]); window.__pad = [Math.floor(T.ents('rocket')[0].x), Math.floor(T.ents('rocket')[0].z)]; });
     await sleep(300);
     await E(() => { game.runCommand('/weather rain'); WX.snap = true; T.tap(); });
+    await waitFor(() => el('planet-pick') && !el('planet-pick').hidden, 4000);   // (from home: pick the Moon)
+    await E(() => { const b = document.querySelector('.planet-btn[data-planet="moon"]'); if (b && !el('planet-pick').hidden) b.click(); });
     const cd = await waitFor(() => !el('big-text').hidden && /^[123]$/.test(el('big-text').textContent), 4000);
     check('tap in the rocket: the countdown starts', cd, await E(() => ({ t: el('big-text').textContent, launch: T.ents('rocket')[0] && T.ents('rocket')[0].launchT })));
     const lift = await waitFor(() => T.ents('rocket')[0] && T.ents('rocket')[0].lifted, 15000);
@@ -801,7 +803,7 @@ const FRONT_FACE_OF = d => [4, 1, 5, 0][d & 3];
     // it comes with you in the rocket, to the Moon and back
     await E(Rb => { for (const e of game.entities) if ((e.mob && e.type !== 'robot') || e.type === 'item' || e.type === 'xp') e.removed = true; game.mode = 'creative'; spawnVehicle(game, 'rocket', Rb.x + 3.5, Rb.y, Rb.z + 0.5, 0); }, Rb);
     await sleep(300);
-    await E(() => { const r = T.ents('rocket')[0]; boardVehicle(game, r); rocketLaunch(game, game.player, r); });
+    await E(() => { const r = T.ents('rocket')[0]; boardVehicle(game, r); rocketLaunch(game, game.player, r); { const b = document.querySelector('.planet-btn[data-planet="moon"]'); if (b && !el('planet-pick').hidden) b.click(); } });
     check('a robot following you comes along in the rocket', await waitFor(() => game.dim === 'moon' && game.state === 'playing', 150000) && await waitFor(() => T.ents('robot').length === 1, 5000),
       await E(() => ({ dim: game.dim, robots: T.ents('robot').length })));
     await waitFor(() => game.player.riding && game.player.riding.type === 'rocket' && !game.player.riding.landing, 30000);

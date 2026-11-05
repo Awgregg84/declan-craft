@@ -14,7 +14,7 @@ function savedSpots(data) {
 function loadSaveMeta(map) {
   const s = store.get(saveKey(map));
   if (!s) return null;
-  try { const d = JSON.parse(s); return { mode: d.mode, day: d.day, seed: d.seed, nether: d.dim === 'nether', moon: d.dim === 'moon' }; } catch (e) { return null; }
+  try { const d = JSON.parse(s); return { mode: d.mode, day: d.day, seed: d.seed, nether: d.dim === 'nether', moon: d.dim === 'moon', space: isSpace(d.dim) ? d.dim : null }; } catch (e) { return null; }
 }
 const LOAD_TIPS = ['Punch a tree to collect wood.', 'Press E to open your inventory and turn logs into planks.', 'A crafting table lets you make tools.',
   'Torches keep monsters away at night.', 'Sleep in a bed to skip the night.', 'Creepers hiss before they explode. Run!', 'Cook food in a furnace to fill up more hunger.',
@@ -48,7 +48,7 @@ const DEATH_MSG = {
   party: 'partied too hard', ice: 'froze solid', poison: 'was poisoned', magic: 'was hit by a potion', pufferfish: 'was stung by a pufferfish',
   golem: 'was flung by an Iron Golem', space: 'forgot to wear a space helmet',
 };
-const DIMS = ['over', 'nether', 'moon'];   // the Overworld (whichever map it is), the Nether and the Moon
+const DIMS = ['over', 'nether', 'moon', 'mars', 'jupiter', 'uranus'];   // the Overworld (whichever map it is), the Nether, the Moon and the other planets (new ones go on the end)
 const okDim = d => (DIMS.includes(d) ? d : 'over');
 
 const game = {
@@ -59,8 +59,8 @@ const game = {
   ui, gen: null, locked: false, dragLook: false, hideHud: false, debug: false, saveT: 0, spawnT: 0, debugT: 0, loadT: 0, sleeping: 0,
   lastJumpT: 0, lastFwdT: 0, touchOn: false, fov: 70, warnedSave: false, titleYaw: 0, menuSpawn: [0, 80, 0], net: null, hostAfterLoad: false,
   // dimensions: the live world is this.dim ('over', 'nether' or 'moon'); the others wait here, saved as block changes
-  dim: 'over', dims: { over: null, nether: null, moon: null }, portals: [], netherSpawn: null, arrival: null, overVB: [],
-  moonSpawn: null, rocketPad: null, prevDim: 'over', viewBefore: undefined,   // where you landed on the Moon, and where you took off from at home
+  dim: 'over', dims: { over: null, nether: null, moon: null, mars: null, jupiter: null, uranus: null }, portals: [], netherSpawn: null, arrival: null, overVB: [],
+  moonSpawn: null, pSpawn: {}, rocketPad: null, prevDim: 'over', viewBefore: undefined,   // where you landed on the Moon, and where you took off from at home
   carry: [], awaitTp: 0,   // things that didn't fit in the inventory on the way through a portal; a guest waiting for the host's way out
 
   giveItem(id, n, ex) { return this.player.give(id, n, ex); },
@@ -171,9 +171,11 @@ const game = {
     this.mapId = mapId;
     this.seed = data ? data.seed : ((Math.random() * 2147483647) | 0);
     this.dim = okDim(data && data.dim);
-    this.dims = { over: data ? data.world || null : null, nether: data ? data.nether || null : null, moon: data ? data.moon || null : null };
+    this.dims = { over: data ? data.world || null : null, nether: data ? data.nether || null : null };
+    for (const d of SPACE_DIMS) this.dims[d] = data ? data[d] || null : null;
     const xyz = a => (Array.isArray(a) && a.length === 3 && a.every(n => typeof n === 'number' && isFinite(n)) ? a : null);
     this.moonSpawn = data ? xyz(data.moonSpawn) : null;
+    this.pSpawn = {}; for (const d of SPACE_DIMS) if (d !== 'moon' && data && data.planetSpawn && xyz(data.planetSpawn[d])) this.pSpawn[d] = data.planetSpawn[d];
     this.rocketPad = data && Array.isArray(data.rocketPad) && data.rocketPad.length === 2 && data.rocketPad.every(n => typeof n === 'number' && isFinite(n)) ? data.rocketPad : null;
     this.prevDim = 'over'; this.viewBefore = undefined;
     this.portals = data && Array.isArray(data.portals) ? data.portals.filter(okPortal).slice(-64) : [];
@@ -295,13 +297,15 @@ const game = {
     sfx('portalTravel');
     this.beginLoading(this.travelTitle());
   },
-  travelTitle() { return this.dim === 'nether' ? 'Entering the Nether' : this.dim === 'moon' ? 'Flying to the Moon' : 'Back to ' + MAPS[this.mapId].name; },
+  travelTitle() { return this.dim === 'nether' ? 'Entering the Nether' : isSpace(this.dim) ? 'Flying to ' + PLANETS[this.dim].name : 'Back to ' + MAPS[this.mapId].name; },
+  spaceSpawn(d) { return d === 'moon' ? this.moonSpawn : this.pSpawn[d] || null; },
+  setSpaceSpawn(d, at) { if (d === 'moon') this.moonSpawn = at; else if (isSpace(d)) this.pSpawn[d] = at; },
   /* a rocket blasted off: everyone goes to the Moon (or home from it). It comes along, and lands with them. */
-  rocketTravel(who, rocket) {
-    const from = this.dim, to = from === 'moon' ? 'over' : 'moon', pl = this.player;
+  rocketTravel(who, rocket, dest) {
+    const from = this.dim, to = isSpace(from) ? 'over' : isSpace(dest) ? dest : 'moon', pl = this.player;   // (from home: to the planet picked; from a planet: home)
     const x = Math.floor(rocket ? rocket.x : pl.x), z = Math.floor(rocket ? rocket.z : pl.z);
     if (from === 'over') this.rocketPad = [x, z];   // (the way home comes down here)
-    const [tx, tz] = to === 'over' && this.rocketPad ? this.rocketPad : [x, z];
+    const [tx, tz] = to === 'over' && this.rocketPad ? this.rocketPad : this.gen.planetLanding(to, this.seed, x, z);
     const ride = !!(rocket && rocket.rider === 'me');
     if (rocket) {   // in the save made on the way, it is still standing where it took off (and its rider steps out beside it)
       const gy = rocket.padY !== undefined ? rocket.padY : groundUnder(this.world, rocket.x, rocket.y, rocket.z);
@@ -335,7 +339,7 @@ const game = {
       const st = w.topSolid(a.tx + 2, a.tz), spot = [a.tx + 2.5, (st >= 0 ? st + 1 : gy), a.tz + 0.5];
       if (a.ride) { this.viewBefore = this.viewBefore === undefined ? 0 : this.viewBefore; boardVehicle(this, r); this.view = 1; }
       else { [pl.x, pl.y, pl.z] = spot; pl.yaw = pl.bodyYaw = Math.PI / 2; pl.pitch = 0.3; }
-      if (this.dim === 'moon') this.moonSpawn = spot.slice();
+      if (isSpace(this.dim)) this.setSpaceSpawn(this.dim, spot.slice());
       if (MP.role === 'host') MP.landed(a.tx + 0.5, gy, a.tz + 0.5);
       return true;
     }
@@ -366,10 +370,10 @@ const game = {
     this.seed = m.seed;
     this.overVB = m.vb;
     this.dim = okDim(m.dim);
-    this.dims = { over: null, nether: null, moon: null };
+    this.dims = { over: null, nether: null, moon: null, mars: null, jupiter: null, uranus: null };
     this.dims[this.dim] = { edits: m.edits, tiles: m.td };
     this.portals = []; this.arrival = null; this.carry = []; this.robotsAlong = null;
-    this.moonSpawn = m.ms || null; this.rocketPad = null; this.prevDim = 'over'; this.viewBefore = undefined;
+    this.moonSpawn = null; this.pSpawn = {}; if (isSpace(this.dim) && okXYZ(m.ms)) this.setSpaceSpawn(this.dim, m.ms.slice()); this.rocketPad = null; this.prevDim = 'over'; this.viewBefore = undefined;
     this.awaitTp = m.tpWait ? performance.now() : 0;   // the host is on the way through a portal: wait to be shown where to come out
     this.netherSpawn = m.ns;
     this.makeWorld(true);
@@ -396,7 +400,7 @@ const game = {
   /* guest: the host went through a portal, so we all did */
   guestDim(m) {
     this.prevDim = this.dim; this.dim = okDim(m.dim);
-    this.dims = { over: null, nether: null, moon: null };
+    this.dims = { over: null, nether: null, moon: null, mars: null, jupiter: null, uranus: null };
     this.dims[this.dim] = { edits: m.edits, tiles: m.td };
     const time = this.world.time;
     this.closeForTravel();
@@ -408,7 +412,7 @@ const game = {
     pl.vx = pl.vy = pl.vz = 0; pl.fallDist = 0; pl.portalT = 0; pl.portalLock = true;
     if (this.state === 'dead' && !this.hardcore) { pl.alive = true; pl.health = 20; }
     if (m.ns) this.netherSpawn = m.ns.slice();
-    if (m.ms) this.moonSpawn = m.ms.slice();
+    if (m.ms) this.setSpaceSpawn(this.dim, m.ms.slice());
     this.awaitTp = performance.now();   // m.at is only a first guess: the host says where to step out once it is there
     sfx('portalTravel');
     this.beginLoading(this.travelTitle());
@@ -486,7 +490,7 @@ const game = {
     ui.dirty = true;
     for (const c of this.carry.splice(0)) dropItem(this, pl.x, pl.y + 0.5, pl.z, c.id, c.count, false, c);
     if (this.robotsAlong) { if (MP.role !== 'guest') bringRobots(this, this.robotsAlong); this.robotsAlong = null; }   // (robots that came along with you)
-    if (this.dim === 'moon') moonArrival(this);
+    if (isSpace(this.dim)) spaceArrival(this);
     if (atHogwarts()) hogwartsWelcome(this);
     if (atFalls()) fallsWelcome(this);
     if (came) this.save();
@@ -515,7 +519,7 @@ const game = {
       worldSpawn: this.worldSpawn, stats: this.stats,
       player: { x: at[0], y: at[1], z: at[2], yaw: pl.yaw, pitch: pl.pitch, health: pl.alive ? pl.health : 20, food: pl.alive ? pl.food : 20, air: pl.air, inv: pl.inv, sel: pl.sel, spawn: pl.spawn, flying: pl.flying, xp: pl.xp || 0, enchSeed: pl.enchSeed, effects: pl.alive ? saveEffects(pl) : {} },
       villages: { v: 1, blocked: this.overVB }, dungeons: 1, stores: 1, players: MP.guestSaves,
-      dim: this.dim, portals: this.portals, netherSpawn: this.netherSpawn, weather: wxSave(), moonSpawn: this.moonSpawn, rocketPad: this.rocketPad, plan: PLAN.cur,
+      dim: this.dim, portals: this.portals, netherSpawn: this.netherSpawn, weather: wxSave(), moonSpawn: this.moonSpawn, planetSpawn: this.pSpawn, rocketPad: this.rocketPad, plan: PLAN.cur,
     };
     if (this.hardcore) { data.hardcore = true; data.out = this.hcOut; }
     const cur = this.world.serialize();
@@ -523,7 +527,7 @@ const game = {
     const all = Object.assign({}, this.dims, { [this.dim]: cur });   // (the live world, and the others as they were left)
     data.world = all.over || { edits: {}, tiles: {} };
     if (all.nether) data.nether = all.nether;
-    if (all.moon) data.moon = all.moon;
+    for (const d of SPACE_DIMS) if (all[d]) data[d] = all[d];
     if (!pl.alive) { const sp = this.spawnPos(); data.player.x = sp[0]; data.player.y = sp[1]; data.player.z = sp[2]; }
     const ok = store.set(saveKey(this.slot), JSON.stringify(data));
     if (!ok && !this.warnedSave) { this.warnedSave = true; toast("This browser won't let the game save, so your world will reset when you leave.", 6); }
@@ -531,7 +535,7 @@ const game = {
   spawnPos() {
     const pl = this.player;
     if (this.dim === 'nether') return this.netherSpawn ? this.netherSpawn.slice() : [0.5, 64, 0.5];
-    if (this.dim === 'moon') return this.moonSpawn ? this.moonSpawn.slice() : this.gen.spawnPoint('moon', this.seed);
+    if (isSpace(this.dim)) { const s = this.spaceSpawn(this.dim); return s ? s.slice() : this.gen.spawnPoint(this.dim, this.seed); }
     if (pl.spawn) return [pl.spawn[0] + 0.5, pl.spawn[1] + 0.6, pl.spawn[2] + 0.5];
     return this.worldSpawn.slice();
   },
@@ -589,11 +593,11 @@ const game = {
     el('click-hint').hidden = this.touchOn || this.dragLook;
     if (!this.touchOn && !this.dragLook) this.requestPointer();
     ui.hearts = ui.food = ui.armor = -2;
-    if (this.dim === 'moon') moonArrival(this);
+    if (isSpace(this.dim)) spaceArrival(this);
   },
   trySleep(x, y, z) {
     const pl = this.player, t = this.world.time;
-    if (this.dim !== 'over') { chat(this.dim === 'moon' ? "Beds don't work on the Moon. Sleep at home." : "Beds don't work in the Nether. Sleep in the Overworld."); return; }
+    if (this.dim !== 'over') { chat(isSpace(this.dim) ? "Beds don't work out in space. Sleep at home." : "Beds don't work in the Nether. Sleep in the Overworld."); return; }
     pl.spawn = [x, y, z];
     const night = t > 0.53 && t < 0.97;
     if (!night) { chat('Respawn point set. You can only sleep at night.'); return; }
@@ -693,7 +697,7 @@ const game = {
         if (what !== 'village') { say('Try /locate village, /locate dungeon or /locate store'); break; }
         const v = this.gen.findVillage(this.mapId, this.seed, pl.x, pl.z, w.villageBlock);
         if (this.dim === 'nether') { say('There are no villages in the Nether. Go back through the portal to find one.'); break; }
-        if (this.dim === 'moon') { say('There are no villages on the Moon. Fly home in the rocket to find one.'); break; }
+        if (isSpace(this.dim)) { say('There are no villages on ' + PLANETS[this.dim].name + '. Fly home in the rocket to find one.'); break; }
         if (!v) { say(this.mapId === 'sky' ? 'Villages are only in Sunny Valley. Use a villager spawn egg or /summon villager here.' : 'No village found nearby.'); break; }
         const dx = v[0] - pl.x, dz = v[2] - pl.z, dist = Math.round(Math.hypot(dx, dz));
         const dir = (dz < -Math.abs(dx) * 0.4 ? 'north' : dz > Math.abs(dx) * 0.4 ? 'south' : '') + (dx > Math.abs(dz) * 0.4 ? 'east' : dx < -Math.abs(dz) * 0.4 ? 'west' : '');
@@ -702,7 +706,7 @@ const game = {
       }
       case 'spawnpoint': case 'setspawn':
         if (this.dim === 'nether') { this.netherSpawn = [pl.x, pl.y, pl.z]; say('Nether spawn point set here'); break; }   // the Overworld one stays as it was
-        if (this.dim === 'moon') { this.moonSpawn = [pl.x, pl.y, pl.z]; say('Moon spawn point set here'); break; }
+        if (isSpace(this.dim)) { this.setSpaceSpawn(this.dim, [pl.x, pl.y, pl.z]); say(PLANETS[this.dim].title + ' spawn point set here'); break; }
         this.worldSpawn = [pl.x, pl.y, pl.z]; pl.spawn = null; say('Spawn point set here'); break;
       case 'seed': say('Seed: ' + this.seed); break;
       case 'kill': pl.invuln = 0; if (this.mode === 'creative') say('You cannot be hurt in Creative'); else pl.damage(1000, 'void'); break;
@@ -951,7 +955,7 @@ function renderWorld(cam, dt, withEntities, camPass) {   // (camPass: what a sec
   drawQueuedGlass();   // (a submarine's dome: the water behind it shows through)
   if (withEntities) { drawPlan(s, cam); drawWeather(s, cam); }
   if (withEntities || camPass) drawPatronuses(s);
-  if (S.clouds && !under && !s.nether && !s.moon) {
+  if (S.clouds && !under && !s.nether && !s.moon && !s.space) {
     if (w.map === 'sky') { drawClouds(s, game.t, 26); drawClouds(s, game.t + 400, 126); }
     else drawClouds(s, game.t, 110);
   }
@@ -992,7 +996,7 @@ function debugText() {
   const tg = pl.target;
   return 'Declan-craft  ' + game.fps + ' fps\n' +
     'XYZ: ' + pl.x.toFixed(1) + ' / ' + pl.y.toFixed(1) + ' / ' + pl.z.toFixed(1) + '\n' +
-    'Chunk: ' + (x >> 4) + ', ' + (z >> 4) + '   Facing: ' + f + (game.dim === 'nether' ? '   (the Nether)' : game.dim === 'moon' ? '   (the Moon)' : '') + '\n' +
+    'Chunk: ' + (x >> 4) + ', ' + (z >> 4) + '   Facing: ' + f + (game.dim === 'nether' ? '   (the Nether)' : isSpace(game.dim) ? '   (' + PLANETS[game.dim].name + ')' : '') + '\n' +
     'Light: sky ' + (L >> 4) + ', block ' + (L & 15) + '\n' +
     'Day ' + game.day + '  ' + String(hrs).padStart(2, '0') + ':' + String(mins).padStart(2, '0') + '   Weather: ' + (!WX.on ? 'clear' : (WX.thunder ? 'thunder, ' : '') + ['dry here', 'rain', 'snow'][WX.kind]) + '\n' +
     'Chunks: ' + w.chunks.size + '  Mobs: ' + game.entities.filter(e => e.mob).length + '\n' +
@@ -1068,6 +1072,7 @@ function frame(ts) {
     wxTick(game, dt);
     if (atFalls()) fallsTick(game, dt);
     else if (el('myst-count') && !el('myst-count').hidden) el('myst-count').hidden = true;
+    planetTick(game, dt);   // (on another planet: Jupiter's wind, Mars rovers, Uranus's ice)
     if (atHogwarts()) hogwartsTick(game, dt);
     else if (el('qscore') && el('qscore').style.display !== 'none') el('qscore').style.display = 'none';   // (the Quidditch score: only at Hogwarts)
     planTick(game, dt);

@@ -50,6 +50,22 @@ function skyState(time, map, underwater) {
       skyLight: lerp(0.62, 1, smoothstep(-0.25, 0.1, sy)), skyTint: [1, 1, 1], cloud: black,
       fog: underwater === 'lava' ? [0.8, 0.28, 0.05] : underwater === 'water' ? [0.1, 0.12, 0.3] : far.slice(), minLight: [0.06, 0.06, 0.07], moon: true };
   }
+  if (map === 'mars' || map === 'jupiter' || map === 'uranus') {   // the other planets: their own skies (see 09ma-planets.js)
+    const s = skyState(time, 'valley', underwater), d = s.day;
+    if (map === 'mars') {   // a dusty orange-pink sky by day, dark red at night
+      s.zenith = vmix([0.03, 0.012, 0.01], [0.78, 0.46, 0.28], d); s.horizon = vmix([0.06, 0.025, 0.02], [0.92, 0.66, 0.44], d); s.bottom = vmix(s.horizon, [0.05, 0.02, 0.01], 0.5);
+      s.glow = [0.4, 0.6, 1.0]; s.skyTint = vmix([0.7, 0.55, 0.5], [1, 0.9, 0.82], d); s.planet = 0;
+    } else if (map === 'jupiter') {   // a stormy striped sky of orange, cream and brown that is never quite dark
+      s.zenith = vmix([0.32, 0.2, 0.12], [0.86, 0.6, 0.36], d); s.horizon = vmix([0.45, 0.3, 0.2], [0.98, 0.82, 0.6], d); s.bottom = vmix([0.3, 0.16, 0.08], [0.7, 0.38, 0.18], d);
+      s.skyLight = Math.max(s.skyLight, 0.62); s.skyTint = [1, 0.9, 0.78]; s.stars = 0; s.sunVis *= 0.35; s.planet = 2;
+    } else {   // Uranus: pale cyan, a small far-away sun, and rings across the sky
+      s.zenith = vmix([0.02, 0.05, 0.07], [0.42, 0.74, 0.78], d); s.horizon = vmix([0.05, 0.09, 0.11], [0.68, 0.9, 0.9], d); s.bottom = vmix(s.horizon, [0.02, 0.05, 0.06], 0.5);
+      s.skyTint = vmix([0.6, 0.75, 0.85], [0.86, 0.98, 1], d); s.sunVis *= 0.6; s.planet = 3;
+    }
+    s.glowAmt *= 0.4; s.cloud = s.horizon; s.space = true;
+    if (!underwater) s.fog = s.horizon.slice();
+    return s;
+  }
   if (map === 'nether') {   // no sky, no sun: a red haze and a dim warm glow everywhere
     const f = NETHER_FOG;
     return { sunDir: [0, 1, 0], day: 0, zenith: f, horizon: f, bottom: f, glow: f, glowAmt: 0, stars: 0, sunVis: 0, skyLight: 0, skyTint: [1, 1, 1],
@@ -111,7 +127,7 @@ function drawSky(s) {
   gl.uniform3fv(P.u.uZenith, s.zenith); gl.uniform3fv(P.u.uHorizon, s.horizon); gl.uniform3fv(P.u.uBottom, s.bottom);
   gl.uniform3fv(P.u.uSunDir, s.sunDir); gl.uniform3fv(P.u.uGlow, s.glow);
   gl.uniform1f(P.u.uStars, s.stars); gl.uniform1f(P.u.uGlowAmt, s.glowAmt); gl.uniform1f(P.u.uSunVis, s.sunVis);
-  gl.uniform1f(P.u.uEarth, s.moon ? 1 : 0); gl.uniform3fv(P.u.uEarthDir, EARTH_DIR);
+  gl.uniform1f(P.u.uEarth, s.moon ? 1 : s.planet || 0); gl.uniform3fv(P.u.uEarthDir, EARTH_DIR);
   gl.disable(gl.DEPTH_TEST); gl.depthMask(false);
   gl.bindVertexArray(null);
   gl.drawArrays(gl.TRIANGLES, 0, 3);

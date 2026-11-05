@@ -146,6 +146,35 @@ const GID = GUEST.pid;
     await sleep(500);
   }
 
+  if (on('planets')) {
+    // the host blasts off to Jupiter and she comes too; back home, she picks Uranus in her own rocket and everyone goes
+    await H.evaluate(S => { for (const e of game.entities) if (e.vehicle) e.removed = true; const pl = game.player; Object.assign(pl, { x: S.x + 0.5, y: S.y, z: S.z - 3.5 }); const r = spawnVehicle(game, 'rocket', S.x + 0.5, S.y, S.z - 5.5, 0); boardVehicle(game, r); game.rocketTravel(null, r, 'jupiter'); }, S);
+    check('the host flies to Jupiter, and she comes along', await waitFor(G, () => game.dim === 'jupiter' && game.state === 'playing' && !game.awaitTp, 90000));
+    await sleep(3000);
+    const gj = await G.evaluate(() => { const pl = game.player, w = game.world; let solid = false; for (let k = 0; k < 6; k++) if (SOLID[w.getBlock(Math.floor(pl.x), Math.floor(pl.y) - k, Math.floor(pl.z))]) solid = true; return { helmet: wearsSpaceHelmet(pl) || pl.inv.some(s => s && s.id === I.SPACE_HELMET), y: pl.y, solid, sky: skyState(0.3, w.map).planet }; });
+    check('she is on a cloud island, with a space helmet', gj.helmet && gj.solid && gj.sky === 2, gj);
+    await H.evaluate(() => { const pl = game.player; if (pl.riding) dismountVehicle(game); const r = T.ents('rocket')[0]; boardVehicle(game, r); game.rocketTravel(null, r); });
+    check('home again together', await waitFor(G, () => game.dim === 'over' && game.state === 'playing' && !game.awaitTp, 90000));
+    await sleep(2500);
+    await G.evaluate(() => { if (game.player.riding) dismountVehicle(game); });
+    await sleep(500);
+    await H.evaluate(() => { if (game.player.riding) dismountVehicle(game); for (const e of T.ents('rocket')) e.removed = true; });
+    await sleep(800);
+    await G.evaluate(() => { const pl = game.player; T.hold(I.ROCKET, 1); const x = Math.floor(pl.x) + 2, z = Math.floor(pl.z); const top = game.world.topSolid(x, z); pl.target = { x, y: top, z, id: game.world.getBlock(x, top, z), face: 2 }; pl.useBlock(I.ROCKET, true); });
+    check('she puts down her own rocket', await waitFor(G, () => game.entities.some(e => e.type === 'rocket' && !e.removed && Math.hypot(e.x - game.player.x, e.z - game.player.z) < 4), 8000));
+    await G.evaluate(() => { const pl = game.player, d = e => Math.hypot(e.x - (Math.floor(pl.x) + 2.5), e.z - (Math.floor(pl.z) + 0.5)), r = game.entities.filter(e => e.type === 'rocket' && !e.removed).sort((a, b) => d(a) - d(b))[0]; mountVehicle(game, r); });
+    check('she gets in', await waitFor(G, () => game.player.riding && game.player.riding.type === 'rocket', 8000));
+    await G.evaluate(() => { rocketLaunch(game, game.player, game.player.riding); });
+    const shown = await G.evaluate(() => !el('planet-pick').hidden);
+    await G.evaluate(() => document.querySelector('.planet-btn[data-planet="uranus"]').click());
+    check('she picks Uranus, and the host hears about it', shown && await waitFor(H, () => Array.from(document.querySelectorAll('#chat-log div')).some(d => /blasting off to Uranus/.test(d.textContent)), 8000));
+    check('everyone goes to Uranus', await waitFor(H, () => game.dim === 'uranus' && game.state === 'playing', 60000) && await waitFor(G, () => game.dim === 'uranus' && game.state === 'playing', 60000));
+    await sleep(3000);
+    await H.evaluate(() => { const pl = game.player; if (pl.riding) dismountVehicle(game); const r = spawnVehicle(game, 'rocket', pl.x, pl.y, pl.z, 0); game.rocketTravel(null, r); });
+    await waitFor(G, () => game.dim === 'over' && game.state === 'playing' && !game.awaitTp, 90000);
+    await sleep(1500);
+  }
+
   check('no page errors', H.errs.length === 0 && G.errs.length === 0, H.errs.concat(G.errs).slice(0, 6));
   console.log(fails ? fails + ' FAILED' : 'ALL PASSED');
   await browser.close(); server.close(); peer.close && peer.close();

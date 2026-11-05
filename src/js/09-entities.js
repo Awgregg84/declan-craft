@@ -99,7 +99,7 @@ function liquidAt(world, e) {
 }
 /* gravity + collisions with sub-steps */
 function physicsStep(world, e, dt, grav) {
-  if (world.map === 'moon') grav *= MOON_G;   // (the Moon pulls much less)
+  grav *= gravOf(world.map);   // (the Moon and Mars pull much less, Jupiter more)
   liquidAt(world, e);
   if (e.inWater || e.inLava) {
     e.vy -= grav * 0.25 * dt;
@@ -561,7 +561,7 @@ function updateMob(game, e, dt) {
   if (e.type === 'chicken' && !e.onGround && e.vy < -2) e.vy = -2;
   if (floatTick(world, e, dt, 26)) { e.vx *= 0.9; e.vz *= 0.9; e.bodyYaw += dt * 1.5; }   // (Wingardium Leviosa: up it goes, turning slowly)
   physicsStep(world, e, dt, 26);
-  if (e.landed) { const fall = e.fallDist * (world.map === 'moon' ? MOON_G : 1); if (fall > 4 && e.type !== 'chicken' && !(e.partyT > 0)) hurtMob(game, e, Math.floor(fall - 3), e.x, e.z, 'fall'); e.fallDist = 0; }
+  if (e.landed) { const fall = e.fallDist * Math.min(1, gravOf(world.map)); if (fall > 4 && e.type !== 'chicken' && !(e.partyT > 0)) hurtMob(game, e, Math.floor(fall - 3), e.x, e.z, 'fall'); e.fallDist = 0; }
   if (e.inLava && !d.fireproof && e.age % 0.5 < dt) hurtMob(game, e, 2, e.x, e.z, 'lava');
   if (e.type === 'zombie') {
     const s = game.sky;
@@ -608,7 +608,7 @@ function spawnTick(game) {
     }
   }
   if (world.map === 'nether') { netherSpawnTick(game); return; }
-  if (world.map === 'moon') return;   // (nothing lives on the Moon)
+  if (isSpace(world.map)) return;   // (nothing lives on the Moon or the other planets)
   spawnerTick(game);   // (a dungeon's monster spawners)
   if (world.map === 'hogwarts') { snitchTick(game); studentTick(game); qmatchTick(game); }
   if (world.map === 'falls') fallsSpawnTick(game);

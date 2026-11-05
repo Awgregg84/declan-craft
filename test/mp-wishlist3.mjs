@@ -176,7 +176,7 @@ const GID = GUEST.pid;
 
   // 9. the rocket: the host blasts off, and she goes to the Moon too
   await H.evaluate(D => { Object.assign(game.player, { x: D.x + 6.5, y: D.y + 1, z: D.z + 6.5, flying: false }); game.mode = 'creative'; }, D);
-  const rk = await H.evaluate(() => { const pl = game.player, top = game.world.topSolid(Math.floor(pl.x), Math.floor(pl.z)); pl.y = top + 1; const v = spawnVehicle(game, 'rocket', pl.x, top + 1, pl.z, 0); boardVehicle(game, v); rocketLaunch(game, pl, v); return !!v; });
+  const rk = await H.evaluate(() => { const pl = game.player, top = game.world.topSolid(Math.floor(pl.x), Math.floor(pl.z)); pl.y = top + 1; const v = spawnVehicle(game, 'rocket', pl.x, top + 1, pl.z, 0); boardVehicle(game, v); rocketLaunch(game, pl, v); { const b = document.querySelector('.planet-btn[data-planet="moon"]'); if (b && !el('planet-pick').hidden) b.click(); }  return !!v; });
   check('the host blasts off in the rocket...', rk);
   check('...and she goes to the Moon too', await waitFor(G, () => game.dim === 'moon' && game.state === 'playing', 180000) && await waitFor(H, () => game.dim === 'moon' && game.state === 'playing', 60000),
     await G.evaluate(() => ({ dim: game.dim, state: game.state })));

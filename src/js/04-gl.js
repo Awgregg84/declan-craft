@@ -143,7 +143,27 @@ void main() {
       col = vec3(0.86, 0.88, 0.92) * (cr > 0.75 ? 0.72 : 1.0);
     } else col += vec3(0.5, 0.6, 0.8) * 0.08 * smoothstep(0.25, 0.065, m) * uStars;
   }
-  if (uEarth > 0.5) {   // on the Moon: the Earth hangs in the sky, blue and green with white clouds, lit by the sun
+  if (uEarth > 1.5 && uEarth < 2.5) {   // on Jupiter: bands of cloud across the sky, and the Great Red Storm
+    float band = sin(e * 38.0 + sin(dir.x * 3.0 + dir.z * 2.0) * 1.4);
+    col *= 0.88 + 0.16 * band;
+    if (band > 0.6) col = mix(col, vec3(0.62, 0.36, 0.2), 0.25);
+    vec3 eT = normalize(cross(uEarthDir, vec3(0.0, 1.0, 0.0)));
+    vec3 eB = cross(eT, uEarthDir);
+    float ed = dot(dir, uEarthDir);
+    if (ed > 0.0) {
+      vec2 ep = vec2(dot(dir, eT), dot(dir, eB)) / ed / vec2(0.36, 0.2);
+      float r = length(ep);
+      if (r < 1.0) { float sw = sin(atan(ep.y, ep.x) * 3.0 + r * 9.0); col = mix(vec3(0.72, 0.2, 0.12), vec3(0.92, 0.48, 0.3), 0.5 + 0.5 * sw) * (0.9 + 0.1 * (1.0 - r)); }
+      else col = mix(col, vec3(0.85, 0.42, 0.25), 0.35 * smoothstep(1.4, 1.0, r));
+    }
+  }
+  if (uEarth > 2.5) {   // on Uranus: faint rings in a great tilted circle across the sky
+    vec3 rn = normalize(vec3(0.25, 0.55, 0.8));
+    float k = abs(dot(dir, rn));
+    float ring = smoothstep(0.03, 0.02, abs(k - 0.06)) * 0.5 + smoothstep(0.012, 0.004, abs(k - 0.1)) * 0.35;
+    if (e > -0.05) col = mix(col, vec3(0.92, 0.97, 1.0), ring * 0.55);
+  }
+  if (uEarth > 0.5 && uEarth < 1.5) {   // on the Moon: the Earth hangs in the sky, blue and green with white clouds, lit by the sun
     vec3 eT = normalize(cross(uEarthDir, vec3(0.0, 1.0, 0.0)));
     vec3 eB = cross(eT, uEarthDir);
     float ed = dot(dir, uEarthDir);
