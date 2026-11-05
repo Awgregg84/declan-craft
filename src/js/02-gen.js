@@ -544,7 +544,7 @@ function genModule(B, P) {
         const sx = v.x + dx, sz = v.z + dz;
         if (v.gardens.some(g => g.x0 + 3 === sx && g.z0 + 2 === sz)) continue;
         const y = column(sx, sz) & 255;
-        if (y <= SEA + 1 || Math.abs(y - v.y) > 3) continue;
+        if (y <= SEA || Math.abs(y - v.y) > 6) continue;   // (it stands on footings, or is dug in, like the houses)
         const south = dz < 0, Z = lz => south ? sz + 3 - lz : sz - 3 + lz;   // (its door faces the middle of the village)
         return { id: 's' + gx + '_' + gz, x: sx, z: sz, y, south, Z, kz: Z(5), sz: Z(-1), bbox: [sx - 5, Math.min(Z(-2), Z(7)), sx + 5, Math.max(Z(-2), Z(7))] };
       }
@@ -904,8 +904,14 @@ function genModule(B, P) {
     const bl = new Set(blocked || []);
     if (map === 'falls') return bl.has('fstore') ? null : [21, GEN3.FF.town.y + 1, -1];
     if (map !== 'valley') return null;
-    const g = getGen(map, seed), at = g.nearestVillage(x, z, bl), v = at && g.villagesNear(at[0], at[2]).find(q => q.x === at[0] && q.z === at[2]);
-    return v && v.store && !bl.has(v.store.id) ? [v.store.x, v.store.y + 1, v.store.kz] : null;
+    const g = getGen(map, seed);
+    for (let k = 0; k < 6; k++) {   // (the nearest village that has a store)
+      const at = g.nearestVillage(x, z, bl), v = at && g.villagesNear(at[0], at[2]).find(q => q.x === at[0] && q.z === at[2]);
+      if (!v) return null;
+      if (v.store && !bl.has(v.store.id)) return [v.store.x, v.store.y + 1, v.store.kz];
+      bl.add(v.id);
+    }
+    return null;
   }
   function findVillage(map, seed, x, z, blocked) { return map === 'valley' ? getGen(map, seed).nearestVillage(x, z, new Set(blocked || [])) : null; }
   /* dungeons whose tower, stairs or room overlap any of the given chunks (kept out of what was built before there were dungeons) */
