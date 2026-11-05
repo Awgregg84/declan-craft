@@ -485,6 +485,7 @@ function genModule3(B, H) {
     tower: { x: 28, z: -22 },
     diner: { x0: 4, x1: 24, z0: 16, z1: 24 },
     houses: [[-32, 20], [-17, 20], [36, 20]],
+    store: { x0: 14, x1: 28, z0: -4, z1: 8, bbox: [10, -5, 32, 10] },   // the Declan-craft Store (the sixth wish list), on the main street
     spawn: [0.5, 67, 3.5],
     // the six mysteries: where each is (y: only that high, for one underground), and how close you must come
     myst: [
@@ -607,6 +608,27 @@ function genModule3(B, H) {
       P.box(D.x0 + 1, Y + 6, D.z0 + 4, D.x1 - 1, Y + 11, D.z0 + 4, B.QUARTZ_BLOCK);
       writeText(P, 'DINER', D.x0 + 1, Y + 10, D.z0 + 4, B.WOOL + 14);
     }
+    function paintStore(P) {   // white walls, big windows, STORE on a board on the roof, shelves, and a counter with the shopkeeper behind it
+      const D = FF.store, mx = 21;
+      if (!P.near(D.x0 - 2, D.z0 - 2, D.x1 + 2, D.z1 + 2)) return;
+      P.box(D.x0 - 1, Y, D.z0 - 1, D.x1 + 1, Y + 14, D.z1 + 1, B.AIR);
+      P.walls(D.x0, T.y, D.z0, D.x1, Y + 4, D.z1, B.QUARTZ_BLOCK);
+      for (const x of [D.x0, D.x1]) for (const z of [D.z0, D.z1]) P.box(x, T.y, z, x, Y + 4, z, B.STONE_BRICKS);
+      P.box(D.x0, Y + 5, D.z0, D.x1, Y + 5, D.z1, B.STONE_BRICKS);
+      P.box(D.x0 + 1, T.y, D.z0 + 1, D.x1 - 1, T.y, D.z1 - 1, B.QUARTZ_BLOCK);
+      for (let x = D.x0 + 1; x < D.x1; x++) for (let z = D.z0 + 1; z < D.z1; z++) if ((x + z) & 1) P.set(x, T.y, z, B.WOOL + 11);   // a blue-and-white floor
+      for (let x = D.x0 + 2; x <= D.x1 - 2; x++) if (Math.abs(x - mx) > 1) P.box(x, Y + 1, D.z1, x, Y + 3, D.z1, B.GLASS);   // big shop windows
+      P.box(mx, Y, D.z1, mx, Y + 2, D.z1, B.AIR);   // the door, onto the street
+      for (let x = D.x0; x <= D.x1; x++) P.set(x, Y + 4, D.z1 + 1, B.WOOL + ((x & 1) ? 0 : 14));   // a striped awning
+      P.set(mx + 2, Y, D.z1 + 1, B.SIGN);   // "Declan-craft Store" (the words go on when it is first seen)
+      for (let z = D.z0 + 1; z <= D.z1 - 3; z++) for (const x of [D.x0 + 1, D.x1 - 1]) { P.set(x, Y, z, B.BOOKSHELF); P.set(x, Y + 1, z, z % 3 ? B.BOOKSHELF : B.PUMPKIN); }
+      for (let x = D.x0 + 1; x <= D.x1 - 1; x++) { P.set(x, Y, D.z0 + 1, B.BOOKSHELF); P.set(x, Y + 1, D.z0 + 1, B.BOOKSHELF); P.set(x, Y + 2, D.z0 + 1, B.BOOKSHELF); }
+      P.box(D.x0 + 3, Y, D.z0 + 4, D.x1 - 4, Y, D.z0 + 4, B.SPRUCE_PLANKS);   // the counter
+      for (const x of [D.x0 + 4, mx, D.x1 - 4]) P.set(x, Y + 4, 2, B.GLOWSTONE);
+      P.box(D.x0 - 3, Y + 6, D.z1 - 2, D.x1 + 3, Y + 13, D.z1 - 2, B.QUARTZ_BLOCK);   // the board on the roof
+      for (const x of [D.x0 + 1, D.x1 - 1]) P.set(x, Y + 5, D.z1 - 2, B.STONE_BRICKS);
+      writeText(P, 'STORE', D.x0 - 2, Y + 12, D.z1 - 2, B.WOOL + 11);
+    }
     function paintHouses(P) {
       for (const [hx, hz] of FF.houses) {
         if (!P.near(hx - 6, hz - 6, hx + 6, hz + 6)) continue;
@@ -660,7 +682,7 @@ function genModule3(B, H) {
         for (let dx = -9; dx <= -6; dx++) P.box(m.x + dx, y - 1, m.z - 1, m.x + dx, y - 1, m.z + 1, B.DIRT);   // the furrow it dug
       } }
     }
-    function generate(cx, cz) {
+    function generate(cx, cz, vb) {
       const blocks = new Uint8Array(CVOL), x0 = cx * 16, z0 = cz * 16, cols = new Int32Array(256), r = mulberry32(hash3(seed ^ 0xfa1, cx, cz));
       for (let lz = 0; lz < 16; lz++) for (let lx = 0; lx < 16; lx++) {
         const x = x0 + lx, z = z0 + lz, h = column(x, z), shore = h <= L.y && lakeD(x, z) < 1.25;
@@ -690,7 +712,12 @@ function genModule3(B, H) {
         }
       }
       paintStreets(P); paintShack(P); paintTower(P); paintDiner(P); paintHouses(P); paintMysteries(P);
-      return { blocks, spawns: [] };
+      const spawns = [], D = FF.store;
+      if (!(vb && vb.has('fstore'))) {
+        paintStore(P);
+        if (P.near(21, -1, 21, -1)) spawns.push(['shop', 21.5, Y, -0.5, 1, 'fstore', 23, Y, D.z1 + 1]);
+      }
+      return { blocks, spawns };
     }
     function spawn() { return FF.spawn.slice(); }
     return { generate, spawn, column, mystY };

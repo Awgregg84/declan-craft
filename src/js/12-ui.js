@@ -338,7 +338,8 @@ function invGrid(parent, arr, from, to, cols, opts) {
   return g;
 }
 function playerSection(panel) {
-  const pl = game.player;
+  const pl = game.player, cash = moneyOf(pl);
+  if (cash > 0) panel.appendChild(h('p', { class: 'money', id: 'inv-money', text: 'Money: ' + money$(cash) }));
   invGrid(panel, pl.inv, 9, 36, 9);
   const hb = invGrid(panel, pl.inv, 0, 9, 9);
   hb.style.marginTop = 'calc(var(--s) * 0.2)';
@@ -417,6 +418,7 @@ function buildInv() {
       panel.appendChild(g);
       panel.appendChild(h('p', { class: 'hint', text: 'Put a lever or button next to it. Each time it is switched on, it shoots one thing: arrows fly, TNT is lit, eggs hatch.' }));
     } else if (inv.kind === 'trade') { const tp = h('div', { class: 'panel trade-panel' }); buildTrade(tp); root.appendChild(tp); }
+    else if (inv.kind === 'shop') { const tp = h('div', { class: 'panel trade-panel' }); buildShop(tp); root.appendChild(tp); }
     else if (inv.kind === 'ench') buildEnchant(panel);
     else if (inv.kind === 'brew') buildBrew(panel);
     panel.appendChild(h('h3', { text: 'Inventory' }));
@@ -482,7 +484,7 @@ function closeInv() {
   ui.dirty = true;
   if (inv.kind === 'chest' || inv.kind === 'dispenser') sfx('chest');
   if (ui.screen === 'scr-inv') ui.fx = '';
-  if (inv.kind === 'trade') { inv.villager.tradeT = 0; if (inv.villager.proxy) MP.send({ t: 'trade', e: inv.villager.nid, end: 1 }); }
+  if (inv.kind === 'trade' || inv.kind === 'shop') { inv.villager.tradeT = 0; if (inv.villager.proxy) MP.send({ t: 'trade', e: inv.villager.nid, end: 1 }); }
   if (inv.tile && inv.tile.remote) MP.closeTile(inv.tile);
 }
 

@@ -185,7 +185,7 @@ const FX_KINDS = ['break', 'place', 'door', 'boom', 'sfx', 'party', 'ice', 'tele
 const SFX_NET = ['leverClick', 'buttonClick', 'honk', 'bowShoot', 'crossbowShoot', 'pearlThrow', 'dispense', 'dispenseFail', 'ghastShoot', 'endermanPortal', 'sonar', 'tvOn', 'tvOff', 'golemBuilt', 'snorkHappy', 'snorkToot', 'spellCast', 'patronus', 'camSwitch', 'airlockDrain', 'airlockHiss', 'planeTakeoff', 'chuteOpen', 'tankFire', 'studentHi', 'whistle', 'quaffleCatch', 'quaffleThrow', 'gnomeGiggle', 'lakemonSay', 'mystery'];
 const GUEST_SFX = new Set(['leverClick', 'buttonClick', 'honk', 'sonar', 'tvOn', 'tvOff', 'snorkHappy', 'snorkToot', 'camSwitch', 'planeTakeoff', 'chuteOpen']);   // the sounds a guest can send
 const LINK_FAIL = "Found the game, but the two iPads couldn't connect to each other. Put both on the same Wi-Fi, then try again.";
-const STALE_T = new Set(['st', 'set', 'open', 'tile', 'close', 'tnt', 'egg', 'portal', 'shoot', 'mount', 'veh', 'dismount', 'veh+', 'sign', 'board', 'rocket', 'launch', 'snitch', 'robot+', 'robot', 'quaffle', 'laser']);
+const STALE_T = new Set(['st', 'set', 'open', 'tile', 'close', 'tnt', 'egg', 'portal', 'shoot', 'mount', 'veh', 'dismount', 'veh+', 'sign', 'board', 'rocket', 'launch', 'snitch', 'robot+', 'robot', 'quaffle', 'laser', 'shop']);
 
 const MP = {
   role: null, code: '', token: '', sig: null, roomOpen: false, hostLink: null, hostName: '', we: 0,
@@ -317,7 +317,8 @@ const MP = {
         sfx(snd, m.p[0], m.p[1], m.p[2]); this.sfx(snd, m.p[0], m.p[1], m.p[2], r.id);
         break;
       }
-      case 'laser': laserMsg(game, r, m); break;   // a guest fired a laser
+      case 'laser': laserMsg(game, r, m); break;
+      case 'shop': shopMsg(game, r, m); break;   // a guest wants to buy or sell at a store   // a guest fired a laser
       case 'quaffle': quaffleMsg(game, r, m); break;   // a guest grabs or throws the Quaffle
       case 'snitch': {   // a guest reached for the Golden Snitch
         const v = game.entities.find(q => q.nid === m.e && q.type === 'snitch' && !q.removed);
@@ -750,6 +751,7 @@ const MP = {
       case 'eff': if (game.state === 'playing' && POTIONS[m.k | 0]) potionOnPlayer(game.player, m.k | 0, clamp(+m.s || 0, 0, 1)); break;   // splashed by a potion
       case 'sign': if ((m.we | 0) === this.we && game.world && Array.isArray(m.l) && game.world.knownBlock(m.x | 0, m.y | 0, m.z | 0) === B.SIGN) setSignText(game.world, m.x | 0, m.y | 0, m.z | 0, m.l); break;
       case 'board': if ((m.we | 0) === this.we && game.world && cleanBoardPx(m.px) && game.world.knownBlock(m.x | 0, m.y | 0, m.z | 0) === B.BOARD) setBoard(game.world, m.x | 0, m.y | 0, m.z | 0, m.px, m.pic); break;
+      case 'shopok': shopReply(m); break;
       case 'drops': if (Array.isArray(m.l)) for (const it of m.l) {
         if (!Array.isArray(it)) continue;
         const s = cleanStack({ id: it[0], count: it[1], dmg: it[2], tag: it[3] });

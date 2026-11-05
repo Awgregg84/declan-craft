@@ -183,6 +183,7 @@ const game = {
     const built = data ? Object.keys((data.world && data.world.edits) || {}).map(k => k.split(',').map(Number)).concat(savedSpots(data)) : [];
     this.overVB = !data ? [] : data.villages && Array.isArray(data.villages.blocked) ? data.villages.blocked.slice() : this.gen.villagesTouching(mapId, this.seed, built);
     if (data && !data.dungeons) this.overVB = this.overVB.concat(this.gen.dungeonsTouching(mapId, this.seed, built));   // (worlds from before there were dungeons: none where anything was built)
+    if (data && !data.stores) this.overVB = this.overVB.concat(this.gen.storesTouching(mapId, this.seed, built));   // (and none of the stores)
     this.makeWorld();
     wxLoad(data && data.weather);
     const pd = data && data.plan;   // (a plan you were building)
@@ -513,7 +514,7 @@ const game = {
       v: 1, map: this.mapId, seed: this.seed, mode: this.mode, time: this.world.time, day: this.day, clock: this.world.clock,
       worldSpawn: this.worldSpawn, stats: this.stats,
       player: { x: at[0], y: at[1], z: at[2], yaw: pl.yaw, pitch: pl.pitch, health: pl.alive ? pl.health : 20, food: pl.alive ? pl.food : 20, air: pl.air, inv: pl.inv, sel: pl.sel, spawn: pl.spawn, flying: pl.flying, xp: pl.xp || 0, enchSeed: pl.enchSeed, effects: pl.alive ? saveEffects(pl) : {} },
-      villages: { v: 1, blocked: this.overVB }, dungeons: 1, players: MP.guestSaves,
+      villages: { v: 1, blocked: this.overVB }, dungeons: 1, stores: 1, players: MP.guestSaves,
       dim: this.dim, portals: this.portals, netherSpawn: this.netherSpawn, weather: wxSave(), moonSpawn: this.moonSpawn, rocketPad: this.rocketPad, plan: PLAN.cur,
     };
     if (this.hardcore) { data.hardcore = true; data.out = this.hcOut; }
@@ -637,7 +638,7 @@ const game = {
     if (remote && !shared) return;
     const num = (s, base) => s === undefined ? NaN : s.startsWith('~') ? base + (parseFloat(s.slice(1)) || 0) : parseFloat(s);
     switch (cmd) {
-      case 'help': say('Commands: /time set day|night, /weather clear|rain|thunder|snow, /gamemode survival|creative, /give <item> [count], /tp x y z, /summon <mob>, /locate village|dungeon, /spawnpoint, /seed, /difficulty peaceful|easy|normal, /xp <levels>, /kill, /clear'); break;
+      case 'help': say('Commands: /time set day|night, /weather clear|rain|thunder|snow, /gamemode survival|creative, /give <item> [count], /tp x y z, /summon <mob>, /locate village|dungeon|store, /spawnpoint, /seed, /difficulty peaceful|easy|normal, /xp <levels>, /kill, /clear'); break;
       case 'time': {
         const v = (a[2] || a[1] || '').toLowerCase();
         const map = { day: 0.04, morning: 0.02, noon: 0.25, sunset: 0.47, night: 0.56, midnight: 0.75 };
@@ -683,7 +684,13 @@ const game = {
           say('The nearest dungeon (a ' + d.name + ') is ' + dist + ' blocks ' + (dir || 'away') + ', at x ' + d.x + ', z ' + d.z + '. Look for a little stone tower with stairs inside.');
           break;
         }
-        if (what !== 'village') { say('Try /locate village or /locate dungeon'); break; }
+        if (what === 'store' || what === 'shop') {
+          const s = this.dim === 'over' ? this.gen.findStore(this.mapId, this.seed, pl.x, pl.z, w.villageBlock) : null;
+          if (!s) { say('No Declan-craft Store found nearby. Stores are in villages, and in Declan Falls.'); break; }
+          say('The nearest Declan-craft Store is ' + Math.round(Math.hypot(s[0] - pl.x, s[2] - pl.z)) + ' blocks away, at x ' + s[0] + ', z ' + s[2] + '.');
+          break;
+        }
+        if (what !== 'village') { say('Try /locate village, /locate dungeon or /locate store'); break; }
         const v = this.gen.findVillage(this.mapId, this.seed, pl.x, pl.z, w.villageBlock);
         if (this.dim === 'nether') { say('There are no villages in the Nether. Go back through the portal to find one.'); break; }
         if (this.dim === 'moon') { say('There are no villages on the Moon. Fly home in the rocket to find one.'); break; }

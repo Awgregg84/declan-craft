@@ -1070,6 +1070,7 @@ function buildSkins() {
     librarian: { robe: C('#ece4d0'), robeDk: C('#c8bca0'), trim: C('#b02a2a'), hat: 'band', hair: C('#8a8a8a') },
     armorer: { robe: C('#3a3a42'), robeDk: C('#24242a'), apron: C('#5a5a5a'), belt: C('#8a6a3c'), hat: 'cap' },
     fisherman: { robe: C('#3a7a78'), robeDk: C('#285a58'), hat: 'straw', belt: C('#5a3a1a') },
+    shopkeeper: { robe: C('#2a6ad0'), robeDk: C('#1a4a9a'), apron: C('#f2d24a'), hat: 'cap' },
   };
   for (const prof in VILLAGER_LOOKS) addSkin('villager_' + prof, S => paintVillager(S, VILLAGER_LOOKS[prof]));
   // --- Endermen: tall and black, purple eyes; the jaw drops when one is angry ---

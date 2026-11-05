@@ -13,15 +13,18 @@ function fillDungeonChest(t, tier) {
   if (tier === 1) {
     put(I.GOLD_INGOT, randInt(0, 3)); put(I.ARROW, randInt(0, 8)); put(I.GUNPOWDER, randInt(0, 3)); put(I.STRING, randInt(0, 3)); put(I.APPLE, randInt(0, 2));
     if (chance(0.3)) put(I.DIAMOND, 1);
+    put(I.COIN, randInt(3, 12));
     if (chance(0.4)) put(I.XP_BOTTLE, randInt(1, 2));
     if (chance(0.25)) put(I.WRITTEN_BOOK, 1, { tag: randomStoryBook() });
   } else if (tier === 2) {
     put(I.GOLD_INGOT, randInt(2, 6)); put(I.DIAMOND, randInt(1, 3)); put(I.EMERALD, randInt(1, 4)); put(I.ENDER_PEARL, randInt(0, 2)); put(I.XP_BOTTLE, randInt(1, 3));
     put(toolId(2, chance(0.5) ? 0 : 3), 1);   // an iron pickaxe or sword
+    put(I.BILL, randInt(2, 5));
   } else {
     put(I.DIAMOND, randInt(3, 6)); put(I.EMERALD, randInt(3, 8)); put(I.GOLD_INGOT, randInt(4, 10)); put(B.GOLD_BLOCK, randInt(0, 2)); put(I.XP_BOTTLE, randInt(2, 5));
     put(toolId(3, chance(0.5) ? 0 : 3), 1);   // a diamond pickaxe or sword
     if (chance(0.5)) put(B.DIAMOND_BLOCK, 1);
+    put(I.BILL, randInt(5, 12));
   }
 }
 

@@ -1,5 +1,5 @@
 /* ===================== Villagers and trading ===================== */
-const PROF_NAMES = { farmer: 'Farmer', butcher: 'Butcher', toolsmith: 'Toolsmith', shepherd: 'Shepherd', mason: 'Mason', cleric: 'Cleric', librarian: 'Librarian', armorer: 'Armorer', fisherman: 'Fisherman' };
+const PROF_NAMES = { farmer: 'Farmer', butcher: 'Butcher', toolsmith: 'Toolsmith', shepherd: 'Shepherd', mason: 'Mason', cleric: 'Cleric', librarian: 'Librarian', armorer: 'Armorer', fisherman: 'Fisherman', shopkeeper: 'Shopkeeper' };
 
 /* Each job buys something easy to collect for emeralds, and sells useful things for emeralds. */
 function tradesFor(prof, vseed) {
@@ -46,6 +46,7 @@ const canTrade = (pl, tr) => tr.give.every(([id, n]) => countItem(pl, id) >= n);
 const tradeText = tr => tr.give.map(([id, n]) => n + ' ' + itemName(id)).join(' and ') + ' for ' + tr.get[1] + ' ' + itemName(tr.get[0]);
 
 function openTrade(e) {
+  if (e.prof === 'shopkeeper') { openShop(e); return; }
   if (ui.inv) closeInv();
   game.releasePointer();
   ui.inv = { kind: 'trade', villager: e, trades: tradesFor(e.prof, e.vseed || 0), els: [], grid: null, out: null, n: 0, book: false, search: '' };
@@ -125,6 +126,13 @@ function villagerSteer(game, e, dt) {
     return [-Math.sin(e.yaw), -Math.cos(e.yaw), 1.8];
   }
   if (e.tradeT > 0 && near) { e.yaw = Math.atan2(-(near.x - e.x), -(near.z - e.z)); e.moving = false; return [0, 0, 0]; }
+  if (e.prof === 'shopkeeper' && e.home) {   // a shopkeeper stays behind the counter, looking at whoever comes in
+    e.moving = false;
+    const hx = e.home[0] - e.x, hz = e.home[1] - e.z, hd = Math.hypot(hx, hz);
+    if (hd > 0.6) { e.moving = true; e.yaw = Math.atan2(-hx, -hz); return [hx / hd, hz / hd, 0.4]; }
+    if (near) e.yaw = Math.atan2(-(near.x - e.x), -(near.z - e.z));
+    return [0, 0, 0];
+  }
   const night = game.sky ? game.sky.day < 0.3 || wxRaining() : false;   // (at night, and in the rain, they stay close to the well)
   if (e.home) {
     const hx = e.home[0] - e.x, hz = e.home[1] - e.z, hd = Math.hypot(hx, hz);

@@ -333,6 +333,11 @@ function genModule(B, P) {
         if (bb[2] < x0 || bb[0] > x0 + 15 || bb[3] < z0 || bb[1] > z0 + 15) continue;
         if (!data) data = new Uint8Array(CVOL);
         buildVillage(blocks, data, cx, cz, v, cols);
+        const st = v.store;   // its Declan-craft Store (kept out of anything built before there were stores)
+        if (st && !(vb && vb.has(st.id))) {
+          buildStore(blocks, data, cx, cz, st, cols);
+          if (st.x >= x0 && st.x < x0 + 16 && st.kz >= z0 && st.kz < z0 + 16) spawns.push(['shop', st.x + 0.5, st.y + 1, st.kz + 0.5, 1, st.id, st.x, st.y + 3, st.sz]);
+        }
         const sx = v.x, sz = v.z + 3;
         if (sx >= x0 && sx < x0 + 16 && sz >= z0 && sz < z0 + 16) spawns.push(['villager', sx + 0.5, (cols[(sz - z0) * 16 + (sx - x0)] & 255) + 1, sz + 0.5, v.profs.length, v.id, v.profs.join(',')]);
       }
@@ -406,6 +411,7 @@ function genModule(B, P) {
         }
       }
       const v = site ? layoutVillage(site, r, gx, gz) : null;
+      if (v) v.store = storeFor(v, gx, gz);
       vcache.set(key, v);
       if (vcache.size > 600) vcache.delete(vcache.keys().next().value);
       return v;
@@ -531,6 +537,51 @@ function genModule(B, P) {
         P(x, y + 1, z, per || mid ? B.AIR : (x % 2 === 0 ? B.PUMPKIN : FL[(((x + z * 3) % 3) + 3) % 3]));
         for (let yy = y + 2; yy <= y + 5; yy++) P(x, yy, z, B.AIR);
       }
+    }
+    /* ---- the Declan-craft Store: a little shop on a corner of the village that has no garden ---- */
+    function storeFor(v, gx, gz) {
+      for (const [dx, dz] of [[12, -12], [-12, 12], [12, 12], [-12, -12]]) {
+        const sx = v.x + dx, sz = v.z + dz;
+        if (v.gardens.some(g => g.x0 + 3 === sx && g.z0 + 2 === sz)) continue;
+        const y = column(sx, sz) & 255;
+        if (y <= SEA + 1 || Math.abs(y - v.y) > 3) continue;
+        const south = dz < 0, Z = lz => south ? sz + 3 - lz : sz - 3 + lz;   // (its door faces the middle of the village)
+        return { id: 's' + gx + '_' + gz, x: sx, z: sz, y, south, Z, kz: Z(5), sz: Z(-1), bbox: [sx - 5, Math.min(Z(-2), Z(7)), sx + 5, Math.max(Z(-2), Z(7))] };
+      }
+      return null;
+    }
+    /* stone-brick corners, white walls with shop windows, a blue-and-white floor, a striped awning over a sign, shelves,
+       a counter, and the shopkeeper's place behind it (lz 0 is the front wall, 6 the back; lx across, 0 at the door) */
+    function buildStore(blocks, data, cx, cz, st, cols) {
+      const x0 = cx * 16, z0 = cz * 16, y = st.y, H = 4, Z = st.Z;
+      const inC = (x, z) => x >= x0 && x < x0 + 16 && z >= z0 && z < z0 + 16;
+      const hAt = (x, z) => inC(x, z) ? (cols[(z - z0) * 16 + (x - x0)] & 255) : (column(x, z) & 255);
+      const P = (lx, yy, lz, id, dv) => { const x = st.x + lx, z = Z(lz); if (!inC(x, z) || yy < 1 || yy >= WH) return; const i = idx(x - x0, yy, z - z0); blocks[i] = id; data[i] = dv || 0; };
+      for (let lz = -2; lz <= 7; lz++) for (let lx = -5; lx <= 5; lx++) {
+        const x = st.x + lx, z = Z(lz);
+        if (!inC(x, z)) continue;
+        if (lx < -4 || lx > 4 || lz < 0 || lz > 6) {   // clear round about; a gravel step in front
+          for (let yy = y + 1; yy <= y + H + 4; yy++) P(lx, yy, lz, B.AIR);
+          if (lz === -1 && Math.abs(lx) <= 1) { for (let yy = hAt(x, z) + 1; yy < y; yy++) P(lx, yy, lz, B.COBBLE); P(lx, y, lz, B.GRAVEL); }
+          continue;
+        }
+        const per = lx === -4 || lx === 4 || lz === 0 || lz === 6, corner = (lx === -4 || lx === 4) && (lz === 0 || lz === 6);
+        for (let yy = hAt(x, z) + 1; yy < y; yy++) P(lx, yy, lz, B.COBBLE);
+        P(lx, y, lz, per ? B.STONE_BRICKS : (lx + lz) & 1 ? B.QUARTZ_BLOCK : B.WOOL + 11);
+        for (let yy = y + 1; yy <= y + H; yy++) P(lx, yy, lz, corner ? B.STONE_BRICKS : per ? B.QUARTZ_BLOCK : B.AIR);
+        P(lx, y + H + 1, lz, B.STONE_BRICKS);
+        for (let yy = y + H + 2; yy <= y + H + 4; yy++) P(lx, yy, lz, B.AIR);
+      }
+      const df = st.south ? 0 : 2, tz = st.south ? -1 : 1;
+      P(0, y + 1, 0, B.GLASS_DOOR, df); P(0, y + 2, 0, B.GLASS_DOOR, df | 8);
+      for (const lx of [-3, -2, -1, 1, 2, 3]) for (const yy of [y + 2, y + 3]) P(lx, yy, 0, B.GLASS);   // shop windows
+      for (let lx = -4; lx <= 4; lx++) P(lx, y + H, -1, B.WOOL + (lx & 1 ? 0 : 14));   // a red-and-white awning
+      P(0, y + 3, -1, B.SIGN, st.south ? 16 : 18);   // "Declan-craft Store" (the words go on when it is first seen)
+      P(-2, y + 2, -1, B.TORCH, tdat(0, tz)); P(2, y + 2, -1, B.TORCH, tdat(0, tz));
+      for (const lx of [-3, 3]) for (const lz of [1, 2]) { P(lx, y + 1, lz, B.BOOKSHELF); P(lx, y + 2, lz, lz === 1 ? B.PUMPKIN : B.BOOKSHELF); }   // shelves of things
+      for (let lx = -3; lx <= 3; lx++) { P(lx, y + 1, 6, B.BOOKSHELF); P(lx, y + 2, 6, B.BOOKSHELF); }   // shelves behind the counter
+      for (let lx = -3; lx <= 2; lx++) P(lx, y + 1, 4, B.SPRUCE_PLANKS);   // the counter (a gap at the end to get behind it)
+      P(0, y + H + 1, 2, B.GLOWSTONE); P(0, y + H + 1, 4, B.GLOWSTONE);
     }
     function villagesNear(x, z) {
       const gx = Math.floor(x / VCELL), gz = Math.floor(z / VCELL), out = [];
@@ -839,6 +890,23 @@ function genModule(B, P) {
     }
     return Array.from(out);
   }
+  /* stores whose ground overlaps any of the given chunks (worlds from before there were stores keep them out of what was built) */
+  function storesTouching(map, seed, chunks) {
+    const out = new Set(), hit = (bb, cx, cz) => bb[2] >= cx * 16 && bb[0] <= cx * 16 + 15 && bb[3] >= cz * 16 && bb[1] <= cz * 16 + 15;
+    if (map === 'falls') { for (const [cx, cz] of chunks) if (hit(GEN3.FF.store.bbox, cx, cz)) out.add('fstore'); return Array.from(out); }
+    if (map !== 'valley') return [];
+    const g = getGen(map, seed);
+    for (const [cx, cz] of chunks) for (const v of g.villagesNear(cx * 16 + 8, cz * 16 + 8)) if (v.store && hit(v.store.bbox, cx, cz)) out.add(v.store.id);
+    return Array.from(out);
+  }
+  /* the nearest Declan-craft Store: where its shopkeeper stands */
+  function findStore(map, seed, x, z, blocked) {
+    const bl = new Set(blocked || []);
+    if (map === 'falls') return bl.has('fstore') ? null : [21, GEN3.FF.town.y + 1, -1];
+    if (map !== 'valley') return null;
+    const g = getGen(map, seed), at = g.nearestVillage(x, z, bl), v = at && g.villagesNear(at[0], at[2]).find(q => q.x === at[0] && q.z === at[2]);
+    return v && v.store && !bl.has(v.store.id) ? [v.store.x, v.store.y + 1, v.store.kz] : null;
+  }
   function findVillage(map, seed, x, z, blocked) { return map === 'valley' ? getGen(map, seed).nearestVillage(x, z, new Set(blocked || [])) : null; }
   /* dungeons whose tower, stairs or room overlap any of the given chunks (kept out of what was built before there were dungeons) */
   function dungeonsTouching(map, seed, chunks) {
@@ -874,5 +942,5 @@ function genModule(B, P) {
     const bio = map === 'valley' ? getGen(map, seed).column(Math.floor(x), Math.floor(z)) >> 8 : map === 'sky' ? getGen(map, seed).biomeAt(Math.floor(x), Math.floor(z)) : PLAINS;
     return bio === DESERT ? 0 : bio === SNOWY || bio === PEAKS || bio === FROZEN ? 2 : 1;
   }
-  return { generateChunk, spawnPoint, computeLight, makeNoise, mulberry32, hash3, villagesTouching, findVillage, dungeonsTouching, findDungeon, dungeonHere, dungeonsNear, climateAt, hogwarts: GEN3.HW, falls: GEN3.FF, fallsGround: (seed, x, z) => getGen('falls', seed).column(Math.floor(x), Math.floor(z)) };
+  return { generateChunk, spawnPoint, computeLight, makeNoise, mulberry32, hash3, villagesTouching, storesTouching, findStore, findVillage, dungeonsTouching, findDungeon, dungeonHere, dungeonsNear, climateAt, hogwarts: GEN3.HW, falls: GEN3.FF, fallsGround: (seed, x, z) => getGen('falls', seed).column(Math.floor(x), Math.floor(z)) };
 }

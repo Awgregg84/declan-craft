@@ -137,7 +137,7 @@ function spawnMob(game, type, x, y, z, opts) {
   e.w = d.w; e.h = d.h; e.hp = d.hp; e.mob = true;
   if (type === 'villager') {
     const o = opts || {};
-    e.prof = VILLAGER_PROFS.includes(o.prof) ? o.prof : VILLAGER_PROFS[randInt(0, VILLAGER_PROFS.length - 1)];
+    e.prof = VILLAGER_PROFS.includes(o.prof) ? o.prof : VILLAGER_PROFS[randInt(0, VILLAGER_PROFS.length - 2)];   // (any job but a shopkeeper's: they keep a store)
     e.home = o.home || [x, z]; e.village = o.village || null; e.vseed = o.vseed !== undefined ? o.vseed : randInt(0, 99999);
   }
   if (type === 'magma') {   // small or big (see mobMaxHp)
@@ -178,6 +178,7 @@ function blockDrops(id, held, st) {
   if (d.tier > 0 && (!tool || tool.kind !== d.tool || tool.tier < d.tier)) return [];
   if (st && enchLvl(st, 'silk_touch') && id !== B.BEDROCK && !LIQUID[id] && d.creative !== false && d.hardness >= 0) return [[id, 1]];   // the block itself
   if (d.drop === null) return [];
+  if (id === B.GOLD_ORE) return [[id, 1], [I.COIN, randInt(1, 3)]];   // (a little money in it too)
   const fortune = st ? enchLvl(st, 'fortune') : 0, base = id === B.LAPIS_ORE ? randInt(4, 8) : 1;
   if (d.xp) return [[d.drop, base * Math.max(1, randInt(0, fortune + 1))]];   // ores: more with Fortune
   if (d.drop === 'leaves') {
@@ -599,6 +600,7 @@ function spawnTick(game) {
   while (world.spawnQueue.length) {
     const sp = world.spawnQueue.shift(), [type, x, y, z, count] = sp;
     if (type === 'villager') { spawnVillagers(game, sp); continue; }
+    if (type === 'shop') { spawnShop(game, sp); continue; }
     if (passive >= 36 || !game.settings.animals) continue;
     for (let i = 0; i < count; i++) {
       const sx = x + randRange(-1.5, 1.5), sz = z + randRange(-1.5, 1.5);

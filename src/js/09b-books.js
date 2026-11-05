@@ -86,6 +86,7 @@ function fillVillageChest(t) {
   put(I.APPLE, randInt(0, 3));
   put(I.LAPIS, randInt(0, 4));
   put(I.EMERALD, randInt(0, 2));
+  put(I.COIN, randInt(1, 9));
   if (Math.random() < 0.3) put(I.WRITABLE_BOOK, 1);
   if (Math.random() < 0.25) put(I.XP_BOTTLE, randInt(1, 2));
 }

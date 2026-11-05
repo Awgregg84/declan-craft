@@ -97,6 +97,24 @@ const GID = GUEST.pid;
     await H.evaluate(() => { for (const e of game.entities) if (e.mob) e.removed = true; });
   }
 
+  if (on('money')) {
+    // a shopkeeper on the host; she buys bread with her own money (the host checks), sells cobblestone, and can't cheat
+    await H.evaluate(S => { for (const e of game.entities) if (e.mob) e.removed = true; const e = spawnMob(game, 'villager', S.x + 0.5, S.y, S.z + 4.5, { prof: 'shopkeeper', home: [S.x + 0.5, S.z + 4.5], village: 'stest', vseed: 5 }); window.__k = e; }, S);
+    const kid = await H.evaluate(() => window.__k.nid);
+    check('she sees the shopkeeper', await waitFor(G, kid => game.entities.some(e => e.nid === kid && e.prof === 'shopkeeper'), 8000, kid));
+    await G.evaluate(S => { const pl = game.player; Object.assign(pl, { x: S.x + 0.5, y: S.y, z: S.z + 7.5 }); for (let i = 0; i < 36; i++) pl.inv[i] = null; giveMoney(pl, 12); pl.give(B.COBBLE, 16); }, S);
+    await G.evaluate(kid => { const e = game.entities.find(q => q.nid === kid); openTrade(e); shopDeal(false, 0); }, kid);
+    check('she buys bread: the host says yes, and her money goes down', await waitFor(G, () => T.count(I.BREAD) === 3 && moneyOf(game.player) === 9, 8000), await G.evaluate(() => [T.count(I.BREAD), moneyOf(game.player)]));
+    await G.evaluate(() => { ui.inv.tab = 1; buildInv(); shopDeal(true, 0); });
+    check('she sells 16 cobblestone for $1', await waitFor(G, () => T.count(B.COBBLE) === 0 && moneyOf(game.player) === 10, 8000));
+    check('the host keeps her money with her things', await waitFor(H, gid => { const s = MP.guestSaves[gid]; return s && moneyOf(s) === 10; }, 8000, GID));
+    // money that the host never heard about doesn't buy anything
+    await G.evaluate(() => { window.__ss = MP.sendSave; MP.sendSave = () => {}; giveMoney(game.player, 100); ui.inv.tab = 0; buildInv(); const k = SHOP_BUY.findIndex(it => it[0] === I.LASER); shopDeal(false, k); });
+    await sleep(2500);
+    check('the host says no to money it never saw', await G.evaluate(() => T.count(I.LASER) === 0 && /not just now/.test(document.querySelector('.trade-msg').textContent)));
+    await G.evaluate(() => { MP.sendSave = window.__ss; closeInv(); });
+  }
+
   check('no page errors', H.errs.length === 0 && G.errs.length === 0, H.errs.concat(G.errs).slice(0, 6));
   console.log(fails ? fails + ' FAILED' : 'ALL PASSED');
   await browser.close(); server.close(); peer.close && peer.close();

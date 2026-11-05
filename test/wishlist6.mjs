@@ -130,6 +130,66 @@ const FRONT_FACE_OF = d => [4, 1, 5, 0][d & 3];
     await E(() => T.clearMobs());
   }
 
+  if (on('money')) {
+    // ---------- money and the Declan-craft Store ----------
+    const m1 = await E(() => {
+      const pl = game.player; game.setMode('survival');
+      for (let i = 0; i < 36; i++) pl.inv[i] = null;
+      const out = { names: [itemName(I.COIN), itemName(I.BILL)], icons: !!ICONS[I.COIN] && !!ICONS[I.BILL], creative: CREATIVE_LIST.includes(I.COIN) && CREATIVE_LIST.includes(I.BILL) };
+      giveMoney(pl, 23); out.m0 = moneyOf(pl); out.c0 = [T.count(I.BILL), T.count(I.COIN)];
+      payMoney(pl, 7); out.m1 = moneyOf(pl); out.c1 = [T.count(I.BILL), T.count(I.COIN)];
+      out.cant = payMoney(pl, 99); out.m2 = moneyOf(pl);
+      out.gold = blockDrops(B.GOLD_ORE, toolId(2, 0)).some(([id, n]) => id === I.COIN && n >= 1);
+      let found = 0; for (let i = 0; i < 20; i++) { const c = { slots: new Array(27).fill(null) }; fillVillageChest(c); if (c.slots.some(q => q && q.id === I.COIN)) found++; }
+      out.chests = found;
+      return out;
+    });
+    check('coins ($1) and ten dollar bills ($10), with pictures, in Creative', m1.names.join() === 'Coin,Ten Dollar Bill' && m1.icons && m1.creative, m1);
+    check('money adds up, and paying gives change', m1.m0 === 23 && m1.c0.join() === '2,3' && m1.m1 === 16 && m1.c1.join() === '1,6' && m1.cant === false && m1.m2 === 16, m1);
+    check('gold ore gives a little money, and village chests have coins', m1.gold && m1.chests === 20, m1);
+    const S = await E(() => { const pl = game.player; return game.gen.findStore(game.mapId, game.seed, pl.x, pl.z, game.world.villageBlock); });
+    check('the nearest village has a Declan-craft Store (/locate store)', Array.isArray(S), S);
+    if (S) {
+      await E(S => T.put(S[0] + 0.5, S[1] + 6, S[2] + 0.5, { flying: true }), S);
+      await waitFor(S => game.world.readyAround(S[0], S[2], 2) >= 1, 60000, S);
+      const ok = await waitFor(S => game.entities.some(e => e.type === 'villager' && e.prof === 'shopkeeper' && !e.removed && Math.hypot(e.x - S[0] - 0.5, e.z - S[2] - 0.5) < 3), 20000, S);
+      const at = await E(S => {
+        const w = game.world, e = game.entities.find(q => q.type === 'villager' && q.prof === 'shopkeeper');
+        // the sign over the door, two blocks in front of the shopkeeper's place and up
+        let sign = null; for (let dz = -8; dz <= 8; dz++) for (let dx = -2; dx <= 2; dx++) for (let dy = 0; dy <= 3; dy++) { const l = signLines(w, S[0] + dx, S[1] + dy, S[2] + dz); if (l) sign = l; }
+        let shelves = 0, counter = 0; for (let dz = -6; dz <= 6; dz++) for (let dx = -4; dx <= 4; dx++) { if (w.getBlock(S[0] + dx, S[1], S[2] + dz) === B.BOOKSHELF) shelves++; if (w.getBlock(S[0] + dx, S[1], S[2] + dz) === B.SPRUCE_PLANKS) counter++; }
+        return { sign, shelves, counter, prof: e && PROF_NAMES[e.prof] };
+      }, S);
+      check('the store has a shopkeeper, shelves, a counter and its sign', ok && at.sign && at.sign[0] === 'Declan-craft' && at.sign[1] === 'Store' && at.shelves >= 6 && at.counter >= 4 && at.prof === 'Shopkeeper', at);
+      // look at it from outside the door
+      await E(S => { const e = game.entities.find(q => q.type === 'villager' && q.prof === 'shopkeeper'), w = game.world; let fz = 0; for (const dz of [-1, 1]) if (w.getBlock(S[0], S[1], S[2] + dz * 5) === B.GLASS_DOOR) fz = dz; T.put(S[0] + 0.5, S[1] + 1, S[2] + fz * 11 + 0.5, { flying: true, yaw: fz > 0 ? 0 : Math.PI, pitch: -0.1 }); game.world.time = 0.25; }, S);
+      await sleep(1500); await shot('store-outside');
+      await E(S => { const w = game.world; let fz = 0; for (const dz of [-1, 1]) if (w.getBlock(S[0], S[1], S[2] + dz * 5) === B.GLASS_DOOR) fz = dz; T.put(S[0] + 0.5, S[1], S[2] + fz * 3.2 + 0.5, { flying: false, yaw: fz > 0 ? 0 : Math.PI, pitch: -0.05 }); }, S);
+      await sleep(1000); await shot('store-inside');
+      const shop = await E(() => {
+        const pl = game.player, e = game.entities.find(q => q.type === 'villager' && q.prof === 'shopkeeper'), out = {};
+        giveMoney(pl, 5); pl.give(B.COBBLE, 16);
+        openTrade(e); out.kind = ui.inv && ui.inv.kind; out.money = el('shop-money').textContent; out.rows = document.querySelectorAll('.shop-list .trade').length;
+        const m0 = moneyOf(pl), b0 = T.count(I.BREAD); shopDeal(false, 0); out.bought = [m0 - moneyOf(pl), T.count(I.BREAD) - b0];
+        const k = SHOP_BUY.findIndex(it => it[0] === I.LASER); shopDeal(false, k); out.cant = [T.count(I.LASER), document.querySelector('.trade-msg').textContent];
+        ui.inv.tab = 1; buildInv(); const m1 = moneyOf(pl); shopDeal(true, 0); out.sold = [moneyOf(pl) - m1, T.count(B.COBBLE)];
+        closeInv(); openInv('inv'); out.line = (el('inv-money') || {}).textContent; closeInv();
+        game.setMode('creative'); openTrade(e); out.cmoney = el('shop-money').textContent; const l0 = T.count(I.LASER), mm = moneyOf(pl); shopDeal(false, k); out.free = [T.count(I.LASER) - l0, moneyOf(pl) - mm]; closeInv(); game.setMode('survival');
+        return out;
+      });
+      check('tap the shopkeeper: the store screen, with your money', shop.kind === 'shop' && /You have \$\d+/.test(shop.money) && shop.rows > 20, shop);
+      check('buy bread for $3; a laser is too dear; sell 16 cobblestone for $1', shop.bought.join() === '3,3' && shop.cant[0] === 0 && /You need \$40/.test(shop.cant[1]) && shop.sold.join() === '1,0', shop);
+      check('the inventory shows how much money you have; in Creative everything is free', /^Money: \$\d+$/.test(shop.line) && /free/.test(shop.cmoney) && shop.free.join() === '1,0', shop);
+    }
+    const fall = await E(() => {
+      const res = game.gen.generateChunk('falls', 7, 1, -1, null, null), res2 = game.gen.generateChunk('falls', 7, 1, -1, null, ['fstore']);
+      return { spawn: res.spawns.filter(s => s[0] === 'shop').length, blocked: res2.spawns.filter(s => s[0] === 'shop').length, stan: FALLS_CHARS[2].give.some(([id, n]) => id === I.BILL && n * 10 >= 300), at: game.gen.findStore('falls', 7, 0, 0, []),
+        old: game.gen.storesTouching('falls', 7, [[1, 0]]), oldV: (() => { const s = game.gen.findStore(game.mapId, game.seed, game.player.x, game.player.z, []); return s ? game.gen.storesTouching('valley', game.seed, [[Math.floor(s[0] / 16), Math.floor(s[2] / 16)]]).length : -1; })() };
+    });
+    check('Declan Falls has a store too, and Grunkle Stan starts with lots of money', fall.spawn === 1 && fall.blocked === 0 && fall.stan && Array.isArray(fall.at), fall);
+    check('older worlds get no store where something was built', fall.old.join() === 'fstore' && fall.oldV === 1, fall);
+  }
+
   console.log(errs.length ? 'ERRORS:\n' + errs.join('\n') : 'no page errors');
   console.log(fails ? fails + ' FAILED' : 'ALL PASSED');
   await browser.close(); server.close();

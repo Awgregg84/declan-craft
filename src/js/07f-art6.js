@@ -28,6 +28,19 @@ function buildItemTiles6() {
     p.rect(2, 9, 1, 3, C('#5a5a5a'));
   });
   LASER_COLORS.forEach(([n, hex], k) => addTile('laser_' + k, p => p.fill((x, y) => { const d = Math.hypot(x - 7.5, y - 7.5); return d < 3 ? C('#ffffff') : d < 7 ? mixc(C(hex), C('#ffffff'), Math.max(0, 0.6 - d * 0.08)) : null; })));
+  // money: a gold coin with a $ on it, and a green ten dollar bill
+  const DOLLAR = ['.#.', '###', '#..', '###', '..#', '###', '.#.'];
+  addTile('coin', p => {
+    shadeMask(p, mask(circle(8, 8, 6)), PAL.gold, true);
+    for (let y = 0; y < 7; y++) for (let x = 0; x < 3; x++) if (DOLLAR[y][x] === '#') p.px(7 + x, 5 + y, C('#a87a10'));
+  });
+  addTile('bill', p => {
+    shadeMask(p, mask(poly([[1, 4], [15, 4], [15, 12], [1, 12]])), [C('#6ab86a'), C('#9ad89a'), C('#3a8a3a'), C('#1a3a1a')], true);
+    p.rect(2, 5, 12, 6, C('#8ac88a'));
+    shadeMask(p, mask(circle(8, 8, 2.6)), [C('#4a9a4a'), C('#6ab86a'), C('#2a6a2a'), C('#1a3a1a')], false);
+    p.px(3, 6, C('#2a6a2a')); p.px(12, 9, C('#2a6a2a')); p.px(4, 9, C('#2a6a2a')); p.px(12, 6, C('#2a6a2a'));
+    p.px(8, 7, C('#e8f8e8')); p.px(8, 8, C('#e8f8e8'));
+  });
 }
 function buildSkins6() {
 }

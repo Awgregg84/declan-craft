@@ -49,7 +49,7 @@ function humanoid(name, skin, scale, extras) {
   ].concat(extras || []));
 }
 const PLAYER_SKINS = ['declan', 'sister'];
-const VILLAGER_PROFS = ['farmer', 'butcher', 'toolsmith', 'shepherd', 'mason', 'cleric', 'librarian', 'armorer', 'fisherman'];   // (new jobs go on the end: playing together sends their numbers)
+const VILLAGER_PROFS = ['farmer', 'butcher', 'toolsmith', 'shepherd', 'mason', 'cleric', 'librarian', 'armorer', 'fisherman', 'shopkeeper'];   // (new jobs go on the end: playing together sends their numbers)
 function playerModelFor(skin) { return MODELS['player_' + skin] || MODELS.player; }
 function buildModels() {
   humanoid('player', 'declan', 0.9375 / 16);

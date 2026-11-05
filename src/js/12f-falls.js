@@ -1,15 +1,15 @@
 /* ===================== Declan Falls ===================== */
 // A little town in a tall pine forest by a lake (see fallsGen in 02b-gen3.js): the Mystery Shack, a water tower, a
 // diner and a few houses. When you first arrive you pick who you are: Dipper, Mabel, Grunkle Stan, Soos or Wendy, each
-// with their own look and the things they start with (money and shops aren't in the game yet, so Grunkle Stan's
-// "money" is gold and emeralds). Six mysteries are hidden about the town and the forest ("Mysteries found 3/6"), and
+// with their own look and the things they start with (Grunkle Stan has $500 to spend at the Declan-craft Store on the
+// main street). Six mysteries are hidden about the town and the forest ("Mysteries found 3/6"), and
 // odd creatures live here: garden gnomes that giggle and run off, glowing lights in the forest, and something big in
 // the lake. Nothing here hurts anyone. Who you are and what you have found are kept with the world (a guest's on the
 // host's iPad, with the rest of their things).
 const FALLS_CHARS = [
   { name: 'Dipper', kit: 'Journal 3 and his pine tree cap', give: [[I.JOURNAL, 1], [I.PINE_CAP, 1, 1]] },
   { name: 'Mabel', kit: 'lots of colourful sweaters', give: SWEATERS.map((s, i) => [I.SWEATER + i, 1, i === 0 ? 1 : 0]) },
-  { name: 'Grunkle Stan', kit: 'his fez and lots of money', give: [[I.FEZ, 1, 1], [I.GOLD_INGOT, 32], [I.EMERALD, 32]] },
+  { name: 'Grunkle Stan', kit: 'his fez and lots of money', give: [[I.FEZ, 1, 1], [I.BILL, 50], [I.EMERALD, 32]] },
   { name: 'Soos', kit: 'a golf cart to drive, and pizza', give: [[I.GOLF_CART, 1], [I.PIZZA, 8]] },
   { name: 'Wendy', kit: 'an axe and her flannel shirt', give: [[toolId(2, 1), 1]] },
 ];
