@@ -373,6 +373,8 @@ class Player {
     // a book of building plans: open it
     if (hid === I.PLAN_BOOK && inp.use && inp.usePressed && this.useCd <= 0 && !interactive) { inp.usePressed = false; inp.use = false; this.useCd = 0.3; this.swing(); openPlans(); return; }
     // a magic wand: tap to cast its spell
+    if (hid === I.GHOST_TRAP && inp.use && inp.usePressed && this.useCd <= 0 && !interactive) { inp.usePressed = false; this.useCd = throwTrap(game, this); return; }
+    if ((hid === I.PROTON_PACK || hid === I.GHOST_DETECTOR) && inp.use && !interactive) { if (inp.usePressed && !atGhost()) toast(hid === I.PROTON_PACK ? 'The proton pack only works where there are ghosts: in the Ghostbusters city!' : 'No ghosts to find here. Try the Ghostbusters city!', 3); inp.usePressed = false; return; }   // (the stream itself: see ghostTick)
     if (hid === I.LASER && inp.use && inp.usePressed && this.useCd <= 0 && !interactive) { inp.usePressed = false; this.useCd = fireLaser(game, this); return; }
     if (hid === I.WAND && inp.use && inp.usePressed && this.useCd <= 0 && !interactive) { inp.usePressed = false; this.useCd = castSpell(game, this); return; }
     // bows and crossbows
@@ -816,6 +818,9 @@ const HELD_TIPS = {
   [I.ROBOT]: ['Tap the ground to let your robot out. Tap it to change what it does; hit it to put it back in your bag.', 'Right-click the ground to let your robot out. Right-click it to change what it does; hit it to put it back in your bag.'],
   [B.CAMERA]: ['Put the camera up on a wall: it looks out from the wall. On top of a block, it looks back at you.', 'Put the camera up on a wall: it looks out from the wall. On top of a block, it looks back at you.'],
   [B.MONITOR]: ['A monitor shows what your cameras see. Tap it to switch cameras.', 'A monitor shows what your cameras see. Right-click it to switch cameras.'],
+  [I.PROTON_PACK]: ['Hold to fire the proton stream at a ghost: it holds the ghost still. Then throw the trap!', 'Hold the right mouse button to fire the proton stream at a ghost: it holds the ghost still. Then throw the trap!'],
+  [I.GHOST_TRAP]: ['While a ghost is held in a proton stream, tap to throw the trap under it and catch it!', 'While a ghost is held in a proton stream, right-click to throw the trap under it and catch it!'],
+  [I.GHOST_DETECTOR]: ['The lights and the beeping tell you how close a ghost is: faster beeps, closer ghost!', 'The lights and the beeping tell you how close a ghost is: faster beeps, closer ghost!'],
   [I.LASER]: ['Tap to fire the laser! It only hurts monsters. The button at the top picks its colour.', 'Right-click to fire the laser! It only hurts monsters. Press F to pick its colour.'],
   [I.TRAIN]: ['Tap a railway track to put the train on it, then tap the train to get in.', 'Right-click a railway track to put the train on it, then right-click the train to get in.'],
   [B.STATION]: ['Put the Train Station right beside the track: it builds a platform with a sign, and trains stop there.', 'Put the Train Station right beside the track: it builds a platform with a sign, and trains stop there.'],

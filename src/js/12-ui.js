@@ -9,9 +9,10 @@ const MAPS = {
   sky: { name: 'Sky Islands', desc: 'Floating islands above a sea of clouds. Build bridges between them, and mind the edge!' },
   hogwarts: { name: 'Hogwarts', desc: 'The castle above the Black Lake, the Forbidden Forest, Hogsmeade, and a Quidditch pitch. You get a wand and a broomstick!' },
   falls: { name: 'Declan Falls', desc: 'A little town in a tall pine forest by a lake, with the Mystery Shack. Be Dipper, Mabel, Grunkle Stan, Soos or Wendy, and find six mysteries!' },
+  ghost: { name: 'Ghostbusters', desc: 'A spooky little city at dusk, full of ghosts. You have a proton pack, a ghost trap and a ghost detector: how many can you catch?' },
 };
 /* the saved worlds: each has its own save, and the land it is made of (Hardcore is a Sunny Valley you only get one life in) */
-const SLOTS = { valley: { map: 'valley' }, sky: { map: 'sky' }, hogwarts: { map: 'hogwarts' }, falls: { map: 'falls' }, hardcore: { map: 'valley', hardcore: true } };
+const SLOTS = { valley: { map: 'valley' }, sky: { map: 'sky' }, hogwarts: { map: 'hogwarts' }, falls: { map: 'falls' }, ghost: { map: 'ghost' }, hardcore: { map: 'valley', hardcore: true } };
 const HC_LAST_KEY = 'declancraft:v1:hardcore-last';
 /* Hardcore is always at least Normal */
 const difficulty = () => game.hardcore ? Math.max(2, game.settings.difficulty) : game.settings.difficulty;
@@ -532,6 +533,7 @@ function drawThumb(cv, map) {
   cv.width = W; cv.height = H;
   if (map === 'hogwarts') { drawHogwartsThumb(ctx, W, H); return; }
   if (map === 'falls') { drawFallsThumb(ctx, W, H); return; }
+  if (map === 'ghost') { drawGhostThumb(ctx, W, H); return; }
   const r = mulberry32(map === 'sky' ? 7 : 3);
   const g = ctx.createLinearGradient(0, 0, 0, H);
   g.addColorStop(0, '#5f8ff0'); g.addColorStop(1, map === 'sky' ? '#d8e8ff' : '#a9c8ff');
@@ -563,7 +565,7 @@ function buildWorldCards() {
   const wrap = el('world-cards');
   wrap.textContent = '';
   el('worlds-h').textContent = ui.hostMode ? 'Choose a World to Share' : 'Choose a World';
-  for (const id of ['valley', 'sky', 'hogwarts', 'falls', 'hardcore']) {
+  for (const id of ['valley', 'sky', 'hogwarts', 'falls', 'ghost', 'hardcore']) {
     const hc = !!SLOTS[id].hardcore, info = hc ? { name: 'Hardcore', desc: 'Sunny Valley, but you only get one life! If you die, the world is gone and you start a new one.' } : MAPS[id], save = loadSaveMeta(id);
     const card = h('article', { class: 'card' + (hc ? ' hardcore' : '') });
     const cv = h('canvas', { 'aria-hidden': 'true' });

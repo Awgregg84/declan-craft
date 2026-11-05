@@ -808,7 +808,7 @@ function genModule(B, P) {
   function getGen(map, seed) {
     const k = map + ':' + seed;
     let g = gens.get(k);
-    if (!g) { g = map === 'sky' ? skyGen(seed) : map === 'nether' ? netherGen(seed) : map === 'moon' ? GEN3.moonGen(seed) : map === 'mars' ? GEN3.marsGen(seed) : map === 'jupiter' ? GEN3.jupiterGen(seed) : map === 'uranus' ? GEN3.uranusGen(seed) : map === 'hogwarts' ? GEN3.hogwartsGen(seed) : map === 'falls' ? GEN3.fallsGen(seed) : valleyGen(seed); gens.set(k, g); }
+    if (!g) { g = map === 'sky' ? skyGen(seed) : map === 'nether' ? netherGen(seed) : map === 'moon' ? GEN3.moonGen(seed) : map === 'mars' ? GEN3.marsGen(seed) : map === 'jupiter' ? GEN3.jupiterGen(seed) : map === 'uranus' ? GEN3.uranusGen(seed) : map === 'hogwarts' ? GEN3.hogwartsGen(seed) : map === 'falls' ? GEN3.fallsGen(seed) : map === 'ghost' ? GEN3.ghostGen(seed) : valleyGen(seed); gens.set(k, g); }
     return g;
   }
 
@@ -942,5 +942,5 @@ function genModule(B, P) {
     const bio = map === 'valley' ? getGen(map, seed).column(Math.floor(x), Math.floor(z)) >> 8 : map === 'sky' ? getGen(map, seed).biomeAt(Math.floor(x), Math.floor(z)) : PLAINS;
     return bio === DESERT ? 0 : bio === SNOWY || bio === PEAKS || bio === FROZEN ? 2 : 1;
   }
-  return { generateChunk, spawnPoint, computeLight, makeNoise, mulberry32, hash3, villagesTouching, storesTouching, findStore, planetLanding: GEN3.planetLanding, nearestRover: GEN3.nearestRover, findVillage, dungeonsTouching, findDungeon, dungeonHere, dungeonsNear, climateAt, hogwarts: GEN3.HW, falls: GEN3.FF, fallsGround: (seed, x, z) => getGen('falls', seed).column(Math.floor(x), Math.floor(z)) };
+  return { generateChunk, spawnPoint, computeLight, makeNoise, mulberry32, hash3, villagesTouching, storesTouching, findStore, planetLanding: GEN3.planetLanding, nearestRover: GEN3.nearestRover, findVillage, dungeonsTouching, findDungeon, dungeonHere, dungeonsNear, climateAt, hogwarts: GEN3.HW, falls: GEN3.FF, ghost: GEN3.GB, ghostGround: (seed, x, z) => getGen('ghost', seed).column(Math.floor(x), Math.floor(z)), fallsGround: (seed, x, z) => getGen('falls', seed).column(Math.floor(x), Math.floor(z)) };
 }

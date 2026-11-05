@@ -382,7 +382,7 @@ const game = {
     const pl = this.player = new Player();
     this.stats = {}; this.day = m.day; this.hostAfterLoad = false;
     if (m.you && m.you.kit) this.stats.hogKit = 1;   // (already given a wand and a broom at Hogwarts here)
-    if (m.you) { this.stats.fc = m.you.fc | 0; this.stats.myst = m.you.myst | 0; this.stats.seen = m.you.seen | 0; }   // (in Declan Falls: who you are, and what you have found)
+    if (m.you) { this.stats.fc = m.you.fc | 0; this.stats.myst = m.you.myst | 0; this.stats.seen = m.you.seen | 0; this.stats.ghosts = m.you.gh | 0; this.stats.ghKit = m.you.gk | 0; }   // (in Declan Falls: who you are, and what you have found)
     this.worldSpawn = m.spawn && m.spawn.length === 3 ? m.spawn.slice() : this.gen.spawnPoint(this.mapId, this.seed);
     const you = m.you;
     this.setMode(you ? you.mode : m.mode);
@@ -471,9 +471,9 @@ const game = {
       }
       pl.pitch = -0.1;
       if (vyaw !== null && off(pl.yaw) < 0.3) pl.pitch = clamp(Math.atan2(v[1] + 2 - (pl.y + 1.6), vd), -0.15, 0.2);
-      if (this.mapId === 'hogwarts') { pl.yaw = 0; pl.pitch = 0.15; }   // (facing the Great Hall)
+      if (this.mapId === 'hogwarts' || this.mapId === 'ghost') { pl.yaw = 0; pl.pitch = 0.15; }   // (facing the Great Hall, or the firehouse)
       pl.bodyYaw = pl.yaw;
-      if (this.mapId === 'hogwarts' || this.mapId === 'falls') { /* (the welcome comes below) */ }
+      if (this.mapId === 'hogwarts' || this.mapId === 'falls' || this.mapId === 'ghost' || this.mapId === 'life') { /* (the welcome comes below) */ }
       else if (this.mode === 'survival') chat('Welcome to ' + MAPS[this.mapId].name + '! Punch a tree to get started.', '#ffff55');
       else chat('Creative mode: every block is in your inventory (E). Double-tap jump to fly.', '#ffff55');
       if (vyaw !== null) {
@@ -493,6 +493,7 @@ const game = {
     if (isSpace(this.dim)) spaceArrival(this);
     if (atHogwarts()) hogwartsWelcome(this);
     if (atFalls()) fallsWelcome(this);
+    if (atGhost()) ghostWelcome(this);
     if (came) this.save();
     if (this.hostAfterLoad) { this.hostAfterLoad = false; MP.startHosting(); }
     MP.updateUI();
@@ -1073,6 +1074,8 @@ function frame(ts) {
     if (atFalls()) fallsTick(game, dt);
     else if (el('myst-count') && !el('myst-count').hidden) el('myst-count').hidden = true;
     planetTick(game, dt);   // (on another planet: Jupiter's wind, Mars rovers, Uranus's ice)
+    if (atGhost()) ghostTick(game, dt);
+    else { hudCount(null); if (el('pke') && !el('pke').hidden) el('pke').hidden = true; }
     if (atHogwarts()) hogwartsTick(game, dt);
     else if (el('qscore') && el('qscore').style.display !== 'none') el('qscore').style.display = 'none';   // (the Quidditch score: only at Hogwarts)
     planTick(game, dt);

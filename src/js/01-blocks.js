@@ -36,7 +36,7 @@ const I = {
   JOURNAL: 424, PINE_CAP: 425, SWEATER: 426, // 426..430 sweaters, in SWEATERS order
   FEZ: 431, GOLF_CART: 432, PIZZA: 433,
   TALE: 434, // 434..441 story books of old tales, in TALES order
-  LASER: 442, COIN: 443, BILL: 444, TRAIN: 445,
+  LASER: 442, COIN: 443, BILL: 444, TRAIN: 445, PROTON_PACK: 446, GHOST_TRAP: 447, GHOST_DETECTOR: 448,
   POTION: 370, // 370..381 potions, 390..401 splash potions, in POTIONS order
   SPLASH: 390,
   ARMOR: 350, // 350..365 = material*4 + slot
@@ -592,7 +592,7 @@ const CREATIVE_LIST = [
   ...TAGS.wool,
   toolId(0, 0), toolId(0, 1), toolId(0, 2), toolId(0, 3), toolId(1, 0), toolId(1, 1), toolId(1, 2), toolId(1, 3),
   toolId(2, 0), toolId(2, 1), toolId(2, 2), toolId(2, 3), toolId(3, 0), toolId(3, 1), toolId(3, 2), toolId(3, 3), I.FLINT_AND_STEEL,
-  I.BOW, I.CROSSBOW, I.ARROW, I.FIRE_CHARGE, I.ENDER_PEARL, I.SHIELD, I.FISHING_ROD, I.WAND, I.LASER,
+  I.BOW, I.CROSSBOW, I.ARROW, I.FIRE_CHARGE, I.ENDER_PEARL, I.SHIELD, I.FISHING_ROD, I.WAND, I.LASER, I.PROTON_PACK, I.GHOST_TRAP, I.GHOST_DETECTOR,
   ...[0, 1, 2, 3].flatMap(m => [0, 1, 2, 3].map(k => armorId(m, k))),
   I.STICK, I.COAL, I.IRON_INGOT, I.GOLD_INGOT, I.DIAMOND, I.EMERALD, I.COIN, I.BILL, I.LAPIS, I.FLINT, I.QUARTZ, I.NETHER_BRICK, I.GUNPOWDER, I.FEATHER, I.LEATHER, I.STRING, I.GHAST_TEAR,
   I.PAPER, I.BOOK, I.WRITABLE_BOOK, ...[0, 1, 2, 3, 4, 5, 6, 7].map(k => I.TALE + k), I.PLAN_BOOK, I.ROBOT, I.SUGAR, I.XP_BOTTLE, I.MAGMA_CREAM, I.GLASS_BOTTLE,

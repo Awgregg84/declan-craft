@@ -41,6 +41,29 @@ function buildItemTiles6() {
     p.rect(2, 9, 1, 3, C('#5a5a5a'));
   });
   LASER_COLORS.forEach(([n, hex], k) => addTile('laser_' + k, p => p.fill((x, y) => { const d = Math.hypot(x - 7.5, y - 7.5); return d < 3 ? C('#ffffff') : d < 7 ? mixc(C(hex), C('#ffffff'), Math.max(0, 0.6 - d * 0.08)) : null; })));
+  // the proton pack (a backpack with a wand on a cable), the ghost trap, the ghost detector; slime and proton sparks
+  addTile('proton_pack', p => {
+    shadeMask(p, mask(poly([[2, 2], [9, 2], [9, 14], [2, 14]])), [C('#5a5a5a'), C('#8a8a8a'), C('#3a3a3a'), C('#141414')], true);
+    p.rect(3, 4, 5, 2, C('#2a2a2a')); p.px(4, 9, C('#ff3a2a')); p.px(6, 9, C('#3aff6a')); p.rect(3, 11, 5, 1, C('#f2c83a'));
+    for (let i = 0; i < 4; i++) p.px(10 + i, 12 - i, C('#2a2a2a'));
+    shadeMask(p, mask(capsule([[12, 9], [15, 3]], 1.6)), [C('#7a7a7a'), C('#aaaaaa'), C('#4a4a4a'), C('#141414')], true);
+    p.px(15, 2, C('#ffb23a'));
+  });
+  addTile('ghost_trap', p => {
+    shadeMask(p, mask(poly([[2, 8], [14, 8], [14, 13], [2, 13]])), [C('#3a3a3a'), C('#6a6a6a'), C('#202020'), C('#080808')], true);
+    p.rect(2, 8, 12, 1, C('#f2c83a')); p.px(12, 10, C('#ff3a2a'));
+    for (let i = 0; i < 6; i++) p.px(7 + (i % 2), 7 - i, C('#2a2a2a'));
+    p.rect(6, 1, 4, 1, C('#2a2a2a')); p.px(9, 2, C('#f2c83a'));
+  });
+  addTile('ghost_detector', p => {
+    shadeMask(p, mask(poly([[4, 4], [12, 4], [12, 15], [4, 15]])), [C('#2a2a2a'), C('#5a5a5a'), C('#141414'), C('#050505')], true);
+    for (const [x, c] of [[5, '#ffd23a'], [7, '#ffd23a'], [9, '#ff8a3a'], [11, '#ff3a2a']]) p.px(x - 0.5 | 0, 6, C(c));
+    p.rect(5, 8, 6, 3, C('#3aff6a')); p.px(6, 9, C('#1a6a2a')); p.px(9, 10, C('#1a6a2a'));
+    shadeMask(p, mask(capsule([[3, 4], [1, 1]], 1.4)), [C('#7a7a7a'), C('#aaaaaa'), C('#4a4a4a'), C('#141414')], true);
+    shadeMask(p, mask(capsule([[13, 4], [15, 1]], 1.4)), [C('#7a7a7a'), C('#aaaaaa'), C('#4a4a4a'), C('#141414')], true);
+  });
+  addTile('slime', p => shadeMask(p, mask(circle(8, 8, 6)), [C('#6ae04a'), C('#b8ff8a'), C('#3a9a2a'), C('#1a4a10')], false));
+  addTile('proton', p => p.fill((x, y) => { const d = Math.hypot(x - 7.5, y - 7.5); return d < 3 ? C('#fffbe0') : d < 7 ? mixc(C('#ff8a2a'), C('#fff0c0'), Math.max(0, 0.7 - d * 0.1)) : null; }));
   // a train engine from the side, and a station platform with its sign
   addTile('train', p => {
     shadeMask(p, mask(poly([[1, 4], [6, 4], [6, 12], [1, 12]])), [C('#c82a2a'), C('#f05a4a'), C('#8a1a1a'), C('#3a0a0a')], true);   // the cab
@@ -66,6 +89,37 @@ function buildItemTiles6() {
   });
 }
 function buildSkins6() {
+  // the ghosts: a slimy green blob with a big grin, a floating sheet with dark eyes, and the marshmallow giant in a sailor hat
+  addSkin('slimer', S => {
+    const g = C('#6ae04a'), gL = C('#a8ff7a'), gD = C('#3a9a2a');
+    paintBox(S, 0, 0, 10, 9, 8, (f, x, y, fw, fh) => {
+      if (f === 'front') { if (y === 2 && (x === 2 || x === 7)) return C('#ffffff'); if (y === 3 && (x === 2 || x === 7)) return C('#1a1a1a'); if (y >= 5 && y <= 7 && x >= 2 && x <= 7) return y === 5 || y === 7 ? C('#8a1a1a') : (x % 2 ? C('#f4f4e0') : C('#c82a2a')); }
+      return (x * 3 + y * 5) % 7 === 0 ? gL : y > fh - 3 ? gD : S.jit(g, 8);
+    });
+    paintBox(S, 36, 0, 4, 3, 4, () => S.jit(gD, 6));
+    paintBox(S, 0, 17, 3, 5, 2, () => S.jit(g, 8));
+  });
+  addSkin('sheetghost', S => {
+    const w = C('#f4f4fa'), wD = C('#c8c8d8');
+    paintBox(S, 0, 0, 8, 14, 8, (f, x, y) => f === 'front' && y >= 3 && y <= 5 && (x === 2 || x === 5) ? C('#1a1a2a') : f === 'front' && y >= 8 && y <= 9 && x >= 3 && x <= 4 ? C('#2a2a3a') : (y > 11 ? wD : S.jit(w, 4)));
+    paintBox(S, 0, 22, 9, 2, 9, (f, x) => (x % 3 === 0) ? wD : S.jit(w, 4));
+    paintBox(S, 36, 0, 2, 3, 2, () => S.jit(w, 4));
+  });
+  addSkin('marshmallow', S => {
+    const w = C('#f6f2ea'), wD = C('#dcd6c8');
+    paintBox(S, 0, 0, 3, 6, 4, (f, x, y) => y > 4 ? wD : S.jit(w, 3));   // legs
+    paintBox(S, 0, 10, 12, 10, 8, (f, x, y) => (y % 4 === 3 ? wD : S.jit(w, 3)));   // a puffy body
+    paintBox(S, 40, 0, 3, 8, 4, (f, x, y) => (y % 3 === 2 ? wD : S.jit(w, 3)));   // arms
+    paintBox(S, 0, 28, 8, 6, 8, (f, x, y) => f === 'front' ? (y === 2 && (x === 2 || x === 5) ? C('#1a1a1a') : y === 4 && x >= 2 && x <= 5 ? C('#c86a6a') : (y === 3 && (x === 1 || x === 6) ? C('#f2b8b8') : w)) : S.jit(w, 3));   // a smiley face
+    paintBox(S, 0, 42, 9, 2, 9, (f, x, y) => f === 'top' ? C('#f4f4f4') : y === 1 ? C('#1a4ab8') : C('#f4f4f4'));   // the sailor hat
+    paintBox(S, 0, 53, 13, 2, 9, (f, x, y) => f === 'front' && x >= 5 && x <= 7 ? C('#d8282a') : C('#2a5ad0'));   // the collar and bow
+  });
+  addSkin('ghost_trap', S => {
+    const g = C('#3a3a3a'), y = C('#f2c83a');
+    paintBox(S, 0, 0, 10, 3, 6, (f, x, yy) => yy === 0 ? y : (f === 'front' && x === 8 && yy === 1) ? C('#ff3a2a') : S.jit(g, 6));
+    paintBox(S, 0, 9, 5, 1, 6, (f) => f === 'bottom' ? C('#fff6c0') : S.jit(C('#2a2a2a'), 5));
+    paintBox(S, 22, 9, 5, 1, 6, (f) => f === 'bottom' ? C('#fff6c0') : S.jit(C('#2a2a2a'), 5));
+  });
   // the train: a red engine with a black boiler and gold trim; open carriages in green with a cream roof
   addSkin('train', S => {
     const red = C('#c82a2a'), redD = C('#8a1a1a'), blk = C('#2a2a2e'), blkL = C('#4a4a52'), gold = C('#e8b830');
@@ -95,6 +149,30 @@ function buildSkins6() {
   });
 }
 function buildModels6() {
+  defModel('slimer', 'slimer', 1 / 16, [
+    { name: 'body', box: [-5, 3, -4, 10, 9, 8], uv: [0, 0] },
+    { name: 'tail', box: [-2, 0, -2, 4, 3, 4], uv: [36, 0] },
+    { name: 'rarm', box: [-8, 6, -1, 3, 5, 2], uv: [0, 17], pivot: [-5, 10, 0] },
+    { name: 'larm', box: [5, 6, -1, 3, 5, 2], uv: [0, 17], pivot: [5, 10, 0] },
+  ]);
+  defModel('sheetghost', 'sheetghost', 1 / 16, [
+    { name: 'body', boxes: [[-4, 2, -4, 8, 14, 8, 0, 0], [-4.5, 0, -4.5, 9, 2, 9, 0, 22]] },
+    { name: 'rarm', box: [-6, 9, -1, 2, 3, 2], uv: [36, 0], pivot: [-4, 11, 0] },
+    { name: 'larm', box: [4, 9, -1, 2, 3, 2], uv: [36, 0], pivot: [4, 11, 0] },
+  ]);
+  defModel('marshmallow', 'marshmallow', 4 / 16, [
+    { name: 'rleg', box: [-4, 0, -2, 3, 6, 4], uv: [0, 0], pivot: [-2.5, 6, 0] },
+    { name: 'lleg', box: [1, 0, -2, 3, 6, 4], uv: [0, 0], pivot: [2.5, 6, 0] },
+    { name: 'body', boxes: [[-6, 6, -4, 12, 10, 8, 0, 10], [-6.5, 14, -4.5, 13, 2, 9, 0, 53]] },
+    { name: 'rarm', box: [-9, 8, -2, 3, 8, 4], uv: [40, 0], pivot: [-7.5, 15, 0] },
+    { name: 'larm', box: [6, 8, -2, 3, 8, 4], uv: [40, 0], pivot: [7.5, 15, 0] },
+    { name: 'head', boxes: [[-4, 16, -4, 8, 6, 8, 0, 28], [-4.5, 22, -4.5, 9, 2, 9, 0, 42]], pivot: [0, 16, 0] },
+  ]);
+  defModel('ghost_trap', 'ghost_trap', 1 / 16, [
+    { name: 'base', box: [-5, 0, -3, 10, 3, 6], uv: [0, 0] },
+    { name: 'lidL', box: [-5, 3, -3, 5, 1, 6], uv: [0, 9], pivot: [-5, 3, 0] },
+    { name: 'lidR', box: [0, 3, -3, 5, 1, 6], uv: [22, 9], pivot: [5, 3, 0] },
+  ]);
   // the train, four pixels to a skin pixel (a quarter of a block each): the engine and a carriage, front to +z
   const wheel = (name, x, z) => ({ name, box: [x, 0, z - 1.5, 1, 3, 3], uv: [52, 0], pivot: [x + 0.5, 1.5, z] });
   defModel('train', 'train', 4 / 16, [

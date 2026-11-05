@@ -322,6 +322,67 @@ const FRONT_FACE_OF = d => [4, 1, 5, 0][d & 3];
     await visit('over');
   }
 
+  const GHOST_DUSK_T = 0.503;
+  if (on('ghosts')) {
+    // ---------- the Ghostbusters world ----------
+    await E(() => { game.startWorld('ghost', 'survival', true); });
+    await waitFor(() => game.state === 'playing' && game.mapId === 'ghost', 90000);
+    await sleep(1500);
+    const g0 = await E(() => {
+      const pl = game.player, has = id => pl.inv.some(s => s && s.id === id), G = game.gen.ghost, w = game.world;
+      let red = 0; for (let x = -14; x <= 14; x++) for (let y = 70; y <= 90; y++) if (w.getBlock(x, y, G.hq.z1 + 1) === B.WOOL + 14) red++;
+      return { kit: [has(I.PROTON_PACK), has(I.GHOST_TRAP), has(I.GHOST_DETECTOR)], card: !!MAPS.ghost && !!SLOTS.ghost, items: [I.PROTON_PACK, I.GHOST_TRAP, I.GHOST_DETECTOR].map(id => !!ICONS[id] && CREATIVE_LIST.includes(id)),
+        red, time: w.time, hello: Array.from(document.querySelectorAll('#chat-log div')).some(d => /Who you gonna call/.test(d.textContent)), count: el('hud-count') && el('hud-count').textContent };
+    });
+    check('a Ghostbusters world, and you start with a proton pack, a trap and a detector', g0.card && g0.kit.every(Boolean) && g0.items.every(Boolean) && g0.hello, g0);
+    check('the firehouse has GHOST BUSTERS on its board; it is always dusk; the counter shows', g0.red > 60 && Math.abs(g0.time - GHOST_DUSK_T) < 0.01 && g0.count === 'Ghosts caught: 0', g0);
+    await E(() => { const pl = game.player; T.put(0.5, 65, 6.5, { yaw: 0, pitch: 0.28 }); game.view = 0; });
+    await sleep(1500); await shot('ghost-hq');
+    check('ghosts float about the city, and the marshmallow giant is in the park', await waitFor(() => T.ents('slimer').length + T.ents('sheetghost').length >= 3 && T.ents('marshmallow').length === 1, 20000),
+      await E(() => ({ s: T.ents('slimer').length, g: T.ents('sheetghost').length, m: T.ents('marshmallow').length })));
+    // the detector
+    const det = await E(() => new Promise(res => {
+      const pl = game.player; for (const e of game.entities) if (isGhost(e)) e.removed = true;
+      T.put(0.5, 65, 4.5, { yaw: 0, pitch: 0 }); T.hold(I.GHOST_DETECTOR, 1);
+      const far = spawnMob(game, 'sheetghost', 0.5, 66, 30.5); far.ai = () => {}; far.home = [0.5, 30.5]; far.heldT = 99;
+      setTimeout(() => {
+        const o = { far: el('pke').textContent, lv1: +el('pke').dataset.level, shown: !el('pke').hidden };
+        far.x = 0.5; far.z = 1.5; far.y = 66;
+        setTimeout(() => { o.near = el('pke').textContent; o.lv2 = +el('pke').dataset.level; far.removed = true; res(o); }, 500);
+      }, 500);
+    }));
+    check('the ghost detector lights up and beeps faster the closer a ghost is', det.shown && det.lv2 >= 5 && det.lv2 > det.lv1 && /HERE|close/.test(det.near), det);
+    // the proton pack holds a ghost; the trap catches it
+    const pr = await E(() => new Promise(res => {
+      const pl = game.player, e = spawnMob(game, 'slimer', 0.5, 66, -2.5); e.home = [0.5, -2.5]; e.cdT = 99; window.__g = e;
+      T.put(0.5, 65, 4.5); T.hold(I.PROTON_PACK, 1); T.aim(e.x, e.y + 0.5, e.z);
+      game.input.use = true;
+      setTimeout(() => { const o = { held: e.heldT > 0, beam: PARTICLES.filter(q => q.tile === TILE.proton).length }; game.input.use = false; res(o); }, 600);
+    }));
+    await shot('ghost-proton');
+    check('hold the proton pack at a ghost: a crackling stream holds it still', pr.held && pr.beam > 5, pr);
+    const tr = await E(() => new Promise(res => {
+      const pl = game.player, e = window.__g; e.heldT = 2;
+      T.hold(I.GHOST_TRAP, 1); pl.useCd = 0; T.tap();
+      setTimeout(() => { const o = { sucking: e.trapT > 0 || e.removed }; setTimeout(() => { o.gone = e.removed; o.count = game.stats.ghosts; o.hud = el('hud-count').textContent; o.big = el('big-text').textContent; res(o); }, 1900); }, 200);
+    }));
+    check('throw the trap under it: caught! (the first one is cheered)', tr.sucking && tr.gone && tr.count === 1 && tr.hud === 'Ghosts caught: 1' && /first ghost/.test(tr.big), tr);
+    const tr2 = await E(() => new Promise(res => { const pl = game.player; pl.useCd = 0; T.tap(); setTimeout(() => res(window.__toasts.slice(-1)[0]), 300); }));
+    check('a trap with no ghost held tells you what to do', /proton pack stream/.test(tr2), tr2);
+    // slimed!
+    const sl = await E(() => new Promise(res => {
+      const pl = game.player; for (const e of game.entities) if (isGhost(e)) e.removed = true;
+      T.put(0.5, 65, 4.5); const h0 = pl.health; const e = spawnMob(game, 'slimer', 3.5, 66, 4.5); e.home = [3.5, 4.5];
+      const t0 = performance.now(), k = () => { if (hasEffect(pl, 'slowness') || performance.now() - t0 > 8000) res({ slow: hasEffect(pl, 'slowness'), health: pl.health === h0, toast: window.__toasts.slice(-1)[0] }); else setTimeout(k, 100); }; k();
+    }));
+    check('a slimy ghost swoops and SPLATs you: slowed down a moment, not hurt', sl.slow && sl.health && /slimed/.test(sl.toast), sl);
+    const dr = await E(() => { const w = game.world, e = spawnMob(game, 'sheetghost', 10.5, 67, 12.5); for (const y of [65, 66]) w.setBlock(10, y, 14, B.DOOR, y === 66 ? 8 : 0); const before = w.getData(10, 65, 14) & 4; ghostDoors(game, e); const after = w.getData(10, 65, 14) & 4; e.removed = true; return { before, after }; });
+    check('a sheet ghost bangs doors open and shut', dr.before !== dr.after, dr);
+    await E(() => game.save());
+    const gs = await E(() => JSON.parse(store.get(saveKey('ghost'))).stats.ghosts);
+    check('the ghosts you caught are kept with the world', gs === 1, gs);
+  }
+
   console.log(errs.length ? 'ERRORS:\n' + errs.join('\n') : 'no page errors');
   console.log(fails ? fails + ' FAILED' : 'ALL PASSED');
   await browser.close(); server.close();

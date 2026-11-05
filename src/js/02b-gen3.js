@@ -827,5 +827,117 @@ function genModule3(B, H) {
     return { generate, spawn, column, mystY };
   }
 
-  return { moonGen, marsGen, jupiterGen, uranusGen, planetLanding, nearestRover, hogwartsGen, HW, fallsGen, FF, dungeonPlanner };
+  /* ========== Ghostbusters (the sixth wish list): a spooky little city at dusk. The firehouse headquarters with its
+     name on a board, houses along the main street (two of them haunted), the library and the park. ========== */
+  const GB = {
+    town: { x: 0, z: -6, r: 72, y: 64 },
+    hq: { x0: -12, x1: 12, z0: -28, z1: -9 },
+    library: { x0: -54, x1: -30, z0: -30, z1: -11 },
+    park: { x0: 26, x1: 60, z0: -44, z1: -10 },
+    houses: [[-44, 18, 1], [-26, 18, 0], [-8, 18, 0], [26, 18, 0], [44, 18, 1]],   // [x, z, haunted]
+    spawn: [0.5, 65, 4.5],
+  };
+  function ghostGen(seed) {
+    const nA = makeNoise(seed ^ 0x6b05), nB = makeNoise(seed ^ 0x6b06), smooth = t => t * t * (3 - 2 * t), T = GB.town, Y = T.y + 1;
+    function column(x, z) {
+      let h = 66 + fbm2(nA, x * 0.012, z * 0.012, 3) * 8 + fbm2(nB, x * 0.05, z * 0.05, 2) * 1.2;
+      const d = Math.hypot(x - T.x, z - T.z);
+      if (d < T.r + 18) h += (T.y - h) * smooth(d <= T.r ? 1 : 1 - (d - T.r) / 18);
+      return Math.round(clamp(h, 8, WH - 16));
+    }
+    const inTown = (x, z) => Math.hypot(x - T.x, z - T.z) < T.r + 2;
+    function paintStreets(P) {
+      P.box(-70, T.y, 2, 70, T.y, 6, B.STONE_BRICKS);   // the main street
+      P.box(-70, T.y, 1, 70, T.y, 1, B.COBBLE); P.box(-70, T.y, 7, 70, T.y, 7, B.COBBLE);   // (kerbs)
+      P.box(-2, T.y, 7, 2, T.y, 60, B.STONE_BRICKS);   // a street south, past the houses
+      P.box(-2, T.y, -8, 2, T.y, 1, B.STONE_BRICKS);   // up to the firehouse
+      for (let x = -64; x <= 64; x += 12) for (const z of [0, 8]) { P.box(x, Y, z, x, Y + 3, z, B.SPRUCE_LOG); P.set(x, Y + 4, z, B.JACK_O_LANTERN); }   // spooky lamp posts
+    }
+    function paintHQ(P) {   // the firehouse: red brick, three big doors, and GHOST BUSTERS on a board above
+      const D = GB.hq;
+      if (!P.near(D.x0 - 4, D.z0 - 2, D.x1 + 4, D.z1 + 2)) return;
+      P.box(D.x0, Y, D.z0, D.x1, Y + 18, D.z1, B.AIR);
+      P.walls(D.x0, T.y, D.z0, D.x1, Y + 9, D.z1, B.BRICKS);
+      P.box(D.x0, Y + 10, D.z0, D.x1, Y + 10, D.z1, B.STONE_BRICKS);
+      P.box(D.x0 + 1, T.y, D.z0 + 1, D.x1 - 1, T.y, D.z1 - 1, B.STONE);
+      P.box(D.x0 + 1, Y + 5, D.z0 + 1, D.x1 - 1, Y + 5, D.z1 - 1, B.SPRUCE_PLANKS);   // the upstairs floor
+      P.box(-1, Y + 5, D.z0 + 2, 1, Y + 5, D.z0 + 4, B.AIR); P.box(0, Y, D.z0 + 3, 0, Y + 9, D.z0 + 3, B.IRON_BARS);   // the firehouse pole, through a hole
+      for (const x0 of [-10, -2, 6]) P.box(x0, Y, D.z1, x0 + 4, Y + 3, D.z1, B.AIR);   // three big doors onto the street
+      for (const x of [D.x0 + 2, D.x0 + 5, D.x1 - 5, D.x1 - 2]) P.box(x, Y + 6, D.z1, x + 1, Y + 8, D.z1, B.GLASS);
+      for (let z = D.z0 + 2; z <= D.z1 - 3; z += 3) { P.set(D.x0 + 1, Y, z, B.IRON_BLOCK); P.set(D.x0 + 1, Y + 1, z, B.IRON_BLOCK); }   // lockers
+      P.box(D.x1 - 4, Y, D.z0 + 1, D.x1 - 1, Y + 2, D.z0 + 2, B.IRON_BLOCK); P.box(D.x1 - 3, Y + 1, D.z0 + 2, D.x1 - 2, Y + 1, D.z0 + 2, B.GLOWSTONE);   // the ghost containment unit (its light glows)
+      for (const x of [-8, 0, 8]) P.set(x, Y + 4, -18, B.GLOWSTONE);
+      P.box(D.x0 + 2, Y + 6, D.z0 + 2, D.x0 + 2, Y + 7, D.z1 - 2, B.BOOKSHELF);
+      // the board: GHOST over BUSTERS, red on white
+      const bz = D.z1 + 1;
+      P.box(-14, Y + 11, bz, 14, Y + 23, bz, B.QUARTZ_BLOCK);
+      writeText(P, 'GHOST', -9, Y + 22, bz, B.WOOL + 14);
+      writeText(P, 'BUSTERS', -13, Y + 16, bz, B.WOOL + 14);
+      for (const x of [-12, 12]) P.box(x, Y + 10, bz, x, Y + 10, bz, B.QUARTZ_BLOCK);
+    }
+    function paintLibrary(P) {   // white stone with columns, and rows of bookshelves inside
+      const D = GB.library;
+      if (!P.near(D.x0 - 2, D.z0 - 2, D.x1 + 2, D.z1 + 4)) return;
+      P.box(D.x0, Y, D.z0, D.x1, Y + 10, D.z1, B.AIR);
+      P.walls(D.x0, T.y, D.z0, D.x1, Y + 6, D.z1, B.QUARTZ_BLOCK);
+      P.box(D.x0, Y + 7, D.z0, D.x1, Y + 7, D.z1, B.STONE_BRICKS);
+      P.box(D.x0 + 1, T.y, D.z0 + 1, D.x1 - 1, T.y, D.z1 - 1, B.OAK_PLANKS);
+      P.box(D.x0 + 2, T.y, D.z1 + 1, D.x1 - 2, T.y, D.z1 + 2, B.QUARTZ_BLOCK);   // the steps
+      for (let x = D.x0 + 2; x <= D.x1 - 2; x += 4) P.box(x, Y, D.z1 + 2, x, Y + 5, D.z1 + 2, B.QUARTZ_BLOCK);   // columns
+      P.box(D.x0, Y + 6, D.z1 + 1, D.x1, Y + 6, D.z1 + 2, B.QUARTZ_BLOCK);
+      P.box(-43, Y, D.z1, -41, Y + 2, D.z1, B.AIR);   // the door
+      for (let x = D.x0 + 3; x <= D.x1 - 3; x += 3) { if (Math.abs(x + 42) <= 1) continue; P.box(x, Y + 2, D.z1, x, Y + 4, D.z1, B.GLASS); }
+      for (let z = D.z0 + 2; z <= D.z1 - 4; z += 3) P.box(D.x0 + 3, Y, z, D.x1 - 3, Y + 2, z, B.BOOKSHELF);   // rows of shelves
+      for (let z = D.z0 + 2; z <= D.z1 - 4; z += 3) P.box(-43, Y, z, -41, Y + 2, z, B.AIR);   // (an aisle down the middle)
+      for (const x of [-48, -36]) P.set(x, Y + 6, -20, B.GLOWSTONE);
+    }
+    function paintPark(P) {   // grass, old trees, a pond, benches and a path
+      const D = GB.park;
+      if (!P.near(D.x0 - 8, D.z0 - 8, D.x1 + 8, D.z1 + 8)) return;
+      P.box(D.x0, T.y, D.z0, D.x1, T.y, D.z1, B.GRASS);
+      P.box(D.x0, Y, D.z0, D.x1, Y, D.z0, B.OAK_PLANKS); P.box(D.x0, Y, D.z0, D.x0, Y, D.z1, B.OAK_PLANKS); P.box(D.x1, Y, D.z0, D.x1, Y, D.z1, B.OAK_PLANKS);   // a low fence
+      P.box(D.x0 + 1, T.y, -12, D.x1 - 1, T.y, -11, B.GRAVEL); P.box(42, T.y, D.z0 + 1, 43, T.y, -12, B.GRAVEL);   // paths
+      P.disc(34, -32, 5, T.y, T.y, B.WATER, false); P.disc(34, -32, 3.6, T.y - 1, T.y - 1, B.WATER, false);   // the pond
+      for (const [x, z] of [[30, -18], [52, -20], [54, -36], [47, -40], [30, -41]]) { const r = mulberry32(hash3(seed ^ 0x9a7, x, z)); placeTree(P.blocks, P.cx, P.cz, x, Y, z, 0, r()); }
+      for (const [x, z] of [[36, -13], [48, -13], [44, -26]]) P.box(x, Y, z, x + 2, Y, z, B.SPRUCE_PLANKS);   // benches
+      P.box(42, Y, -25, 42, Y + 2, -25, B.SPRUCE_LOG); P.set(42, Y + 3, -25, B.GLOWSTONE);
+    }
+    function paintHouses(P) {
+      for (const [hx, hz, haunted] of GB.houses) {
+        if (!P.near(hx - 7, hz - 7, hx + 7, hz + 7)) continue;
+        const wall = haunted ? B.MOSSY_COBBLE : (hx < 0 ? B.BIRCH_PLANKS : B.SPRUCE_PLANKS), roof = haunted ? B.OBSIDIAN : B.BRICKS;
+        P.box(hx - 4, Y, hz - 4, hx + 4, Y + 9, hz + 4, B.AIR);
+        P.walls(hx - 4, T.y, hz - 4, hx + 4, Y + 3, hz + 4, wall);
+        P.box(hx - 3, T.y, hz - 3, hx + 3, T.y, hz + 3, haunted ? B.SOUL_SAND : B.OAK_PLANKS);
+        P.box(hx, Y, hz - 4, hx, Y + 1, hz - 4, B.AIR);   // the door, onto the street
+        for (const x of [hx - 2, hx + 2]) P.box(x, Y + 1, hz - 4, x, Y + 2, hz - 4, haunted ? B.AIR : B.GLASS);   // (a haunted house's windows are broken)
+        for (let k = 0; k <= 4; k++) P.box(hx - 5, Y + 4 + k, hz - 4 + k, hx + 5, Y + 4 + k, hz + 4 - k, roof);
+        if (haunted) { P.set(hx - 1, Y, hz - 5, B.JACK_O_LANTERN); P.set(hx + 3, Y + 3, hz - 5, B.CRACKED_BRICKS); P.box(hx + 3, Y + 4, hz - 5, hx + 3, Y + 6, hz - 5, B.IRON_BARS); P.set(hx - 3, Y, hz + 3, B.CRACKED_BRICKS); }
+        else P.set(hx, Y + 2, hz, B.TORCH);
+      }
+    }
+    function generate(cx, cz) {
+      const blocks = new Uint8Array(CVOL), x0 = cx * 16, z0 = cz * 16, cols = new Int32Array(256), r = mulberry32(hash3(seed ^ 0x6b0, cx, cz));
+      for (let lz = 0; lz < 16; lz++) for (let lx = 0; lx < 16; lx++) {
+        const x = x0 + lx, z = z0 + lz, h = column(x, z);
+        cols[lz * 16 + lx] = h;
+        for (let y = 0; y <= h; y++) blocks[idx(lx, y, lz)] = y === 0 || (y < 3 && r() < 0.6) ? B.BEDROCK : y < h - 3 ? B.STONE : y < h ? B.DIRT : B.GRASS;
+      }
+      oreVeins(blocks, r, B.STONE, [[B.COAL_ORE, 14, 5, 100, 9], [B.IRON_ORE, 8, 5, 64, 7], [B.GOLD_ORE, 3, 5, 32, 6]]);
+      for (let lz = 0; lz < 16; lz++) for (let lx = 0; lx < 16; lx++) if (!inTown(x0 + lx, z0 + lz)) decorate(blocks, r, lx, lz, cols[lz * 16 + lx], FOREST);
+      const P = painter(blocks, cx, cz);
+      P.blocks = blocks; P.cx = cx; P.cz = cz;
+      for (let k = 0; k < 3; k++) {   // old trees out of town
+        const lx = 2 + ((r() * 12) | 0), lz = 2 + ((r() * 12) | 0), x = x0 + lx, z = z0 + lz;
+        if (inTown(x, z) || r() < 0.3) continue;
+        placeTree(blocks, cx, cz, x, cols[lz * 16 + lx] + 1, z, r() < 0.5 ? 0 : 2, r());
+      }
+      paintStreets(P); paintHQ(P); paintLibrary(P); paintPark(P); paintHouses(P);
+      return { blocks, spawns: [] };
+    }
+    function spawn() { return GB.spawn.slice(); }
+    return { generate, spawn, column };
+  }
+
+  return { moonGen, marsGen, jupiterGen, uranusGen, planetLanding, nearestRover, hogwartsGen, HW, fallsGen, FF, ghostGen, GB, dungeonPlanner };
 }

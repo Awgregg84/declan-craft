@@ -71,6 +71,19 @@ const GID = GUEST.pid;
   await sleep(800);
 
   const want = process.argv.slice(2), on = k => !want.length || want.includes(k);
+  /* the host starts another world and she joins it again */
+  async function hostAgain(slot) {
+    await G.evaluate(() => game.quitToTitle());
+    await H.evaluate(() => game.quitToTitle());
+    await sleep(1500);
+    await H.evaluate(slot => { ui.hostMode = true; game.startWorld(slot, 'survival', true); }, slot);
+    await waitFor(H, () => game.state === 'playing' && MP.roomOpen, 120000);
+    const code = await H.evaluate(() => MP.code);
+    await G.evaluate(code => { MP.join(code); }, code);
+    await waitFor(H, () => !el('join-prompt').hidden, 30000);
+    await H.evaluate(() => MP.answerPrompt(true));
+    return waitFor(G, () => game.state === 'playing' && MP.welcomed, 120000);
+  }
 
   if (on('lasers')) {
     // a guest fires a laser at a zombie (the host hurts it) and at a pig (nothing happens); the host sees her beam
@@ -173,6 +186,26 @@ const GID = GUEST.pid;
     await H.evaluate(() => { const pl = game.player; if (pl.riding) dismountVehicle(game); const r = spawnVehicle(game, 'rocket', pl.x, pl.y, pl.z, 0); game.rocketTravel(null, r); });
     await waitFor(G, () => game.dim === 'over' && game.state === 'playing' && !game.awaitTp, 90000);
     await sleep(1500);
+  }
+
+  if (on('ghosts')) {
+    // the Ghostbusters city: she gets her own equipment, holds a ghost in her stream, traps it, and gets slimed
+    check('the host shares the Ghostbusters city and she joins', await hostAgain('ghost'));
+    await sleep(2000);
+    const kit = await G.evaluate(() => [I.PROTON_PACK, I.GHOST_TRAP, I.GHOST_DETECTOR].every(id => game.player.inv.some(s => s && s.id === id)));
+    check('she starts with her own proton pack, trap and detector', kit);
+    await H.evaluate(() => { for (const e of game.entities) if (isGhost(e)) e.removed = true; Object.assign(game.player, { x: -6.5, y: 65, z: 4.5 }); const e = spawnMob(game, 'slimer', 0.5, 66.5, -1.5); e.home = [0.5, -1.5]; e.cdT = 99; e.aiT = 99; e.goal = [0.5, 0, -1.5]; window.__g = e; window.__fx = new Set(); });
+    const gid = await H.evaluate(() => window.__g.nid);
+    await G.evaluate(() => Object.assign(game.player, { x: 0.5, y: 65, z: 5.5, vx: 0, vz: 0 }));
+    check('she sees the ghost', await waitFor(G, gid => game.entities.some(e => e.nid === gid), 10000, gid));
+    await G.evaluate(gid => { const e = game.entities.find(q => q.nid === gid); T.hold(I.PROTON_PACK, 1); T.aim(e.x, e.y + 0.5, e.z); game.input.use = true; }, gid);
+    check('her proton stream holds the ghost (on the host)', await waitFor(H, () => window.__g.heldT > 0, 6000));
+    check('and the host sees her stream', await waitFor(H, () => PARTICLES.some(q => q.tile === TILE.proton), 6000));
+    await G.evaluate(() => { game.input.use = false; T.hold(I.GHOST_TRAP, 1); game.player.useCd = 0; T.tap(); });
+    check('she throws the trap: the ghost is caught, and it counts for her', await waitFor(H, () => window.__g.removed, 8000) && await waitFor(G, () => game.stats.ghosts === 1, 8000));
+    check('the host keeps her count with her things', await waitFor(H, gid => MP.guestSaves[gid] && MP.guestSaves[gid].gh === 1, 8000, GID));
+    await H.evaluate(gid => { const r = MP.remotes.get(gid), e = spawnMob(game, 'slimer', r.tx + 3, r.ty + 1, r.tz); e.home = [r.tx + 3, r.tz]; }, GID);
+    check('a slimy ghost slimes her (slowed a moment, not hurt)', await waitFor(G, () => hasEffect(game.player, 'slowness'), 12000) && await G.evaluate(() => game.player.health === 20));
   }
 
   check('no page errors', H.errs.length === 0 && G.errs.length === 0, H.errs.concat(G.errs).slice(0, 6));

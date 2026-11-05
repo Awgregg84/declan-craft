@@ -36,6 +36,10 @@ const MOB_DEFS = {
   gnome: { model: 'gnome', w: 0.22, h: 0.8, hp: 10, speed: 2.6, gnome: true, special: true, unhurt: true, xp: [0, 0], drops: [], sound: 'gnome' },
   lakemon: { model: 'lakemon', w: 1.1, h: 2.6, hp: 500, speed: 2, lakemon: true, special: true, unhurt: true, xp: [0, 0], drops: [], sound: 'lakemon' },
   wisp: { model: 'wisp', w: 0.18, h: 0.36, hp: 1, speed: 2, wisp: true, special: true, unhurt: true, glow: true, xp: [0, 0], drops: [], sound: 'wisp' },
+  // the Ghostbusters city (see 12g-ghosts.js): a slimy green ghost, a floating sheet ghost and the marshmallow giant; they float through walls, and are caught, not hurt
+  slimer: { model: 'slimer', w: 0.4, h: 1.1, hp: 20, speed: 2, ghost: true, special: true, unhurt: true, glow: true, xp: [0, 0], drops: [], sound: 'ghost' },
+  sheetghost: { model: 'sheetghost', w: 0.35, h: 1.8, hp: 20, speed: 2, ghost: true, special: true, unhurt: true, glow: true, xp: [0, 0], drops: [], sound: 'ghost' },
+  marshmallow: { model: 'marshmallow', w: 1.2, h: 5.6, hp: 200, speed: 1, ghost: true, special: true, unhurt: true, glow: true, xp: [0, 0], drops: [], sound: 'ghost' },
 };
 const MOB_TYPES = Object.keys(MOB_DEFS);
 let ENTITY_NID = 0;
@@ -493,6 +497,7 @@ function updateMob(game, e, dt) {
   if (d.ball) { updateQuaffle(game, e, dt); return; }
   if (d.lakemon) { updateLakemon(game, e, dt); return; }
   if (d.wisp) { updateWisp(game, e, dt); return; }
+  if (d.ghost) { updateGhost(game, e, dt); return; }
   if (d.ender) { enderTick(game, e, dt); if (e.removed || e.dead) return; }
   if (d.fish) { updateFish(game, e, d, dt); return; }
   if (d.swimmer) { updateSnork(game, e, d, dt); return; }
@@ -612,6 +617,7 @@ function spawnTick(game) {
   spawnerTick(game);   // (a dungeon's monster spawners)
   if (world.map === 'hogwarts') { snitchTick(game); studentTick(game); qmatchTick(game); }
   if (world.map === 'falls') fallsSpawnTick(game);
+  if (world.map === 'ghost') { ghostSpawnTick(game); return; }   // (spooky, but no monsters)
   if (game.settings.animals) { fishSpawnTick(game); snorkSpawnTick(game); }
   const players = allPlayers(game).filter(p => p.alive && (p === game.player ? game.mode : p.mode) === 'survival');
   if (!players.length || difficulty() === 0) return;
@@ -758,6 +764,7 @@ function drawEntities(game, s, t, cam) {
     if (e.type === 'qplayer') drawMobBroom(e, dx, dy, dz);
     if (e.type === 'robot') drawModel(MODELS.robot_light, _eb, mobPose(e, t), ROBOT_LIGHT[Math.max(0, ROBOT_MODES.indexOf(e.mode))]);   // (its antenna light shows what it is doing)
   }
+  drawTraps(cam);   // (a ghost trap, open under a ghost)
   if ((game.view > 0 || CAMS.pass) && game.player.alive) drawPlayerModel(game, s, t, cam);   // (and on a security camera's monitor)
   if (MP.remotes.size) drawRemotePlayers(game, s, t, cam);
   entityBegin(texTiles);

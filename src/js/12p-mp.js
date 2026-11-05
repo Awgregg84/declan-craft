@@ -157,6 +157,7 @@ function cleanGuestSave(d) {
     mode: d.mode === 'creative' ? 'creative' : 'survival', flying: !!d.flying, dim: okDim(d.dim),
     xp: num(d.xp, 0, 1e7, 0), enchSeed: num(d.enchSeed, 0, 2147483647, 0) | 0, kit: d.kit ? 1 : 0,
     fc: num(d.fc | 0, 0, FALLS_CHARS.length, 0), myst: num(d.myst | 0, 0, 63, 0), seen: num(d.seen | 0, 0, 255, 0),   // (Declan Falls: who they are, the mysteries and creatures they have found)
+    gh: num(d.gh | 0, 0, 1e6, 0), gk: d.gk ? 1 : 0,   // (Ghostbusters: how many ghosts they have caught, and whether they have had their equipment)
     effects: d.effects && typeof d.effects === 'object' ? Object.fromEntries(EFFECTS.filter(k => +d.effects[k] > 0).map(k => [k, Math.min(600, +d.effects[k])])) : {},
   };
 }
@@ -181,11 +182,11 @@ function cleanDataTiles(td) {
   }
   return out;
 }
-const FX_KINDS = ['break', 'place', 'door', 'boom', 'sfx', 'party', 'ice', 'tele', 'smoke', 'xpb', 'splash', 'spell', 'zap', 'paint', 'laser'];
-const SFX_NET = ['leverClick', 'buttonClick', 'honk', 'bowShoot', 'crossbowShoot', 'pearlThrow', 'dispense', 'dispenseFail', 'ghastShoot', 'endermanPortal', 'sonar', 'tvOn', 'tvOff', 'golemBuilt', 'snorkHappy', 'snorkToot', 'spellCast', 'patronus', 'camSwitch', 'airlockDrain', 'airlockHiss', 'planeTakeoff', 'chuteOpen', 'tankFire', 'studentHi', 'whistle', 'quaffleCatch', 'quaffleThrow', 'gnomeGiggle', 'lakemonSay', 'mystery', 'trainHorn', 'trainBell'];
+const FX_KINDS = ['break', 'place', 'door', 'boom', 'sfx', 'party', 'ice', 'tele', 'smoke', 'xpb', 'splash', 'spell', 'zap', 'paint', 'laser', 'proton', 'trap', 'slime'];
+const SFX_NET = ['leverClick', 'buttonClick', 'honk', 'bowShoot', 'crossbowShoot', 'pearlThrow', 'dispense', 'dispenseFail', 'ghastShoot', 'endermanPortal', 'sonar', 'tvOn', 'tvOff', 'golemBuilt', 'snorkHappy', 'snorkToot', 'spellCast', 'patronus', 'camSwitch', 'airlockDrain', 'airlockHiss', 'planeTakeoff', 'chuteOpen', 'tankFire', 'studentHi', 'whistle', 'quaffleCatch', 'quaffleThrow', 'gnomeGiggle', 'lakemonSay', 'mystery', 'trainHorn', 'trainBell', 'ghostWoo', 'ghostBoo', 'ghostLaugh', 'slimeSplat'];
 const GUEST_SFX = new Set(['leverClick', 'buttonClick', 'honk', 'sonar', 'tvOn', 'tvOff', 'snorkHappy', 'snorkToot', 'camSwitch', 'planeTakeoff', 'chuteOpen', 'trainHorn']);   // the sounds a guest can send
 const LINK_FAIL = "Found the game, but the two iPads couldn't connect to each other. Put both on the same Wi-Fi, then try again.";
-const STALE_T = new Set(['st', 'set', 'open', 'tile', 'close', 'tnt', 'egg', 'portal', 'shoot', 'mount', 'veh', 'dismount', 'veh+', 'sign', 'board', 'rocket', 'launch', 'snitch', 'robot+', 'robot', 'quaffle', 'laser', 'shop']);
+const STALE_T = new Set(['st', 'set', 'open', 'tile', 'close', 'tnt', 'egg', 'portal', 'shoot', 'mount', 'veh', 'dismount', 'veh+', 'sign', 'board', 'rocket', 'launch', 'snitch', 'robot+', 'robot', 'quaffle', 'laser', 'shop', 'proton', 'trap']);
 
 const MP = {
   role: null, code: '', token: '', sig: null, roomOpen: false, hostLink: null, hostName: '', we: 0,
@@ -317,8 +318,15 @@ const MP = {
         sfx(snd, m.p[0], m.p[1], m.p[2]); this.sfx(snd, m.p[0], m.p[1], m.p[2], r.id);
         break;
       }
-      case 'laser': laserMsg(game, r, m); break;
-      case 'shop': shopMsg(game, r, m); break;   // a guest wants to buy or sell at a store   // a guest fired a laser
+      case 'laser': laserMsg(game, r, m); break;   // a guest fired a laser
+      case 'shop': shopMsg(game, r, m); break;   // a guest wants to buy or sell at a store
+      case 'proton': protonMsg(game, r, m); break;   // a guest's proton stream
+      case 'trap': {   // a guest threw a trap: it catches the ghost if someone is holding it in a proton stream
+        const e = game.entities.find(q => q.nid === m.e);
+        if (isGhost(e) && e.heldT > 0 && Math.hypot(e.x - r.tx, e.z - r.tz) < TRAP_RANGE + 3) catchGhost(game, e, r.id);
+        else if (r.link) r.link.send({ t: 'chat', m: 'The trap snapped shut on nothing! Hold the ghost in a proton stream first, then throw the trap.', c: '#9aff8a' });
+        break;
+      }   // a guest wants to buy or sell at a store   // a guest fired a laser
       case 'quaffle': quaffleMsg(game, r, m); break;   // a guest grabs or throws the Quaffle
       case 'snitch': {   // a guest reached for the Golden Snitch
         const v = game.entities.find(q => q.nid === m.e && q.type === 'snitch' && !q.removed);
@@ -675,7 +683,7 @@ const MP = {
   sendSave() {
     if (this.role !== 'guest' || !this.welcomed) return;
     const pl = game.player, at = pl.alive ? restPos(pl) : game.spawnPos();
-    this.send({ t: 'save', d: { x: r2(at[0]), y: r2(at[1]), z: r2(at[2]), yaw: r2(pl.yaw), pitch: r2(pl.pitch), health: pl.alive ? pl.health : 20, food: pl.alive ? pl.food : 20, air: pl.air, inv: pl.inv, sel: pl.sel, spawn: pl.spawn, mode: game.mode, flying: pl.flying, dim: game.dim, xp: pl.xp, enchSeed: pl.enchSeed, effects: pl.alive ? saveEffects(pl) : {}, kit: game.stats.hogKit ? 1 : 0, fc: game.stats.fc | 0, myst: game.stats.myst | 0, seen: game.stats.seen | 0 } });
+    this.send({ t: 'save', d: { x: r2(at[0]), y: r2(at[1]), z: r2(at[2]), yaw: r2(pl.yaw), pitch: r2(pl.pitch), health: pl.alive ? pl.health : 20, food: pl.alive ? pl.food : 20, air: pl.air, inv: pl.inv, sel: pl.sel, spawn: pl.spawn, mode: game.mode, flying: pl.flying, dim: game.dim, xp: pl.xp, enchSeed: pl.enchSeed, effects: pl.alive ? saveEffects(pl) : {}, kit: game.stats.hogKit ? 1 : 0, fc: game.stats.fc | 0, myst: game.stats.myst | 0, seen: game.stats.seen | 0, gh: game.stats.ghosts | 0, gk: game.stats.ghKit ? 1 : 0 } });
   },
   guestMsg(m) {
     if (this.role !== 'guest') return;
@@ -752,6 +760,7 @@ const MP = {
       case 'sign': if ((m.we | 0) === this.we && game.world && Array.isArray(m.l) && game.world.knownBlock(m.x | 0, m.y | 0, m.z | 0) === B.SIGN) setSignText(game.world, m.x | 0, m.y | 0, m.z | 0, m.l); break;
       case 'board': if ((m.we | 0) === this.we && game.world && cleanBoardPx(m.px) && game.world.knownBlock(m.x | 0, m.y | 0, m.z | 0) === B.BOARD) setBoard(game.world, m.x | 0, m.y | 0, m.z | 0, m.px, m.pic); break;
       case 'shopok': shopReply(m); break;
+      case 'ghostc': if (GHOST_TYPES[m.k | 0]) ghostCaught(game, GHOST_TYPES[m.k | 0]); break;   // we caught a ghost!
       case 'drops': if (Array.isArray(m.l)) for (const it of m.l) {
         if (!Array.isArray(it)) continue;
         const s = cleanStack({ id: it[0], count: it[1], dmg: it[2], tag: it[3] });
@@ -937,6 +946,9 @@ const MP = {
       else if (k === 'party') partyEffect(x, y, z);
       else if (k === 'spell') { spellBurst(x, y, z, (SPELLS[id] || SPELLS[0]).tile, 16); sfx('spellHit', x, y, z); }
       else if (k === 'zap') { const r = game.entities.find(q => q.nid === id && q.type === 'robot'); if (r) zapBeam(r.x, r.y + 1.05, r.z, x, y, z); sfx('robotZap', x, y, z); }
+      else if (k === 'proton') protonFx(x, y, z, f[5]);
+      else if (k === 'trap') trapFx(x, y, z, id === 1);
+      else if (k === 'slime') { slimeDrip(x, y, z, 24); }
       else if (k === 'laser') laserFx(x, y, z, clamp(id, 0, LASER_COLORS.length - 1), f[5]);
       else if (k === 'paint') paintFx(x, y, z, clamp(id, 0, TANK_COLORS.length - 1));
       else if (k === 'ice') iceEffect(x, y, z);
