@@ -131,6 +131,102 @@ const FRONT_FACE_OF = d => [4, 1, 5, 0][d & 3];
     check('a broken tank drops back as a tank of its own colour', back, back);
   }
 
+  // (the Hogwarts sections start a new world, so they come last)
+  if (on('students') || on('quidditch')) {
+    await E(() => { game.startWorld('hogwarts', 'survival', true); });
+    check('a new Hogwarts world starts', await waitFor(() => game.state === 'playing' && game.mapId === 'hogwarts', 150000));
+    await E(() => { game.settings.difficulty = 0; game.world.time = 0.25; window.__toasts = []; });
+  }
+  const chatHas = re => E(re => Array.from(document.querySelectorAll('#chat-log div')).some(d => new RegExp(re).test(d.textContent)), re.source);
+
+  if (on('students')) {
+    // ---------- students in their house robes ----------
+    await goto({ x: 0, y: 74, z: -28 });
+    await E(() => { T.put(0.5, 73, -24.5, { yaw: Math.PI, pitch: -0.1 }); });
+    for (let i = 0; i < 6; i++) { await E(() => studentTick(game)); await sleep(100); }
+    const st = await E(() => { const s = T.ents('student'); return { n: s.length, houses: [...new Set(s.map(e => e.variant & 3))].length, near: s.every(e => e.y >= 72 && Math.hypot(e.x, e.z + 50) < 60) }; });
+    check('students turn up in the castle (a few, not too many)', st.n >= 3 && st.n <= 6 && st.near, st);
+    // walk up to one: it stops, waves and says hello
+    const hi = await E(async () => {
+      const s = T.ents('student')[0]; s.hiT = 0; s.moving = false;
+      T.put(s.x + 2.5, s.y, s.z + 0.5);
+      for (let i = 0; i < 30 && !(s.waveT > 0); i++) await new Promise(r => setTimeout(r, 100));
+      return { wave: s.waveT > 0, house: HOUSES[s.variant & 3].name };
+    });
+    check('a student waves when you come near...', hi.wave, hi);
+    check('...and says hello', await chatHas(new RegExp('A ' + hi.house + ' student: "')));
+    const hurt = await E(() => { const s = T.ents('student')[0], hp = s.hp; hurtMob(game, s, 10, game.player.x, game.player.z, 'player'); return s.hp === hp && !s.dead; });
+    check('nothing hurts a student', hurt);
+    // a screenshot in the Great Hall
+    await E(() => {
+      const h = game.gen.hogwarts.hat;
+      for (const e of T.ents('student')) e.removed = true;
+      for (let i = 0; i < 8; i++) { const e = spawnMob(game, 'student', -3.5 + (i % 4) * 2.5, 73, h[2] + 10 + Math.floor(i / 4) * 3); e.variant = i; e.home = [e.x, e.z]; e.hiT = game.t + 99; e.yaw = e.bodyYaw = e.headYaw = 0; e.aiT = 5; }
+      T.put(0.5, 73, h[2] + 19.5, { yaw: 0, pitch: -0.05 }); game.view = 0;
+    });
+    await sleep(1500);
+    await shot('students-hall');
+    // they only live at Hogwarts: none in the other worlds
+    check('students only belong at Hogwarts', await E(() => { const d = MOB_DEFS.student; return !!d.special && game.mapId === 'hogwarts'; }));
+  }
+
+  if (on('quidditch')) {
+    // ---------- a Quidditch match with two teams ----------
+    const L = await E(() => game.gen.hogwarts.pitch);
+    await goto({ x: L.x, y: L.y + 8, z: L.z });
+    await E(L => { const pl = game.player; const b = spawnVehicle(game, 'broom', L.x - 10.5, L.y + 8, L.z + 0.5, -Math.PI / 2); boardVehicle(game, b); b.flying = true; for (let i = 0; i < 2; i++) spawnTick(game); }, L);
+    const m = await E(() => ({ on: !!game.qm, players: T.ents('qplayer').length, teams: T.ents('qplayer').map(q => q.team).sort().join(''), ball: T.ents('quaffle').length }));
+    check('fly onto the pitch: a match starts, three players a side on broomsticks, and a Quaffle', m.on && m.players === 6 && m.teams === '000111' && m.ball === 1, m);
+    check('...announced in the chat', await chatHas(/The Quidditch match is starting: Gryffindor against Slytherin/));
+    // the players go for the ball and pass it about
+    const holders = await E(async () => { const seen = new Set(); for (let i = 0; i < 80; i++) { const b = game.qm.ball; if (typeof b.holder === 'number') seen.add(b.holder); await new Promise(r => setTimeout(r, 100)); } return seen.size; });
+    check('the players fly for the Quaffle and pass it about', holders >= 1, holders);
+    // a team-mate near the far hoops throws, and scores
+    const ai = await E(async () => {
+      const qm = game.qm, q = T.ents('qplayer').find(e => e.team === 0), hoop = qHoops(0)[1];
+      for (let i = 0; i < 20; i++) {
+        q.x = hoop[0] - 9; q.y = hoop[1] - 1; q.z = hoop[2]; q.vx = q.vy = q.vz = 0; q.hoop = hoop;
+        qGive(game, qm.ball, q.nid, 0);
+        const s0 = qm.score[0];
+        for (let k = 0; k < 30 && qm.score[0] === s0; k++) await new Promise(r => setTimeout(r, 50));
+        if (qm.score[0] > s0) return { score: qm.score.slice(), tries: i + 1 };
+      }
+      return { score: qm.score.slice() };
+    });
+    check('a player throws the Quaffle through a hoop: a goal for their team', ai.score[0] >= 1, ai);
+    // you grab the Quaffle, then throw it through a hoop at the east end
+    const you = await E(async () => {
+      const qm = game.qm, b = qm.ball, pl = game.player, v = pl.riding, hoop = qHoops(0)[1];
+      for (const q of T.ents('qplayer')) { q.x = game.gen.hogwarts.pitch.x; q.z = game.gen.hogwarts.pitch.z + 40; }   // (everyone out of the way)
+      b.holder = ''; b.passT = 0; b.vx = b.vy = b.vz = 0; b.x = hoop[0] - 8; b.y = hoop[1]; b.z = hoop[2] + 0.5;
+      v.x = b.x; v.y = b.y - 1.05; v.z = b.z; pl.x = v.x; pl.y = v.y + 0.05; pl.z = v.z;
+      for (let i = 0; i < 20 && !quaffleHeld(game); i++) await new Promise(r => setTimeout(r, 50));
+      const had = !!quaffleHeld(game), s0 = qm.score[0];
+      T.aim(hoop[0] + 0.5, hoop[1] + 0.5, hoop[2] + 0.5);
+      T.tap();
+      for (let k = 0; k < 40 && qm.score[0] === s0; k++) await new Promise(r => setTimeout(r, 50));
+      return { had, scored: qm.score[0] > s0, score: qm.score.slice(), hud: el('qscore') && el('qscore').textContent };
+    });
+    check('fly up to the Quaffle to grab it, tap to throw it through a hoop: you score!', you.had && you.scored, you);
+    check('the score is shown at the top of the screen', /Gryffindor \d+ +- +\d+ Slytherin/.test(you.hud || ''), you.hud);
+    check('...and your goal is in the chat', await chatHas(/scored! Gryffindor \d+, Slytherin \d+/));
+    await E(() => { game.view = 1; const pl = game.player; pl.yaw = -Math.PI / 2; pl.pitch = -0.1; for (const q of T.ents('qplayer')) { q.x = pl.x + 6 + Math.random() * 6; q.z = pl.z + (Math.random() - 0.5) * 10; q.y = pl.y + Math.random() * 3; } });
+    await sleep(400);
+    await shot('quidditch');
+    await E(() => { game.view = 0; });
+    // catch the Snitch: the match ends and your team wins
+    const end = await E(async () => {
+      game.snitchT = 0; snitchTick(game);
+      const s = T.ents('snitch')[0], pl = game.player;
+      catchSnitch(game, s, pl);
+      await new Promise(r => setTimeout(r, 300));
+      return { qm: !!game.qm, left: T.ents('qplayer').length + T.ents('quaffle').length };
+    });
+    check('catch the Snitch: the match is over, and everyone flies off', !end.qm && end.left === 0, end);
+    check('...and the winners are announced', await chatHas(/The Snitch is caught! The match is over: Gryffindor \d+, Slytherin \d+\. Gryffindor wins!/));
+    await E(() => { game.input.sneak = true; }); await sleep(200); await E(() => { game.input.sneak = false; });
+  }
+
   console.log(errs.length ? 'ERRORS:\n' + errs.join('\n') : 'no page errors');
   console.log(fails ? fails + ' FAILED' : 'ALL PASSED');
   await browser.close(); server.close();

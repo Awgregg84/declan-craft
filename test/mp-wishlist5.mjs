@@ -106,6 +106,62 @@ const GID = GUEST.pid;
     await settle();
   }
 
+  // ---------- Hogwarts: the host opens a Hogwarts world and she joins ----------
+  const atHog = on('students') || on('quidditch');
+  if (atHog) {
+    await H.evaluate(() => game.quitToTitle());
+    await waitFor(G, () => game.state === 'title', 15000);
+    await H.evaluate(() => { ui.hostMode = true; game.startWorld('hogwarts', 'survival', true); game.settings.difficulty = 0; });
+    await waitFor(H, () => game.state === 'playing' && MP.roomOpen, 150000);
+    const code2 = await H.evaluate(() => MP.code);
+    await G.evaluate(() => showScreen('scr-title'));
+    await G.evaluate(code => { MP.join(code); }, code2);
+    await waitFor(H, () => !el('join-prompt').hidden, 30000);
+    await H.evaluate(() => MP.answerPrompt(true));
+    check('she joins the Hogwarts world', await waitFor(G, () => game.state === 'playing' && MP.welcomed && game.mapId === 'hogwarts', 150000));
+  }
+  if (on('students')) {
+    // 2. students: the host's iPad puts them about; she sees them and one says hello to her
+    await G.evaluate(() => Object.assign(game.player, { x: 0.5, y: 73, z: -24.5, vx: 0, vy: 0, vz: 0 }));
+    await H.evaluate(() => Object.assign(game.player, { x: 6.5, y: 73, z: -24.5, vx: 0, vy: 0, vz: 0 }));
+    await waitFor(H, () => game.world.readyAround(0.5, -30, 1) >= 1, 60000);
+    await sleep(1500);
+    for (let i = 0; i < 6; i++) { await H.evaluate(() => studentTick(game)); await sleep(150); }
+    check('she sees the students in their house robes', await waitFor(G, () => T.ents('student').length >= 3 && T.ents('student').every(e => e.variant >= 0 && e.variant < 8), 8000), await G.evaluate(() => T.ents('student').length));
+    const sid = await H.evaluate(() => { const s = T.ents('student')[0]; s.hiT = 0; s.moving = false; return s.nid; });
+    const sp = await G.evaluate(sid => { const s = game.entities.find(e => e.nid === sid); return [s.x, s.y, s.z]; }, sid);
+    await G.evaluate(sp => Object.assign(game.player, { x: sp[0] + 2.5, y: sp[1], z: sp[2] + 0.5 }), sp);
+    check('a student waves and says hello to her (by name)', await waitFor(G, () => T.chat(/student: ".*/) && Array.from(document.querySelectorAll('#chat-log div')).some(d => /student: ".*(Cora|!)/.test(d.textContent)), 8000)
+      && await waitFor(G, sid => { const s = game.entities.find(e => e.nid === sid); return s && s.waveT > 0; }, 4000, sid));
+  }
+  if (on('quidditch')) {
+    // 3. Quidditch: she flies onto the pitch on her broom; the match starts; she grabs the Quaffle and scores
+    const L = await H.evaluate(() => game.gen.hogwarts.pitch);
+    await H.evaluate(L => Object.assign(game.player, { x: L.x - 30.5, y: L.y + 1, z: L.z + 0.5 }), L);
+    await G.evaluate(L => Object.assign(game.player, { x: L.x - 24.5, y: L.y + 1, z: L.z + 0.5, vx: 0, vy: 0, vz: 0 }), L);
+    await waitFor(G, L => game.world.readyAround(L.x - 24.5, L.z, 2) >= 1, 60000, L);
+    await G.evaluate(L => { const pl = game.player; T.hold(I.BROOM, 1); pl.target = { x: L.x - 25, y: L.y, z: L.z + 2, id: B.GRASS, face: 2 }; pl.useBlock(I.BROOM, false); }, L);
+    await waitFor(G, () => T.ents('broom').length >= 1, 8000);
+    await G.evaluate(() => mountVehicle(game, T.ents('broom')[0]));
+    check('she gets on her broomstick', await waitFor(G, () => game.player.riding && game.player.riding.local, 8000));
+    await sleep(1500);
+    check('the match starts on the host', await waitFor(H, () => !!game.qm && T.ents('qplayer').length === 6, 8000));
+    check('she sees both teams on their brooms, and the Quaffle', await waitFor(G, () => T.ents('qplayer').length === 6 && T.ents('quaffle').length === 1 && new Set(T.ents('qplayer').map(q => q.team)).size === 2, 8000));
+    // the Quaffle comes loose right by her: she grabs it
+    const hoop = await H.evaluate(() => qHoops(0)[1]);
+    await G.evaluate(h => { const v = game.player.riding; v.flying = true; v.x = h[0] - 8; v.y = h[1] - 1; v.z = h[2] + 0.5; v.vx = v.vz = 0; }, hoop);
+    await sleep(800);
+    await H.evaluate(h => { for (const q of T.ents('qplayer')) { q.x = game.gen.hogwarts.pitch.x; q.z = game.gen.hogwarts.pitch.z + 60; } const b = game.qm.ball; b.holder = ''; b.passT = 0; b.vx = b.vy = b.vz = 0; b.x = h[0] - 8; b.y = h[1]; b.z = h[2] + 0.5; }, hoop);
+    check('she flies into the Quaffle and has it', await waitFor(H, gid => game.qm && game.qm.ball.holder === gid, 8000, GID) && await waitFor(G, () => !!quaffleHeld(game), 5000));
+    await G.evaluate(h => { const pl = game.player; T.aim(h[0] + 0.5, h[1] + 0.5, h[2] + 0.5); T.tap(); }, hoop);
+    check('she throws it through a hoop: a goal on the host', await waitFor(H, () => game.qm && game.qm.score[0] >= 1, 8000), await H.evaluate(() => game.qm && game.qm.score));
+    check('...and the score shows on her screen', await waitFor(G, () => el('qscore') && /Gryffindor 10 +- +0 Slytherin|Slytherin 10 +- +0 Gryffindor/.test(el('qscore').textContent) && T.chat(/Cora scored!/), 6000), await G.evaluate(() => el('qscore') && el('qscore').textContent));
+    await G.evaluate(() => { game.view = 1; });
+    await sleep(600);
+    await G.screenshot({ path: path.join(out, 'mp5-guest-quidditch.png') });
+    await G.evaluate(() => { game.view = 0; });
+  }
+
   check('no page errors', H.errs.length === 0 && G.errs.length === 0, H.errs.concat(G.errs).slice(0, 6));
   console.log(fails ? fails + ' FAILED' : 'ALL PASSED');
   await browser.close(); server.close(); peer.close && peer.close();

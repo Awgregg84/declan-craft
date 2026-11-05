@@ -88,9 +88,12 @@ function encodeEnt(e) {
       : e.type === 'enderman' ? (e.carry | 0) + (e.angryT > 0 ? 1024 : 0) : e.type === 'ghast' ? (e.firing > 0 ? 1 : 0)
       : e.type === 'tropical' ? (e.variant | 0) : e.type === 'pufferfish' ? Math.round((e.puff || 0) * 10) : e.type === 'golem' ? (e.rose > 0 ? 1 : 0)
       : e.type === 'snork' ? (e.variant | 0) | (e.tootT > 0 ? 16 : 0) | (e.happy > 0 ? 32 : 0)
-      : e.type === 'robot' ? (e.variant | 0) | (Math.max(0, ROBOT_MODES.indexOf(e.mode)) << 3) : 0;
+      : e.type === 'robot' ? (e.variant | 0) | (Math.max(0, ROBOT_MODES.indexOf(e.mode)) << 3)
+      : e.type === 'student' ? (e.variant | 0) | (e.waveT > 0 ? 8 : 0) : e.type === 'qplayer' ? (e.variant | 0) | (game.qm && game.qm.ball.holder === e.nid ? 8 : 0) | ((e.team | 0) << 4)
+      : e.type === 'quaffle' ? qEncode(e) : 0;
     const a = [e.nid, MOB_TYPES.indexOf(e.type), r2(e.x), r2(e.y), r2(e.z), r2(e.bodyYaw), r2(e.headYaw), r2(e.pitch), r2(e.walkAmt), flags, r2(e.fuse || 0), extra];
     if (e.type === 'robot') a.push(e.owner || '');   // (who it belongs to)
+    if (e.type === 'quaffle') a.push(typeof e.holder === 'string' ? e.holder : '');   // (the player who has it)
     return a;
   }
   if (e.type === 'tnt') return [e.nid, -1, r2(e.x), r2(e.y), r2(e.z), r2(e.fuse), TNT_KINDS.indexOf(e.kind), e.small ? 1 : 0];
@@ -177,10 +180,10 @@ function cleanDataTiles(td) {
   return out;
 }
 const FX_KINDS = ['break', 'place', 'door', 'boom', 'sfx', 'party', 'ice', 'tele', 'smoke', 'xpb', 'splash', 'spell', 'zap', 'paint'];
-const SFX_NET = ['leverClick', 'buttonClick', 'honk', 'bowShoot', 'crossbowShoot', 'pearlThrow', 'dispense', 'dispenseFail', 'ghastShoot', 'endermanPortal', 'sonar', 'tvOn', 'tvOff', 'golemBuilt', 'snorkHappy', 'snorkToot', 'spellCast', 'patronus', 'camSwitch', 'airlockDrain', 'airlockHiss', 'planeTakeoff', 'chuteOpen', 'tankFire'];
+const SFX_NET = ['leverClick', 'buttonClick', 'honk', 'bowShoot', 'crossbowShoot', 'pearlThrow', 'dispense', 'dispenseFail', 'ghastShoot', 'endermanPortal', 'sonar', 'tvOn', 'tvOff', 'golemBuilt', 'snorkHappy', 'snorkToot', 'spellCast', 'patronus', 'camSwitch', 'airlockDrain', 'airlockHiss', 'planeTakeoff', 'chuteOpen', 'tankFire', 'studentHi', 'whistle', 'quaffleCatch', 'quaffleThrow'];
 const GUEST_SFX = new Set(['leverClick', 'buttonClick', 'honk', 'sonar', 'tvOn', 'tvOff', 'snorkHappy', 'snorkToot', 'camSwitch', 'planeTakeoff', 'chuteOpen']);   // the sounds a guest can send
 const LINK_FAIL = "Found the game, but the two iPads couldn't connect to each other. Put both on the same Wi-Fi, then try again.";
-const STALE_T = new Set(['st', 'set', 'open', 'tile', 'close', 'tnt', 'egg', 'portal', 'shoot', 'mount', 'veh', 'dismount', 'veh+', 'sign', 'board', 'rocket', 'launch', 'snitch', 'robot+', 'robot']);
+const STALE_T = new Set(['st', 'set', 'open', 'tile', 'close', 'tnt', 'egg', 'portal', 'shoot', 'mount', 'veh', 'dismount', 'veh+', 'sign', 'board', 'rocket', 'launch', 'snitch', 'robot+', 'robot', 'quaffle']);
 
 const MP = {
   role: null, code: '', token: '', sig: null, roomOpen: false, hostLink: null, hostName: '', we: 0,
@@ -312,6 +315,7 @@ const MP = {
         sfx(snd, m.p[0], m.p[1], m.p[2]); this.sfx(snd, m.p[0], m.p[1], m.p[2], r.id);
         break;
       }
+      case 'quaffle': quaffleMsg(game, r, m); break;   // a guest grabs or throws the Quaffle
       case 'snitch': {   // a guest reached for the Golden Snitch
         const v = game.entities.find(q => q.nid === m.e && q.type === 'snitch' && !q.removed);
         if (v && Math.hypot(v.x - r.tx, v.y - (r.ty + 0.9), v.z - r.tz) < 4) catchSnitch(game, v, r);
@@ -868,6 +872,9 @@ const MP = {
         if (e.type === 'golem') e.rose = x ? 1 : 0;
         if (e.type === 'snork') { e.variant = clamp(x & 15, 0, SNORK_COLORS.length - 1); e.tootT = (x & 16) ? 0.3 : 0; e.happy = (x & 32) ? 0.3 : 0; }
         if (e.type === 'robot') { if (e.variant !== (x & 7)) { e.variant = clamp(x & 7, 0, ROBOT_COLORS.length - 1); e.color = robotColor(e.variant); } if (!(e.modeT > game.t)) e.mode = ROBOT_MODES[(x >> 3) & 3]; e.owner = String(a[12] || ''); }
+        if (e.type === 'student') { e.variant = x & 7; e.waveT = (x & 8) ? 0.4 : 0; }
+        if (e.type === 'qplayer') { e.variant = x & 7; e.hold = !!(x & 8); e.team = (x >> 4) & 1; }
+        if (e.type === 'quaffle') { e.qx = x; e.holder = String(a[12] || '').slice(0, 40); }
         e.frozen = (f & 16) ? 1 : 0;
         e.fireT = (f & 32) ? 0.3 : 0;
         e.invis = !!(f & 64); e.poisoned = !!(f & 128);

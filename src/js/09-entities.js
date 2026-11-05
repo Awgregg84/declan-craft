@@ -28,6 +28,10 @@ const MOB_DEFS = {
   snitch: { model: 'snitch', w: 0.2, h: 0.4, hp: 1, speed: 10, snitch: true, unhurt: true, xp: [0, 0], drops: [], sound: 'snitch' },
   // a robot you keep in your bag: it follows you, guards you, collects things or stays put (see 09z-robots.js)
   robot: { model: 'robot', w: 0.3, h: 1.15, hp: 100, speed: 3.4, robot: true, unhurt: true, xp: [0, 0], drops: [], sound: 'robot' },
+  // Hogwarts students in their house robes, Quidditch players on broomsticks, and the Quaffle (see 12i-students.js)
+  student: { model: 'student_0', w: 0.3, h: 1.75, hp: 20, speed: 1.6, student: true, special: true, unhurt: true, xp: [0, 0], drops: [], sound: 'student' },
+  qplayer: { model: 'student_0', w: 0.3, h: 1.6, hp: 20, speed: 8, qplayer: true, special: true, unhurt: true, xp: [0, 0], drops: [], sound: 'student' },
+  quaffle: { model: 'quaffle', w: 0.22, h: 0.44, hp: 1, speed: 10, ball: true, special: true, unhurt: true, xp: [0, 0], drops: [], sound: 'quaffle' },
 };
 const MOB_TYPES = Object.keys(MOB_DEFS);
 let ENTITY_NID = 0;
@@ -480,6 +484,8 @@ function updateMob(game, e, dt) {
   if (e.fleeT > 0) e.fleeT -= dt;   // (chased off by a Patronus)
   if (d.spirit) { updatePatronus(game, e, dt); return; }
   if (d.snitch) { updateSnitch(game, e, dt); return; }
+  if (d.qplayer) { updateQPlayer(game, e, dt); return; }
+  if (d.ball) { updateQuaffle(game, e, dt); return; }
   if (d.ender) { enderTick(game, e, dt); if (e.removed || e.dead) return; }
   if (d.fish) { updateFish(game, e, d, dt); return; }
   if (d.swimmer) { updateSnork(game, e, d, dt); return; }
@@ -508,6 +514,9 @@ function updateMob(game, e, dt) {
     mx = st[0]; mz = st[1]; speed *= st[2];
   } else if (d.guard) {
     const st = golemSteer(game, e, dt);
+    mx = st[0]; mz = st[1]; speed *= st[2];
+  } else if (d.student) {
+    const st = studentSteer(game, e, dt);
     mx = st[0]; mz = st[1]; speed *= st[2];
   } else if (d.robot) {
     const st = robotSteer(game, e, dt);
@@ -577,7 +586,7 @@ function spawnTick(game) {
   if (MP.role === 'guest') { world.spawnQueue.length = 0; return; }
   if (difficulty() === 0) for (const e of game.entities) if (e.mob) { if (MOB_DEFS[e.type].hostile) e.removed = true; else if (e.angryT) e.angryT = 0; }   // Peaceful: no monsters, and nothing stays angry
   let passive = 0, hostile = 0;
-  for (const e of game.entities) if (e.mob && !e.dead) { const d = MOB_DEFS[e.type]; if (d.hostile || d.ender) hostile++; else if (!d.villager && !d.fish && !d.swimmer && !d.guard && !d.spirit && !d.snitch && !d.robot) passive++; }
+  for (const e of game.entities) if (e.mob && !e.dead) { const d = MOB_DEFS[e.type]; if (d.hostile || d.ender) hostile++; else if (!d.villager && !d.fish && !d.swimmer && !d.guard && !d.spirit && !d.snitch && !d.robot && !d.special) passive++; }
   while (world.spawnQueue.length) {
     const sp = world.spawnQueue.shift(), [type, x, y, z, count] = sp;
     if (type === 'villager') { spawnVillagers(game, sp); continue; }
@@ -590,7 +599,7 @@ function spawnTick(game) {
   if (world.map === 'nether') { netherSpawnTick(game); return; }
   if (world.map === 'moon') return;   // (nothing lives on the Moon)
   spawnerTick(game);   // (a dungeon's monster spawners)
-  if (world.map === 'hogwarts') snitchTick(game);
+  if (world.map === 'hogwarts') { snitchTick(game); studentTick(game); qmatchTick(game); }
   if (game.settings.animals) { fishSpawnTick(game); snorkSpawnTick(game); }
   const players = allPlayers(game).filter(p => p.alive && (p === game.player ? game.mode : p.mode) === 'survival');
   if (!players.length || difficulty() === 0) return;
@@ -661,6 +670,8 @@ function mobPose(e, t) {
   }
   if (e.type === 'villager') return { head, rleg: [a, 0, 0], lleg: [-a, 0, 0], rarmU: [-0.75, 0, 0], larmU: [-0.75, 0, 0] };
   if (e.type === 'snitch') { const f = Math.sin(e.walk) * 0.9; return { lwing: [0, 0, f], rwing: [0, 0, -f] }; }   // (its wings a blur)
+  if (e.type === 'student') { const wv = e.waveT > 0 ? Math.sin(t * 12) * 0.35 : 0; return { head, rleg: [a, 0, 0], lleg: [-a, 0, 0], rarm: e.waveT > 0 ? [-2.7 + wv, 0, 0.25] : [-a * 0.8, 0, 0], larm: [a * 0.8, 0, 0] }; }
+  if (e.type === 'qplayer') return { head, rleg: [-0.55, 0.1, 0.12], lleg: [-0.55, -0.1, -0.12], rarm: e.hold ? [-2.4, 0, 0.2] : [-1.2, -0.15, 0], larm: [-1.2, 0.15, 0] };   // astride a broomstick (one arm up with the Quaffle)
   if (e.type === 'patronus') { const g = Math.sin(e.walk) * 0.9 * e.walkAmt; return { head: [0.15, 0, 0], fl: [g, 0, 0], fr: [-g * 0.7, 0, 0], bl: [-g, 0, 0], br: [g * 0.7, 0, 0] }; }   // galloping
   if (e.type === 'snork') {   // swimming: legs kick, arms paddle (and wave about when it is happy)
     const k = Math.sin(e.walk * 2.2) * 0.7 * e.walkAmt, p = Math.sin(e.walk * 1.1) * 0.5;
@@ -706,7 +717,7 @@ function drawEntities(game, s, t, cam) {
     if (!boxInFrustum(R.planes, dx - bw, dy - low, dz - bw, dx + bw, dy + Math.max(2.2, e.h + 0.4), dz + bw)) continue;
     if (e.vehicle) { drawVehicle(game, e, dx, dy, dz, s); continue; }
     if (mobInvisible(e)) continue;
-    const def = MOB_DEFS[e.type], model = MODELS[e.type === 'villager' ? 'villager_' + (e.prof || 'farmer') : e.type === 'ghast' && e.firing > 0 ? 'ghast_fire' : e.type === 'snork' ? 'snork_' + (e.variant | 0) : def.model];
+    const def = MOB_DEFS[e.type], model = MODELS[e.type === 'villager' ? 'villager_' + (e.prof || 'farmer') : e.type === 'ghast' && e.firing > 0 ? 'ghast_fire' : e.type === 'snork' ? 'snork_' + (e.variant | 0) : e.type === 'student' || e.type === 'qplayer' ? 'student_' + ((e.variant | 0) % STUDENT_LOOKS) : def.model];
     gl.uniform1f(P.u.uBright, Math.max(def.swimmer ? 0.6 : def.robot ? 0.4 : 0, brightAt(world, e.x, e.y + e.h * 0.7, e.z, s)));   // (snorks stay bright and colourful deep in the sea)
     let tint = e.hurt > 0 || e.dead ? [0.8, 0.1, 0.1, 0.45] : e.frozen > 0 ? (e.stun > 0 ? [1, 0.95, 0.5, 0.2] : [0.6, 0.85, 1, 0.5]) : [0, 0, 0, 0];
     let sc = model.scale;
@@ -730,6 +741,7 @@ function drawEntities(game, s, t, cam) {
     else M4.scale(_eb, _eb, sc, sc, sc);
     if (def.fish && e.pitch) M4.rotX(_eb, _eb, e.pitch);
     drawModel(model, _eb, mobPose(e, t), e.color);
+    if (e.type === 'qplayer') drawMobBroom(e, dx, dy, dz);
     if (e.type === 'robot') drawModel(MODELS.robot_light, _eb, mobPose(e, t), ROBOT_LIGHT[Math.max(0, ROBOT_MODES.indexOf(e.mode))]);   // (its antenna light shows what it is doing)
   }
   if ((game.view > 0 || CAMS.pass) && game.player.alive) drawPlayerModel(game, s, t, cam);   // (and on a security camera's monitor)

@@ -338,6 +338,8 @@ class Player {
       inp.use = false; inp.usePressed = false;
       return;
     }
+    // holding the Quaffle (at Hogwarts): a tap throws it
+    if (inp.use && inp.usePressed && this.useCd <= 0 && quaffleHeld(game)) { inp.usePressed = false; inp.use = false; this.useCd = 0.4; throwQuaffle(game, this); return; }
     // in a rocket: a tap starts the countdown
     if (this.riding && this.riding.type === 'rocket' && inp.use) {
       if (inp.usePressed && this.useCd <= 0) { this.useCd = 0.5; rocketLaunch(game, this, this.riding); }

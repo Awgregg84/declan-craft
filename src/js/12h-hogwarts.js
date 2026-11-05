@@ -85,6 +85,7 @@ function catchSnitch(game, e, p) {
   if (!p || e.removed) return;
   e.removed = true;
   game.snitchT = 20;   // (another one in a little while)
+  qmatchEnd(game);   // (it ends a Quidditch match)
   partyEffect(e.x, e.y, e.z);
   if (game.net) MP.fx('party', e.x, e.y, e.z);
   if (p === game.player) snitchCaught(game);
@@ -116,6 +117,8 @@ function sortingHat(game, x, y, z) {
 function hogwartsTick(game, dt) {
   quidditchTick(game, dt);
   snitchReach(game);
+  quaffleReach(game);
+  qmatchHud(game);
   if (game.sortAt && game.t >= game.sortAt) {
     game.sortAt = 0;
     const h = randInt(0, HOUSES.length - 1), H = HOUSES[h];

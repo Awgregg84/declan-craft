@@ -1057,6 +1057,7 @@ function frame(ts) {
     updateParticles(w, dt);
     wxTick(game, dt);
     if (atHogwarts()) hogwartsTick(game, dt);
+    else if (el('qscore') && el('qscore').style.display !== 'none') el('qscore').style.display = 'none';   // (the Quidditch score: only at Hogwarts)
     planTick(game, dt);
     game.spawnT -= dt;
     if (game.spawnT <= 0) { game.spawnT = 1; spawnTick(game); dungeonTick(game); }
