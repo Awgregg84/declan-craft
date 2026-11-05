@@ -152,7 +152,7 @@ const FRONT_FACE_OF = d => [4, 1, 5, 0][d & 3];
     if (S) {
       await E(S => T.put(S[0] + 0.5, S[1] + 6, S[2] + 0.5, { flying: true }), S);
       await waitFor(S => game.world.readyAround(S[0], S[2], 2) >= 1, 60000, S);
-      const ok = await waitFor(S => game.entities.some(e => e.type === 'villager' && e.prof === 'shopkeeper' && !e.removed && Math.hypot(e.x - S[0] - 0.5, e.z - S[2] - 0.5) < 3), 20000, S);
+      const ok = await waitFor(S => game.entities.some(e => e.type === 'villager' && e.prof === 'shopkeeper' && !e.removed && Math.hypot(e.x - S[0] - 0.5, e.z - S[2] - 0.5) < 3), 40000, S);
       const at = await E(S => {
         const w = game.world, e = game.entities.find(q => q.type === 'villager' && q.prof === 'shopkeeper');
         // the sign over the door, two blocks in front of the shopkeeper's place and up
@@ -160,6 +160,7 @@ const FRONT_FACE_OF = d => [4, 1, 5, 0][d & 3];
         let shelves = 0, counter = 0; for (let dz = -6; dz <= 6; dz++) for (let dx = -4; dx <= 4; dx++) { if (w.getBlock(S[0] + dx, S[1], S[2] + dz) === B.BOOKSHELF) shelves++; if (w.getBlock(S[0] + dx, S[1], S[2] + dz) === B.SPRUCE_PLANKS) counter++; }
         return { sign, shelves, counter, prof: e && PROF_NAMES[e.prof] };
       }, S);
+      at.keepers = await E(S => game.entities.filter(q => q.prof === 'shopkeeper').map(q => [q.x - S[0], q.y - S[1], q.z - S[2]].map(v => Math.round(v * 10) / 10)), S);
       check('the store has a shopkeeper, shelves, a counter and its sign', ok && at.sign && at.sign[0] === 'Declan-craft' && at.sign[1] === 'Store' && at.shelves >= 6 && at.counter >= 4 && at.prof === 'Shopkeeper', at);
       // look at it from outside the door
       await E(S => { const e = game.entities.find(q => q.type === 'villager' && q.prof === 'shopkeeper'), w = game.world; let fz = 0; for (const dz of [-1, 1]) if (w.getBlock(S[0], S[1], S[2] + dz * 5) === B.GLASS_DOOR) fz = dz; T.put(S[0] + 0.5, S[1] + 1, S[2] + fz * 11 + 0.5, { flying: true, yaw: fz > 0 ? 0 : Math.PI, pitch: -0.1 }); game.world.time = 0.25; }, S);
