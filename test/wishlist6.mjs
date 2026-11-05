@@ -190,6 +190,71 @@ const FRONT_FACE_OF = d => [4, 1, 5, 0][d & 3];
     check('older worlds get no store where something was built', fall.old.join() === 'fstore' && fall.oldV === 1, fall);
   }
 
+  if (on('trains')) {
+    // ---------- trains and stations ----------
+    const P = area(-60, 0);
+    await goto(P);
+    await E(P => { T.stage(P.x, P.y, P.z, 24, 8); T.clearMobs(); game.setMode('creative'); const w = game.world; for (let dx = -22; dx <= 22; dx++) w.setBlock(P.x + dx, P.y, P.z, B.RAIL, 1); }, P);
+    const info = await E(() => {
+      const make = (g, n) => { const o = matchRecipe(g, n); return o ? itemName(o.out) : null; }, M = I.MINECART, Y = B.WOOL + 4, S = B.STONE_BRICKS;
+      return { names: [itemName(I.TRAIN), BLOCKS[B.STATION].name], icons: !!ICONS[I.TRAIN] && !!ICONS[B.STATION], creative: CREATIVE_LIST.includes(I.TRAIN) && CREATIVE_LIST.includes(B.STATION),
+        rec: [make([B.FURNACE, 0, 0, M, M, M, 0, 0, 0], 3), make([Y, Y, Y, S, S, S, 0, 0, 0], 3)], code: VEHICLES.train.code, ent: ENT_CODE['-18'] };
+    });
+    check('the Train and the Train Station: pictures, recipes, in Creative', info.names.join() === 'Train,Train Station' && info.icons && info.creative && info.rec.join() === 'Train,Train Station' && info.code === -18 && info.ent === 'train', info);
+    const st = await E(P => {
+      const pl = game.player, w = game.world;
+      T.put(P.x + 0.5, P.y, P.z + 3.5, { yaw: 0, pitch: -0.6 }); T.hold(B.STATION, 1);
+      pl.target = { x: P.x, y: P.y - 1, z: P.z + 1, id: B.STONE, face: 2 };
+      pl.useBlock(B.STATION, true);
+      let n = 0, where = []; for (let dx = -3; dx <= 3; dx++) for (let dz = -1; dz <= 3; dz++) for (let dy = -1; dy <= 1; dy++) if (w.getBlock(P.x + dx, P.y + dy, P.z + dz) === B.STATION) { n++; where.push([dx, dy, dz]); }
+      return { n, where, sign: signLines(w, P.x, P.y + 1, P.z + 1) };
+    }, P);
+    check('a Train Station beside the track builds a platform with a sign showing its name', st.n === 5 && st.sign && st.sign[0] === 'Train Station' && st.sign[1].length > 2, st);
+    const put = await E(P => {
+      const pl = game.player;
+      T.put(P.x - 17.5, P.y, P.z + 2.5, { yaw: -Math.PI / 2, pitch: -0.5 }); T.hold(I.TRAIN, 1);
+      pl.target = { x: P.x - 18, y: P.y, z: P.z, id: B.RAIL, face: 2 };
+      const ok = pl.useBlock(I.TRAIN, true), v = T.ents('train')[0];
+      return { ok, n: T.ents('train').length, y: v && v.y - P.y };
+    }, P);
+    check('the train goes on the rails', put.ok && put.n === 1 && put.y < 0.2, put);
+    await E(() => { const v = T.ents('train')[0]; mountVehicle(game, v); game.view = 1; });
+    await E(() => { game.input.fwd = true; }); await sleep(400); await E(() => { game.input.fwd = false; });
+    const run = await E(() => { const v = T.ents('train')[0]; return { riding: game.player.riding === v, running: v.running }; });
+    check('get in and push forward: off it goes', run.riding && run.running === 1, run);
+    const stopped = await waitFor(P => { const v = T.ents('train')[0]; return v.waitT > 0 && Math.abs(v.x - P.x - 0.5) < 4; }, 20000, P);
+    const stopInfo = await E(() => { const v = T.ents('train')[0]; return { x: v.x, waitT: v.waitT, speed: Math.hypot(v.vx, v.vz), toast: window.__toasts.slice(-2) }; });
+    await sleep(800); await shot('train-station');
+    check('it stops at the station for a few seconds, and says its name', stopped && stopInfo.toast.some(t => /All aboard/.test(t)), stopInfo);
+    const cars = await E(() => { const v = T.ents('train')[0], c1 = carPose(v, 1), c2 = carPose(v, 2); return { d1: v.x - c1.x, d2: v.x - c2.x, z: [c1.z - v.z, c2.z - v.z] }; });
+    check('two carriages follow behind the engine along the track', Math.abs(cars.d1 - 4.65) < 0.3 && Math.abs(cars.d2 - 9.05) < 0.3 && cars.z.every(d => Math.abs(d) < 0.1), cars);
+    const goes = await waitFor(P => { const v = T.ents('train')[0]; return v.x > P.x + 8; }, 15000, P);
+    check('then it goes on by itself', goes);
+    const end = await waitFor(P => { const v = T.ents('train')[0]; return !v.running && v.x > P.x + 20; }, 15000, P);
+    check('and stops at the end of the line', end, await E(() => { const v = T.ents('train')[0]; return { x: v.x, running: v.running }; }));
+    await E(() => { game.input.back = true; }); await sleep(300); await E(() => { game.input.back = false; });
+    await sleep(1500);
+    const back = await E(P => { const v = T.ents('train')[0]; return { x: v.x - P.x, running: v.running }; }, P);
+    check('pull back to back up', back.running === -1 && back.x < 21.4, back);
+    await E(P => { const v = T.ents('train')[0]; v.running = 0; game.view = 0; dismountVehicle(game); T.put(v.x - 4, P.y + 1.5, P.z + 7.5, { flying: true, yaw: 0.35, pitch: -0.2 }); }, P);
+    await sleep(800); await shot('train-side');
+    await E(() => { const v = T.ents('train')[0]; mountVehicle(game, v); });
+    const seat = await E(() => {
+      const pl = game.player, v = T.ents('train')[0];
+      dismountVehicle(game); v.running = 0;
+      v.rider = 'someone';   // (a friend drives)
+      mountVehicle(game, v);
+      const c1 = carPose(v, 1), o = { seat: pl.seat, near: Math.hypot(pl.x - c1.x, pl.z - c1.z) };
+      dismountVehicle(game); o.out = !pl.riding && pl.seat === 0; o.off = Math.hypot(pl.x - c1.x, pl.z - c1.z); v.rider = null;
+      return o;
+    });
+    check('a friend sits in a carriage, and gets out beside it', seat.seat === 1 && seat.near < 1.2 && seat.out && seat.off < 3.5, seat);
+    await E(() => game.save());
+    const saved = await E(() => { const d = JSON.parse(store.get(saveKey('valley'))); return (d.world.vehicles || []).filter(v => v.k === 'train').length; });
+    check('the train is kept with the world', saved === 1, saved);
+    await E(() => { for (const v of T.ents('train')) v.removed = true; game.view = 0; game.setMode('survival'); });
+  }
+
   console.log(errs.length ? 'ERRORS:\n' + errs.join('\n') : 'no page errors');
   console.log(fails ? fails + ' FAILED' : 'ALL PASSED');
   await browser.close(); server.close();

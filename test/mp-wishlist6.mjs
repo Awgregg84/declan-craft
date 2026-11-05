@@ -115,6 +115,37 @@ const GID = GUEST.pid;
     await G.evaluate(() => { MP.sendSave = window.__ss; closeInv(); });
   }
 
+  if (on('trains')) {
+    // the host drives a train and she rides in a carriage; then she drives it herself
+    await H.evaluate(S => { const w = game.world; for (let dx = -15; dx <= 15; dx++) w.setBlock(S.x + dx, S.y, S.z + 2, B.RAIL, 1); for (const e of game.entities) if (e.vehicle) e.removed = true; window.__t = spawnVehicle(game, 'train', S.x - 11.5, S.y + 0.0625, S.z + 2.5, -Math.PI / 2); }, S);
+    const tid = await H.evaluate(() => window.__t.nid);
+    check('she sees the train', await waitFor(G, tid => game.entities.some(e => e.nid === tid && e.type === 'train'), 8000, tid));
+    await H.evaluate(S => { const pl = game.player; Object.assign(pl, { x: S.x - 11.5, y: S.y, z: S.z + 4.5 }); mountVehicle(game, window.__t); }, S);
+    await G.evaluate(([tid, S]) => { const pl = game.player; Object.assign(pl, { x: S.x - 14.5, y: S.y, z: S.z + 4.5 }); }, [tid, S]);
+    await sleep(800);
+    await G.evaluate(tid => mountVehicle(game, game.entities.find(e => e.nid === tid)), tid);
+    check('she gets a seat in a carriage', await waitFor(G, () => game.player.riding && game.player.seat >= 1, 8000), await G.evaluate(() => game.player.seat));
+    await H.evaluate(() => { game.input.fwd = true; }); await sleep(400); await H.evaluate(() => { game.input.fwd = false; });
+    await sleep(2500);
+    const ride = await G.evaluate(tid => { const v = game.entities.find(e => e.nid === tid), pl = game.player, c = carPose(v, TRAIN_SEATS[pl.seat][3]); return { moved: v.x, seat: pl.seat, near: Math.hypot(pl.x - c.x, pl.z - c.z) }; }, tid);
+    const hostSees = await H.evaluate(gid => { const r = MP.remotes.get(gid); return { seat: r.seat, inSeat: r.inPlane }; }, GID);
+    check('the train sets off with her in it', ride.moved > S.x - 9 && ride.near < 1.5 && hostSees.seat === ride.seat && hostSees.inSeat, { ride, hostSees });
+    await H.evaluate(() => { const v = window.__t; v.running = 0; });
+    await sleep(1500);
+    await G.evaluate(() => { game.input.sneak = true; }); await sleep(300); await G.evaluate(() => { game.input.sneak = false; });
+    check('she gets out', await waitFor(G, () => !game.player.riding, 5000));
+    check('and the host lets her seat go', await waitFor(H, gid => !(window.__t.pass || []).includes(gid), 5000, GID));
+    await H.evaluate(() => dismountVehicle(game));
+    await sleep(500);
+    await G.evaluate(tid => { const v = game.entities.find(e => e.nid === tid), pl = game.player; Object.assign(pl, { x: v.x, y: v.y, z: v.z + 2 }); mountVehicle(game, v); }, tid);
+    check('she drives it', await waitFor(G, () => game.player.riding && !game.player.seat && game.player.riding.local, 8000));
+    const x0 = await H.evaluate(() => window.__t.x);
+    await G.evaluate(() => { game.input.fwd = true; }); await sleep(400); await G.evaluate(() => { game.input.fwd = false; });
+    check('the train goes along on the host too', await waitFor(H, x0 => window.__t.x > x0 + 3, 8000, x0));
+    await G.evaluate(() => { game.player.riding.running = 0; dismountVehicle(game); });
+    await sleep(500);
+  }
+
   check('no page errors', H.errs.length === 0 && G.errs.length === 0, H.errs.concat(G.errs).slice(0, 6));
   console.log(fails ? fails + ' FAILED' : 'ALL PASSED');
   await browser.close(); server.close(); peer.close && peer.close();

@@ -591,6 +591,7 @@ function buildTiles() {
   });
   buildNewBlockTiles();
   buildBlockTiles3();
+  buildBlockTiles6();
   buildItemTiles();
   buildNewItemTiles();
   buildItemTiles3();

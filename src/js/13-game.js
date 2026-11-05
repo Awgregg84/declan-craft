@@ -967,7 +967,7 @@ function updateCamera(dt) {
   if (game.shake > 0 && !REDUCED_MOTION) { ex += randRange(-1, 1) * game.shake * 0.2; ey += randRange(-1, 1) * game.shake * 0.2; }
   if (game.view > 0) {
     const [dx, dy, dz] = pl.lookDir(), sgn = game.view === 1 ? -1 : 1;
-    const far = pl.riding && isPlane(pl.riding) ? (pl.riding.type === 'airliner' ? 14 : 8) : pl.riding && pl.riding.type === 'tank' ? 6 : 4;   // (further back from a plane, to see all of it)
+    const far = pl.riding && isPlane(pl.riding) ? (pl.riding.type === 'airliner' ? 14 : 8) : pl.riding && pl.riding.type === 'tank' ? 6 : pl.riding && pl.riding.type === 'train' ? 14 : 4;   // (further back from a plane or a train, to see all of it)
     const hit = raycast(game.world, ex, ey, ez, dx * sgn, dy * sgn, dz * sgn, far + 0.2);
     const dist = hit ? Math.max(0.5, hit.t - 0.3) : far;
     ex += dx * sgn * dist; ey += dy * sgn * dist; ez += dz * sgn * dist;

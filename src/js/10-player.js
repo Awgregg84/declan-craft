@@ -348,6 +348,11 @@ class Player {
     }
     // get into a minecart or car; in the car, a tap honks the horn
     if (inp.use && inp.usePressed && tEnt && tEnt.vehicle && !this.riding) { this.swing(); mountVehicle(game, tEnt); inp.use = false; inp.usePressed = false; return; }
+    if (this.riding && this.riding.type === 'train' && !this.seat && inp.use) {   // driving a train: a tap sounds the horn
+      if (inp.usePressed && this.useCd <= 0) { this.useCd = 0.8; sfx('trainHorn', this.x, this.y + 1, this.z); if (game.net) MP.localFx('sfx', this.x, this.y + 1, this.z, SFX_NET.indexOf('trainHorn')); }
+      inp.usePressed = false;
+      return;
+    }
     if (this.riding && this.riding.type === 'tank' && !this.seat && inp.use) {   // in a tank: a tap fires a paint shell
       if (inp.usePressed && this.useCd <= 0) { this.useCd = 0.7; tankFire(game, this, this.riding); }
       inp.usePressed = false;
@@ -552,11 +557,11 @@ class Player {
     }
     if (hid >= 256 && ITEMS[hid] && ITEMS[hid].door && t.face >= 0) return placeDoor(game, this, hid, t, creative);
     if (hid === B.GARAGE_DOOR && t.face >= 0) return placeGarage(game, this, t, creative);
-    if ((hid === I.MINECART || hid === I.CAR || hid === I.BOAT || hid === I.SUBMARINE || hid === I.FLYING_CAR || hid === I.BROOM || hid === I.ROCKET || hid === I.PLANE || hid === I.JET || hid === I.AIRLINER || hid === I.GOLF_CART || isTankItem(hid)) && t.face >= 0) {
-      const type = hid === I.CAR ? 'car' : hid === I.BOAT ? 'boat' : hid === I.SUBMARINE ? 'submarine' : hid === I.FLYING_CAR ? 'flycar' : hid === I.BROOM ? 'broom' : hid === I.ROCKET ? 'rocket' : hid === I.PLANE ? 'plane' : hid === I.JET ? 'jet' : hid === I.AIRLINER ? 'airliner' : hid === I.GOLF_CART ? 'golfcart' : isTankItem(hid) ? 'tank' : 'minecart';
+    if ((hid === I.MINECART || hid === I.TRAIN || hid === I.CAR || hid === I.BOAT || hid === I.SUBMARINE || hid === I.FLYING_CAR || hid === I.BROOM || hid === I.ROCKET || hid === I.PLANE || hid === I.JET || hid === I.AIRLINER || hid === I.GOLF_CART || isTankItem(hid)) && t.face >= 0) {
+      const type = hid === I.TRAIN ? 'train' : hid === I.CAR ? 'car' : hid === I.BOAT ? 'boat' : hid === I.SUBMARINE ? 'submarine' : hid === I.FLYING_CAR ? 'flycar' : hid === I.BROOM ? 'broom' : hid === I.ROCKET ? 'rocket' : hid === I.PLANE ? 'plane' : hid === I.JET ? 'jet' : hid === I.AIRLINER ? 'airliner' : hid === I.GOLF_CART ? 'golfcart' : isTankItem(hid) ? 'tank' : 'minecart';
       let vx = t.x + 0.5, vy = t.y + 1, vz = t.z + 0.5;
-      if (hid === I.MINECART) {
-        if (t.id !== B.RAIL) { if (!this.toldRails) { this.toldRails = true; toast('Minecarts go on rails. Put some rails down first.', 3); } return false; }
+      if (hid === I.MINECART || hid === I.TRAIN) {
+        if (t.id !== B.RAIL) { if (!this.toldRails) { this.toldRails = true; toast((hid === I.TRAIN ? 'Trains' : 'Minecarts') + ' go on rails. Put some rails down first.', 3); } return false; }
         vy = t.y + 0.0625;
       } else {
         if (t.face !== 2 && !BLOCKS[t.id].replaceable) return false;   // on top of a block
@@ -641,6 +646,7 @@ class Player {
     if (cur !== B.AIR && !LIQUID[cur]) world.setBlock(px, py, pz, B.AIR, 0, true);
     if (hid === B.RAIL) shapeRail(world, px, py, pz, this.yaw);
     else world.setBlock(px, py, pz, hid, data, true);
+    if (hid === B.STATION) stationPlaced(game, px, py, pz);   // (a platform along the track, with a sign)
     if (hid === B.CHEST) world.getTile(px, py, pz, 'chest');
     if (hid === B.FURNACE) world.getTile(px, py, pz, 'furnace');
     if (hid === B.PUMPKIN || hid === B.JACK_O_LANTERN) golemBuildCheck(game, px, py, pz);   // on a T of iron blocks: an iron golem
@@ -810,6 +816,8 @@ const HELD_TIPS = {
   [B.CAMERA]: ['Put the camera up on a wall: it looks out from the wall. On top of a block, it looks back at you.', 'Put the camera up on a wall: it looks out from the wall. On top of a block, it looks back at you.'],
   [B.MONITOR]: ['A monitor shows what your cameras see. Tap it to switch cameras.', 'A monitor shows what your cameras see. Right-click it to switch cameras.'],
   [I.LASER]: ['Tap to fire the laser! It only hurts monsters. The button at the top picks its colour.', 'Right-click to fire the laser! It only hurts monsters. Press F to pick its colour.'],
+  [I.TRAIN]: ['Tap a railway track to put the train on it, then tap the train to get in.', 'Right-click a railway track to put the train on it, then right-click the train to get in.'],
+  [B.STATION]: ['Put the Train Station right beside the track: it builds a platform with a sign, and trains stop there.', 'Put the Train Station right beside the track: it builds a platform with a sign, and trains stop there.'],
   [I.WAND]: ['Tap to cast a spell! The Spell button (at the top) picks a different one.', 'Right-click to cast a spell! Press F to pick a different one.'],
   [I.SHIELD]: ['Hold Place to hide behind the shield. Put it in the slot beside your armor to use it with a sword.', 'Hold the right mouse button to hide behind the shield. Put it in the slot beside your armor to use it with a sword.'],
 };

@@ -22,8 +22,8 @@ function planeSeat(v, k) {
 }
 /* the first free passenger seat (1, 2 ...), or 0 */
 function freeSeat(v) {
-  if (!isPlane(v)) return 0;
-  const n = PLANES[v.type].seats.length;
+  if (!hasSeats(v)) return 0;
+  const n = seatCount(v);
   if (!v.pass) v.pass = [];
   for (let k = 1; k < n; k++) if (!v.pass[k]) return k;
   return 0;
@@ -119,9 +119,9 @@ function planeControls(game, pl, v, fx, fz, inp) {
 /* ---- passengers ---- */
 /* a passenger sits in their seat (each frame, wherever the plane has got to) */
 function sitPassenger(pl, v) {
-  const [x, y, z] = planeSeat(v, pl.seat);
+  const [x, y, z] = seatPos(v, pl.seat);
   pl.x = x; pl.y = y; pl.z = z; pl.vx = v.vx || 0; pl.vz = v.vz || 0; pl.vy = 0; pl.fallDist = 0; pl.onGround = true;
-  pl.bodyYaw = v.yaw;
+  pl.bodyYaw = v.type === 'train' ? pl.yaw : v.yaw;
 }
 /* a passenger can only look around; Sneak gets out (in the air: out of the door with a parachute) */
 function passengerControls(game, pl, v, inp) {
@@ -137,13 +137,14 @@ function leaveSeat(game, pl, v) {
   if (MP.role === 'guest') MP.send({ t: 'dismount', e: v.nid });
   const w = game.world, high = v.removed || aloft(w, v) || (v.flying && w.getBlock(Math.floor(v.x), Math.floor(v.y) - 2, Math.floor(v.z)) === B.AIR);
   if (high && !v.removed) {   // jump out, and the parachute opens
-    const c = Math.cos(v.yaw), s = Math.sin(v.yaw), side = PLANES[v.type].seats[k] && PLANES[v.type].seats[k][0] < 0 ? -1 : 1, d = v.w + 0.8;
+    const c = Math.cos(v.yaw), s = Math.sin(v.yaw), side = PLANES[v.type] && PLANES[v.type].seats[k] && PLANES[v.type].seats[k][0] < 0 ? -1 : 1, d = v.w + 0.8;
     pl.x = v.x + c * side * d; pl.z = v.z - s * side * d; pl.y = v.y;
     pl.vx = (v.vx || 0) * 0.3; pl.vz = (v.vz || 0) * 0.3; pl.vy = 0; pl.fallDist = 0; pl.onGround = false;
     openChute(pl);
     return;
   }
-  [pl.x, pl.y, pl.z] = dismountSpot(w, v);
+  const car = v.type === 'train' && TRAIN_SEATS[k] && TRAIN_SEATS[k][3] ? carPose(v, TRAIN_SEATS[k][3]) : null;   // (out of a train's carriage: beside the carriage)
+  [pl.x, pl.y, pl.z] = dismountSpot(w, car ? { x: car.x, y: car.y, z: car.z, yaw: car.yaw, w: v.w, h: v.h, type: 'train' } : v);
   pl.vx = pl.vz = pl.vy = 0; pl.fallDist = 0;
 }
 /* get into a plane someone else is flying (or that is full up front) */
@@ -156,7 +157,8 @@ function boardSeat(game, v, k) {
   sitPassenger(pl, v);
   sfx('click', v.x, v.y, v.z);
   if (!game.tipped) game.tipped = {};
-  if (!game.tipped.passenger) { game.tipped.passenger = 1; toast("You're a passenger! Look around and enjoy the flight. Press Sneak to get out (up in the air you jump out with a parachute!).", 6); }
+  if (v.type === 'train') { if (!game.tipped.trainSeat) { game.tipped.trainSeat = 1; toast("You're riding in the train! Look around and enjoy the trip. Press Sneak to get out.", 5); } }
+  else if (!game.tipped.passenger) { game.tipped.passenger = 1; toast("You're a passenger! Look around and enjoy the flight. Press Sneak to get out (up in the air you jump out with a parachute!).", 6); }
 }
 
 /* ---- parachutes ---- */

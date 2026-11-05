@@ -38,7 +38,7 @@ function encodeState(p) {
   const rd = p.riding, aim = p.drawT > 0 || p.loadT > 0 || p.heldId() === I.CROSSBOW_LOADED, sh = shieldHand(p);
   const f = (p.sneaking ? 1 : 0) | (p.flying ? 2 : 0) | (p.alive ? 4 : 0) | (game.mode === 'creative' ? 8 : 0) | (game.sleeping > 0 ? 16 : 0) |
     (rd ? 32 : 0) | (rd && (rd.type === 'car' || rd.type === 'flycar' || rd.type === 'tank' || rd.type === 'golfcart' || isPlane(rd)) ? 64 : 0) | (aim ? 128 : 0) | (sh === 'off' ? 256 : 0) | (p.blocking ? 512 : 0) |
-    (rd && rd.type === 'boat' ? 1024 : 0) | (rd && rd.type === 'submarine' ? 2048 : 0) | (rd && rd.type === 'broom' ? 4096 : 0) | (rd && rd.type === 'rocket' ? 8192 : 0) | (p.chute ? 16384 : 0) | ((p.seat & 7) << 15) | (rd && isPlane(rd) ? 1 << 18 : 0);   // (in a plane, and which seat: 1-5 behind the pilot)
+    (rd && rd.type === 'boat' ? 1024 : 0) | (rd && rd.type === 'submarine' ? 2048 : 0) | (rd && rd.type === 'broom' ? 4096 : 0) | (rd && rd.type === 'rocket' ? 8192 : 0) | (p.chute ? 16384 : 0) | ((p.seat & 7) << 15) | (rd && hasSeats(rd) ? 1 << 18 : 0);   // (in a plane, and which seat: 1-5 behind the pilot)
   const b = p.bobber && !p.bobber.removed ? [r2(p.bobber.x), r2(p.bobber.y), r2(p.bobber.z)] : 0;
   return [r2(p.x), r2(p.y), r2(p.z), r2(p.yaw), r2(p.pitch), r2(p.bodyYaw), f, p.heldId(), p.swings || 0, wornArmor(p), wornGlint(p), effectBits(p), b, fallsChar()];
 }
@@ -104,7 +104,7 @@ function encodeEnt(e) {
   if (e.type === 'xp') return [e.nid, -7, r2(e.x), r2(e.y), r2(e.z), e.value];
   return null;
 }
-const ENT_CODE = { '-1': 'tnt', '-2': 'falling', '-3': 'proj', '-5': 'minecart', '-6': 'car', '-7': 'xp', '-8': 'boat', '-9': 'submarine', '-10': 'flycar', '-11': 'broom', '-12': 'rocket', '-13': 'plane', '-14': 'jet', '-15': 'airliner', '-16': 'tank', '-17': 'golfcart' };
+const ENT_CODE = { '-1': 'tnt', '-2': 'falling', '-3': 'proj', '-5': 'minecart', '-6': 'car', '-7': 'xp', '-8': 'boat', '-9': 'submarine', '-10': 'flycar', '-11': 'broom', '-12': 'rocket', '-13': 'plane', '-14': 'jet', '-15': 'airliner', '-16': 'tank', '-17': 'golfcart', '-18': 'train' };
 /* guest: creatures from the host glide to their latest positions */
 function updateProxy(e, dt) {
   e.age += dt;
@@ -182,8 +182,8 @@ function cleanDataTiles(td) {
   return out;
 }
 const FX_KINDS = ['break', 'place', 'door', 'boom', 'sfx', 'party', 'ice', 'tele', 'smoke', 'xpb', 'splash', 'spell', 'zap', 'paint', 'laser'];
-const SFX_NET = ['leverClick', 'buttonClick', 'honk', 'bowShoot', 'crossbowShoot', 'pearlThrow', 'dispense', 'dispenseFail', 'ghastShoot', 'endermanPortal', 'sonar', 'tvOn', 'tvOff', 'golemBuilt', 'snorkHappy', 'snorkToot', 'spellCast', 'patronus', 'camSwitch', 'airlockDrain', 'airlockHiss', 'planeTakeoff', 'chuteOpen', 'tankFire', 'studentHi', 'whistle', 'quaffleCatch', 'quaffleThrow', 'gnomeGiggle', 'lakemonSay', 'mystery'];
-const GUEST_SFX = new Set(['leverClick', 'buttonClick', 'honk', 'sonar', 'tvOn', 'tvOff', 'snorkHappy', 'snorkToot', 'camSwitch', 'planeTakeoff', 'chuteOpen']);   // the sounds a guest can send
+const SFX_NET = ['leverClick', 'buttonClick', 'honk', 'bowShoot', 'crossbowShoot', 'pearlThrow', 'dispense', 'dispenseFail', 'ghastShoot', 'endermanPortal', 'sonar', 'tvOn', 'tvOff', 'golemBuilt', 'snorkHappy', 'snorkToot', 'spellCast', 'patronus', 'camSwitch', 'airlockDrain', 'airlockHiss', 'planeTakeoff', 'chuteOpen', 'tankFire', 'studentHi', 'whistle', 'quaffleCatch', 'quaffleThrow', 'gnomeGiggle', 'lakemonSay', 'mystery', 'trainHorn', 'trainBell'];
+const GUEST_SFX = new Set(['leverClick', 'buttonClick', 'honk', 'sonar', 'tvOn', 'tvOff', 'snorkHappy', 'snorkToot', 'camSwitch', 'planeTakeoff', 'chuteOpen', 'trainHorn']);   // the sounds a guest can send
 const LINK_FAIL = "Found the game, but the two iPads couldn't connect to each other. Put both on the same Wi-Fi, then try again.";
 const STALE_T = new Set(['st', 'set', 'open', 'tile', 'close', 'tnt', 'egg', 'portal', 'shoot', 'mount', 'veh', 'dismount', 'veh+', 'sign', 'board', 'rocket', 'launch', 'snitch', 'robot+', 'robot', 'quaffle', 'laser', 'shop']);
 
@@ -336,12 +336,12 @@ const MP = {
       case 'veh+': {   // a guest put down a minecart, a car, a boat or a submarine
         const type = isVehicleType(m.k) ? m.k : null;
         if (!type || !okXYZ(m.at) || Math.hypot(m.at[0] - r.tx, m.at[2] - r.tz) > 8 || Math.abs(m.at[1] - r.ty) > 8) break;
-        if (type === 'minecart' && w.getBlock(Math.floor(m.at[0]), Math.floor(m.at[1]), Math.floor(m.at[2])) !== B.RAIL) break;
+        if ((type === 'minecart' || type === 'train') && w.getBlock(Math.floor(m.at[0]), Math.floor(m.at[1]), Math.floor(m.at[2])) !== B.RAIL) break;
         spawnVehicle(game, type, m.at[0], m.at[1], m.at[2], isFinite(+m.yaw) ? +m.yaw : 0, m.c | 0);
         break;
       }
       case 'mount': {
-        const v = game.entities.find(q => q.nid === m.e && q.vehicle && !q.removed), near = !!v && Math.hypot(v.x - r.tx, v.z - r.tz) < (isPlane(v) ? 9 : 6);
+        const v = game.entities.find(q => q.nid === m.e && q.vehicle && !q.removed), near = !!v && Math.hypot(v.x - r.tx, v.z - r.tz) < (isPlane(v) ? 9 : v.type === 'train' ? 12 : 6);
         if (v && (v.rider === r.id || (v.pass && v.pass.includes(r.id)))) break;   // (already in it)
         const seat = near && v.rider ? freeSeat(v) : 0, ok = near && (!v.rider || seat > 0);   // (a plane someone is flying: a passenger seat)
         if (ok && seat) v.pass[seat] = r.id;
@@ -721,9 +721,9 @@ const MP = {
       case 'snitch': snitchCaught(game); break;   // we caught the Golden Snitch!
       case 'mount': {   // the host says whether we got in
         const v = this.proxies.get(m.e), pl = game.player;
-        if (!m.ok) { if (v) toast(isPlane(v) ? 'This plane is full.' : 'Someone is already in it.', 2); break; }
+        if (!m.ok) { if (v) toast(isPlane(v) ? 'This plane is full.' : v.type === 'train' ? 'The train is full.' : 'Someone is already in it.', 2); break; }
         if (!v || v.removed || pl.riding || !pl.alive || game.state !== 'playing') { this.send({ t: 'dismount', e: m.e }); break; }
-        if (m.seat > 0 && isPlane(v)) { boardSeat(game, v, m.seat | 0); break; }   // a passenger seat
+        if (m.seat > 0 && hasSeats(v)) { boardSeat(game, v, m.seat | 0); break; }   // a passenger seat
         if (Array.isArray(m.s) && m.s.length >= 6) { v.x = +m.s[0]; v.y = +m.s[1]; v.z = +m.s[2]; v.yaw = +m.s[3] || 0; v.slope = +m.s[4] || 0; }
         v.vx = v.vy = v.vz = 0; v.local = true;
         boardVehicle(game, v);
@@ -1156,15 +1156,15 @@ function drawRemotePlayers(game, s, t, cam) {
 /* someone flying a plane, or a passenger in one: drawn in their seat in the plane as this iPad sees it (where
    they say they are is a moment behind, and at a plane's speed that would be well behind it) */
 function seatRemote(game, r) {
-  let best = null, bd = 12 * 12;
+  let best = null, bd = 14 * 14;
   for (const e of game.entities) {
-    if (!isPlane(e) || e.removed) continue;
+    if (!hasSeats(e) || e.removed) continue;
     const d = (e.x - r.tx) * (e.x - r.tx) + (e.z - r.tz) * (e.z - r.tz);
     if (d < bd) { bd = d; best = e; }
   }
   if (!best) return;
-  [r.x, r.y, r.z] = planeSeat(best, r.seat || 0);
-  r.bodyYaw = best.yaw;
+  [r.x, r.y, r.z] = seatPos(best, r.seat || 0);
+  if (best.type !== 'train') r.bodyYaw = best.yaw;
 }
 /* write one guest's things into a saved world (used just after the host closed it) */
 function patchSavedGuest(slot, id, d) {

@@ -73,6 +73,7 @@ const VEHICLES = {
   airliner: { w: 1.4, h: 2.2, item: I.AIRLINER, hits: 6, code: -15, wheel: 0.15 },
   tank: { w: 0.95, h: 1.3, item: I.TANK, hits: 6, code: -16, wheel: 0.2 },   // (see 09u-tanks.js)
   golfcart: { w: 0.7, h: 1.6, item: I.GOLF_CART, hits: 3, code: -17, wheel: 0.14 },   // (Soos's, in Declan Falls: a little car)
+  train: { w: 1.1, h: 2.8, item: I.TRAIN, hits: 6, code: -18, wheel: 0.2 },   // (see 09ct-trains.js)
 };
 const VEHICLE_TYPES = Object.keys(VEHICLES);
 const isVehicleType = t => typeof t === 'string' && Object.prototype.hasOwnProperty.call(VEHICLES, t);   // (not "constructor" and the like)
@@ -89,6 +90,7 @@ function seatOf(v) {
   if (v.type === 'golfcart') { const b = 0.1; return [v.x + Math.sin(v.yaw) * b, v.y + 0.05, v.z + Math.cos(v.yaw) * b]; }
   if (v.type === 'car' || v.type === 'flycar') { const b = 0.25; return [v.x + Math.sin(v.yaw) * b, v.y - 0.15, v.z + Math.cos(v.yaw) * b]; }
   if (isPlane(v)) return planeSeat(v, 0);
+  if (v.type === 'train') return trainSeat(v, 0);   // (in the engine's cab)
   if (v.type === 'tank') return [v.x, v.y + 0.2, v.z];   // (in the hatch on top, head and shoulders out)
   if (v.type === 'broom') return [v.x, v.y + 0.05, v.z];
   if (v.type === 'rocket') return [v.x, v.y + 0.6, v.z];   // (inside, looking out of the window)
@@ -103,14 +105,16 @@ function updateVehicle(game, e, dt) {
   if (e.rider && e.rider !== 'me' && !e.local) {   // a guest is driving it on their iPad
     e.age += dt;
     if (isPlane(e)) { e.x += e.vx * dt; e.y += (e.vy || 0) * dt; e.z += e.vz * dt; e.prop = (e.prop || 0) + dt * 30; e.sndT = (e.sndT || 0) - dt; if (e.sndT <= 0) planeSounds(e); }   // (a plane keeps going between its updates)
+    if (e.type === 'train') trainTrail(e);
     return;
   }
   if (e.rider === 'me' && game.player.riding !== e) e.rider = null;
   if (e.rider === 'me' && (game.paused || game.uiOpen || game.state !== 'playing')) { e.ctrlX = e.ctrlZ = 0; e.push = null; }   // the menu is open: let go of the wheel
   const steps = Math.max(1, Math.ceil(Math.hypot(e.vx, e.vy, e.vz) * dt / 0.3));
-  const step = e.type === 'car' || e.type === 'golfcart' ? carStep : e.type === 'tank' ? tankStep : e.type === 'boat' ? boatStep : e.type === 'submarine' ? subStep : isFlyer(e) ? flyStep : isPlane(e) ? planeStep : e.type === 'rocket' ? rocketStep : cartStep;
+  const step = e.type === 'train' ? trainStep : e.type === 'car' || e.type === 'golfcart' ? carStep : e.type === 'tank' ? tankStep : e.type === 'boat' ? boatStep : e.type === 'submarine' ? subStep : isFlyer(e) ? flyStep : isPlane(e) ? planeStep : e.type === 'rocket' ? rocketStep : cartStep;
   for (let i = 0; i < steps; i++) step(game, e, dt / steps);
   if (e.y < -40) { e.removed = true; return; }
+  if (e.type === 'train') trainTrail(e);
   if (e.rider === 'me') sitRider(game.player, e);
   e.sndT = (e.sndT || 0) - dt;
   const sp = Math.hypot(e.vx, e.vz);
@@ -227,9 +231,9 @@ function hitVehicle(game, e, mode, by) {
 function mountVehicle(game, v) {
   const pl = game.player;
   if (v.removed || pl.riding) return;
-  if (v.rider && !isPlane(v)) { toast('Someone is already in it.', 2); return; }
+  if (v.rider && !hasSeats(v)) { toast('Someone is already in it.', 2); return; }
   if (MP.role === 'guest') { if (!v.askT || performance.now() - v.askT > 1500) { v.askT = performance.now(); MP.send({ t: 'mount', e: v.nid }); } return; }   // the host says yes or no
-  if (v.rider) { const k = freeSeat(v); if (k) boardSeat(game, v, k); else toast('This plane is full.', 2); return; }   // (a plane's pilot is already in: a passenger seat)
+  if (v.rider) { const k = freeSeat(v); if (k) boardSeat(game, v, k); else toast(isPlane(v) ? 'This plane is full.' : 'The train is full.', 2); return; }   // (a plane's pilot is already in: a passenger seat)
   boardVehicle(game, v);
 }
 function boardVehicle(game, v) {
@@ -255,6 +259,7 @@ const RIDE_TIPS = {
   airliner: 'Push forward and speed down a long runway, then look up to take off! Friends can sit in the seats behind you.',
   golfcart: 'Drive with the joystick (or W A S D). Tap to beep! Press Sneak to get out.',
   tank: 'Drive with the joystick (or W A S D). The gun points where you look: tap to fire a paint shell! Press Sneak to get out.',
+  train: 'Push forward to set off: the train keeps going by itself. Pull back to stop (and again to back up). Tap for the horn! It stops at stations. Press Sneak to get out.',
 };
 /* host: where a guest's vehicle has got to */
 function applyVehState(v, s) {
@@ -271,6 +276,7 @@ function dismountVehicle(game) {
   if (!v) return;
   if (pl.seat) { leaveSeat(game, pl, v); return; }
   pl.riding = null;
+  if (v.type === 'train') v.running = 0;   // (the driver got out: it stops)
   if (MP.role === 'guest') { if (v.local) { MP.send({ t: 'dismount', e: v.nid, s: vehicleState(v) }); v.local = false; v.tx = v.x; v.ty = v.y; v.tz = v.z; } }
   else if (v.rider === 'me') v.rider = null;
   v.ctrlX = v.ctrlZ = 0; v.push = null;
@@ -318,6 +324,7 @@ function rideControls(game, pl, fx, fz, inp, dt) {
   if (inp.sneak && !pl.sneakHeld) { pl.sneakHeld = true; dismountVehicle(game); return; }
   pl.sneakHeld = !!inp.sneak;
   if (v.type === 'tank') { v.turret = pl.yaw; v.gun = clamp(pl.pitch, -0.3, 0.6); }   // (the turret and gun turn to where you look)
+  if (v.type === 'train') { trainControls(game, pl, v, fx, fz); return; }
   if (v.type !== 'minecart') { v.ctrlX = fx; v.ctrlZ = fz; }
   else { const s = Math.sin(pl.yaw), c = Math.cos(pl.yaw); v.push = [(-s * fz + c * fx), (-c * fz - s * fx)]; }
 }
@@ -333,6 +340,7 @@ function loadVehicles(game, list) {
 
 /* ---- drawing ---- */
 function drawVehicle(game, e, dx, dy, dz, s) {
+  if (e.type === 'train') { drawTrain(game, e, dx, dy, dz, s); return; }
   const P = PROG.entity, model = MODELS[e.type], b = brightAt(game.world, e.x, e.y + 0.5, e.z, s);
   const bright = e.type === 'submarine' && e.rider ? Math.max(b, 0.9) : b;   // (a submarine with someone in it has its lamps on)
   gl.uniform1f(P.u.uBright, bright);
