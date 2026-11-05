@@ -71,13 +71,15 @@ const VEHICLES = {
   plane: { w: 0.9, h: 1.3, item: I.PLANE, hits: 4, code: -13, wheel: 0.12 },   // (see 09l-planes.js)
   jet: { w: 0.9, h: 1.2, item: I.JET, hits: 4, code: -14, wheel: 0.1 },
   airliner: { w: 1.4, h: 2.2, item: I.AIRLINER, hits: 6, code: -15, wheel: 0.15 },
+  tank: { w: 0.95, h: 1.3, item: I.TANK, hits: 6, code: -16, wheel: 0.2 },   // (see 09u-tanks.js)
 };
 const VEHICLE_TYPES = Object.keys(VEHICLES);
 const isVehicleType = t => typeof t === 'string' && Object.prototype.hasOwnProperty.call(VEHICLES, t);   // (not "constructor" and the like)
-function spawnVehicle(game, type, x, y, z, yaw) {
+function spawnVehicle(game, type, x, y, z, yaw, c) {
   if (!isVehicleType(type)) return null;
   const e = new Entity(type, x, y, z), d = VEHICLES[type];
   e.vehicle = true; e.w = d.w; e.h = d.h; e.yaw = e.bodyYaw = yaw || 0; e.rider = null; e.hits = 0; e.wheel = 0; e.slope = 0;
+  if (type === 'tank') { e.tc = clamp(c | 0, 0, TANK_COLORS.length - 1); e.turret = e.yaw; e.gun = 0; }
   game.entities.push(e);
   return e;
 }
@@ -85,6 +87,7 @@ function spawnVehicle(game, type, x, y, z, yaw) {
 function seatOf(v) {
   if (v.type === 'car' || v.type === 'flycar') { const b = 0.25; return [v.x + Math.sin(v.yaw) * b, v.y - 0.15, v.z + Math.cos(v.yaw) * b]; }
   if (isPlane(v)) return planeSeat(v, 0);
+  if (v.type === 'tank') return [v.x, v.y + 0.2, v.z];   // (in the hatch on top, head and shoulders out)
   if (v.type === 'broom') return [v.x, v.y + 0.05, v.z];
   if (v.type === 'rocket') return [v.x, v.y + 0.6, v.z];   // (inside, looking out of the window)
   if (v.type === 'boat') return [v.x, v.y - 0.64, v.z];
@@ -103,7 +106,7 @@ function updateVehicle(game, e, dt) {
   if (e.rider === 'me' && game.player.riding !== e) e.rider = null;
   if (e.rider === 'me' && (game.paused || game.uiOpen || game.state !== 'playing')) { e.ctrlX = e.ctrlZ = 0; e.push = null; }   // the menu is open: let go of the wheel
   const steps = Math.max(1, Math.ceil(Math.hypot(e.vx, e.vy, e.vz) * dt / 0.3));
-  const step = e.type === 'car' ? carStep : e.type === 'boat' ? boatStep : e.type === 'submarine' ? subStep : isFlyer(e) ? flyStep : isPlane(e) ? planeStep : e.type === 'rocket' ? rocketStep : cartStep;
+  const step = e.type === 'car' ? carStep : e.type === 'tank' ? tankStep : e.type === 'boat' ? boatStep : e.type === 'submarine' ? subStep : isFlyer(e) ? flyStep : isPlane(e) ? planeStep : e.type === 'rocket' ? rocketStep : cartStep;
   for (let i = 0; i < steps; i++) step(game, e, dt / steps);
   if (e.y < -40) { e.removed = true; return; }
   if (e.rider === 'me') sitRider(game.player, e);
@@ -113,7 +116,8 @@ function updateVehicle(game, e, dt) {
   else if (e.sndT <= 0 && isFlyer(e)) flySounds(e, sp);
   else if (e.sndT <= 0 && isPlane(e)) planeSounds(e);
   else if (e.sndT <= 0 && sp > 0.5) {
-    if (e.type === 'car' && e.rider) { e.sndT = 0.16; sfx('carEngine', e.x, e.y, e.z, clamp(0.4 + sp / 12, 0.4, 1)); }
+    if (e.type === 'tank' && e.rider) { e.sndT = 0.22; sfx('tankEngine', e.x, e.y, e.z, clamp(0.5 + sp / 8, 0.5, 1)); }
+    else if (e.type === 'car' && e.rider) { e.sndT = 0.16; sfx('carEngine', e.x, e.y, e.z, clamp(0.4 + sp / 12, 0.4, 1)); }
     else if (e.type === 'minecart' && e.onRail) { e.sndT = 0.32 - Math.min(0.2, sp * 0.02); sfx('minecartRoll', e.x, e.y, e.z, clamp(sp / 8, 0.25, 1)); }
   }
 }
@@ -210,8 +214,9 @@ function hitVehicle(game, e, mode, by) {
     sfx(wood ? 'break_wood' : 'break_metal', e.x, e.y + 0.4, e.z);
     blockParticles(e.x - 0.5, e.y, e.z - 0.5, wood ? B.OAK_PLANKS : B.IRON_BLOCK, 10, true);
     if (mode === 'survival') {
-      if (by && by !== 'me') MP.sendDrops(MP.remotes.get(by), [[VEHICLES[e.type].item, 1, 0]], e.x, e.y + 0.5, e.z);
-      else dropItem(game, e.x, e.y + 0.5, e.z, VEHICLES[e.type].item, 1);
+      const item = e.type === 'tank' ? I.TANK + (e.tc | 0) : VEHICLES[e.type].item;   // (a tank comes back its own colour)
+      if (by && by !== 'me') MP.sendDrops(MP.remotes.get(by), [[item, 1, 0]], e.x, e.y + 0.5, e.z);
+      else dropItem(game, e.x, e.y + 0.5, e.z, item, 1);
     }
   }
 }
@@ -245,6 +250,7 @@ const RIDE_TIPS = {
   plane: 'Push the joystick forward to speed along the ground. When it is fast enough, look up to take off! Left and right turn. Let go to slow down and glide in to land.',
   jet: 'Push forward and speed down a long runway, then look up to take off! Jets go very fast. Let go to slow down and glide in to land.',
   airliner: 'Push forward and speed down a long runway, then look up to take off! Friends can sit in the seats behind you.',
+  tank: 'Drive with the joystick (or W A S D). The gun points where you look: tap to fire a paint shell! Press Sneak to get out.',
 };
 /* host: where a guest's vehicle has got to */
 function applyVehState(v, s) {
@@ -254,6 +260,7 @@ function applyVehState(v, s) {
   if (isPlane(v)) { v.bank = clamp(+s[7] || 0, -1, 1); v.vy = clamp(+s[8] || 0, -60, 60); v.spd = Math.abs(sp); v.slope = clamp(s[4], -1, 1); }
   v.vx = -Math.sin(v.yaw) * sp; v.vz = -Math.cos(v.yaw) * sp;
   v.wheel += sp * 0.1 / VEHICLES[v.type].wheel;
+  if (v.type === 'tank' && s.length >= 11) { v.turret = (+s[9] || 0) % TAU; v.gun = clamp(+s[10] || 0, -0.3, 0.6); tankTracks(v, sp * 0.1, 0); }
 }
 function dismountVehicle(game) {
   const pl = game.player, v = pl.riding;
@@ -284,7 +291,7 @@ const restPos = pl => {
   const gy = groundUnder(w, v.x, v.y, v.z);   // (flying: down on the ground below, or over nothing at all, back at the spawn point)
   return gy < 0 ? game.spawnPos() : dismountSpot(w, { x: v.x, y: gy, z: v.z, yaw: v.yaw, w: v.w, h: v.h, type: v.type });
 };
-const vehicleState = v => [r2(v.x), r2(v.y), r2(v.z), r2(v.yaw), r2(v.slope || 0), r2(Math.hypot(v.vx, v.vz) * (v.vx * -Math.sin(v.yaw) + v.vz * -Math.cos(v.yaw) < 0 ? -1 : 1)), v.flying ? 1 : 0, r2(v.bank || 0), r2(v.vy || 0)];
+const vehicleState = v => [r2(v.x), r2(v.y), r2(v.z), r2(v.yaw), r2(v.slope || 0), r2(Math.hypot(v.vx, v.vz) * (v.vx * -Math.sin(v.yaw) + v.vz * -Math.cos(v.yaw) < 0 ? -1 : 1)), v.flying ? 1 : 0, r2(v.bank || 0), r2(v.vy || 0), r2(v.turret || 0), r2(v.gun || 0)];
 /* what the rider does each frame (before the vehicle moves) */
 function rideControls(game, pl, fx, fz, inp, dt) {
   const v = pl.riding;
@@ -306,17 +313,18 @@ function rideControls(game, pl, fx, fz, inp, dt) {
   }
   if (inp.sneak && !pl.sneakHeld) { pl.sneakHeld = true; dismountVehicle(game); return; }
   pl.sneakHeld = !!inp.sneak;
+  if (v.type === 'tank') { v.turret = pl.yaw; v.gun = clamp(pl.pitch, -0.3, 0.6); }   // (the turret and gun turn to where you look)
   if (v.type !== 'minecart') { v.ctrlX = fx; v.ctrlZ = fz; }
   else { const s = Math.sin(pl.yaw), c = Math.cos(pl.yaw); v.push = [(-s * fz + c * fx), (-c * fz - s * fx)]; }
 }
 /* save and load the vehicles left in a world */
 function saveVehicles(game) {
   const w = game.world, at = e => { const gy = aloft(w, e) ? groundUnder(w, e.x, e.y, e.z) : -1; return gy >= 0 ? gy : e.y; };   // (one up in the air is kept on the ground below it)
-  return game.entities.filter(e => e.vehicle && !e.removed && !e.proxy).map(e => ({ k: e.type, x: r2(e.x), y: r2(at(e)), z: r2(e.z), yaw: r2(e.yaw) }));
+  return game.entities.filter(e => e.vehicle && !e.removed && !e.proxy).map(e => Object.assign({ k: e.type, x: r2(e.x), y: r2(at(e)), z: r2(e.z), yaw: r2(e.yaw) }, e.type === 'tank' ? { c: e.tc | 0 } : null));
 }
 function loadVehicles(game, list) {
   if (!Array.isArray(list)) return;
-  for (const v of list.slice(0, 200)) if (v && isVehicleType(v.k) && [v.x, v.y, v.z].every(n => typeof n === 'number' && isFinite(n))) spawnVehicle(game, v.k, v.x, v.y, v.z, +v.yaw || 0);
+  for (const v of list.slice(0, 200)) if (v && isVehicleType(v.k) && [v.x, v.y, v.z].every(n => typeof n === 'number' && isFinite(n))) spawnVehicle(game, v.k, v.x, v.y, v.z, +v.yaw || 0, v.c | 0);
 }
 
 /* ---- drawing ---- */
@@ -335,6 +343,7 @@ function drawVehicle(game, e, dx, dy, dz, s) {
   const wr = e.wheel || 0, st = e.steer || 0;
   if (isFlyer(e)) e.wing = clamp((e.wing || 0) + ((e.flying ? 1 : 0) - (e.wing || 0)) * 0.12, 0, 1);   // (the flying car's wings fold out in the air)
   const fold = (1 - (e.wing || 0)) * 1.35;   // (folded down along its sides)
+  if (e.type === 'tank') { drawTank(e, _eb); return; }
   drawModel(model, _eb, e.type === 'car' ? { wfl: [wr, st, 0], wfr: [wr, st, 0], wbl: [wr, 0, 0], wbr: [wr, 0, 0] }
     : e.type === 'flycar' ? { wfl: [wr, 0, 0], wfr: [wr, 0, 0], wbl: [wr, 0, 0], wbr: [wr, 0, 0], lwing: [0, 0, -fold], rwing: [0, 0, fold] }
     : isPlane(e) ? { prop: [0, 0, e.prop || 0] }

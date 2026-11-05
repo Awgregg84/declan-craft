@@ -346,6 +346,11 @@ class Player {
     }
     // get into a minecart or car; in the car, a tap honks the horn
     if (inp.use && inp.usePressed && tEnt && tEnt.vehicle && !this.riding) { this.swing(); mountVehicle(game, tEnt); inp.use = false; inp.usePressed = false; return; }
+    if (this.riding && this.riding.type === 'tank' && !this.seat && inp.use) {   // in a tank: a tap fires a paint shell
+      if (inp.usePressed && this.useCd <= 0) { this.useCd = 0.7; tankFire(game, this, this.riding); }
+      inp.usePressed = false;
+      return;
+    }
     if (this.riding && (this.riding.type === 'car' || this.riding.type === 'flycar' || this.riding.type === 'submarine') && inp.use) {   // (in a submarine: a sonar ping)
       if (inp.usePressed && this.useCd <= 0) {
         this.useCd = 0.5;
@@ -541,8 +546,8 @@ class Player {
     }
     if (hid >= 256 && ITEMS[hid] && ITEMS[hid].door && t.face >= 0) return placeDoor(game, this, hid, t, creative);
     if (hid === B.GARAGE_DOOR && t.face >= 0) return placeGarage(game, this, t, creative);
-    if ((hid === I.MINECART || hid === I.CAR || hid === I.BOAT || hid === I.SUBMARINE || hid === I.FLYING_CAR || hid === I.BROOM || hid === I.ROCKET || hid === I.PLANE || hid === I.JET || hid === I.AIRLINER) && t.face >= 0) {
-      const type = hid === I.CAR ? 'car' : hid === I.BOAT ? 'boat' : hid === I.SUBMARINE ? 'submarine' : hid === I.FLYING_CAR ? 'flycar' : hid === I.BROOM ? 'broom' : hid === I.ROCKET ? 'rocket' : hid === I.PLANE ? 'plane' : hid === I.JET ? 'jet' : hid === I.AIRLINER ? 'airliner' : 'minecart';
+    if ((hid === I.MINECART || hid === I.CAR || hid === I.BOAT || hid === I.SUBMARINE || hid === I.FLYING_CAR || hid === I.BROOM || hid === I.ROCKET || hid === I.PLANE || hid === I.JET || hid === I.AIRLINER || isTankItem(hid)) && t.face >= 0) {
+      const type = hid === I.CAR ? 'car' : hid === I.BOAT ? 'boat' : hid === I.SUBMARINE ? 'submarine' : hid === I.FLYING_CAR ? 'flycar' : hid === I.BROOM ? 'broom' : hid === I.ROCKET ? 'rocket' : hid === I.PLANE ? 'plane' : hid === I.JET ? 'jet' : hid === I.AIRLINER ? 'airliner' : isTankItem(hid) ? 'tank' : 'minecart';
       let vx = t.x + 0.5, vy = t.y + 1, vz = t.z + 0.5;
       if (hid === I.MINECART) {
         if (t.id !== B.RAIL) { if (!this.toldRails) { this.toldRails = true; toast('Minecarts go on rails. Put some rails down first.', 3); } return false; }
@@ -552,8 +557,8 @@ class Player {
         if (BLOCKS[t.id].replaceable) vy = t.y;
         if (!boxFree(world, vx, vy, vz, VEHICLES[type].w, Math.min(VEHICLES[type].h, 1))) return false;
       }
-      if (MP.role === 'guest') MP.send({ t: 'veh+', k: type, at: [r2(vx), r2(vy), r2(vz)], yaw: r2(this.yaw) });
-      else spawnVehicle(game, type, vx, vy, vz, this.yaw);
+      if (MP.role === 'guest') MP.send({ t: 'veh+', k: type, at: [r2(vx), r2(vy), r2(vz)], yaw: r2(this.yaw), c: hid - I.TANK });
+      else spawnVehicle(game, type, vx, vy, vz, this.yaw, hid - I.TANK);
       sfx(type === 'boat' ? 'place_wood' : 'place_metal', vx, vy, vz); this.swing();
       if (!creative) this.consumeHeld(1);
       return true;
@@ -794,6 +799,7 @@ const HELD_TIPS = {
   [I.BOAT]: ['Tap some water to put the boat on it, then tap the boat to get in.', 'Right-click some water to put the boat on it, then right-click the boat to get in.'],
   [I.SUBMARINE]: ['Tap some water to put the submarine in it, then tap it to get in.', 'Right-click some water to put the submarine in it, then right-click it to get in.'],
   [I.PLAN_BOOK]: ['Tap to open the book and pick something to build.', 'Right-click to open the book and pick something to build.'],
+  ...Object.fromEntries(TANK_COLORS.map((c, i) => [I.TANK + i, ['Tap the ground to put your tank down, then tap it to get in. Tap to fire paint!', 'Right-click the ground to put your tank down, then right-click it to get in. Click to fire paint!']])),
   [I.ROBOT]: ['Tap the ground to let your robot out. Tap it to change what it does; hit it to put it back in your bag.', 'Right-click the ground to let your robot out. Right-click it to change what it does; hit it to put it back in your bag.'],
   [B.CAMERA]: ['Put the camera up on a wall: it looks out from the wall. On top of a block, it looks back at you.', 'Put the camera up on a wall: it looks out from the wall. On top of a block, it looks back at you.'],
   [B.MONITOR]: ['A monitor shows what your cameras see. Tap it to switch cameras.', 'A monitor shows what your cameras see. Right-click it to switch cameras.'],

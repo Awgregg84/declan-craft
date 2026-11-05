@@ -2,7 +2,7 @@
    The host's iPad runs the world: creatures, falling sand, water, furnaces, time of day.
    Guests build the same terrain from the seed, send their own moves and block changes,
    and show the host's creatures. A guest's things are saved inside the host's world. */
-const MP_PROTO = 5;   // 2: bows, new TNT, endermen, ghasts, dispensers, minecarts and cars; 3: armor, enchanting, books, signs, potions, fish, boats, made characters, TVs, boards, Hardcore;
+const MP_PROTO = 6;   // 2: bows, new TNT, endermen, ghasts, dispensers, minecarts and cars; 3: armor, enchanting, books, signs, potions, fish, boats, made characters, TVs, boards, Hardcore;
                       // 4: weather, golems, Snorks, the flying car and broom, the rocket and the Moon, wands, Hogwarts, plans, cameras, dungeons, robots;
                       // 5: more doors (iron, glass, airlock, garage), planes with passenger seats, parachutes
 const MP_MAX_GUESTS = 3;
@@ -96,11 +96,11 @@ function encodeEnt(e) {
   if (e.type === 'tnt') return [e.nid, -1, r2(e.x), r2(e.y), r2(e.z), r2(e.fuse), TNT_KINDS.indexOf(e.kind), e.small ? 1 : 0];
   if (e.type === 'falling') return [e.nid, -2, r2(e.x), r2(e.y), r2(e.z), e.id];
   if (e.type === 'proj') return [e.nid, -3, r2(e.x), r2(e.y), r2(e.z), r2(e.vx), r2(e.vy), r2(e.vz), PROJ_KINDS.indexOf(e.kind), (e.stuck ? 1 : 0) | (e.crit ? 2 : 0), e.tok || '', e.pk | 0];
-  if (e.vehicle) return [e.nid, VEHICLES[e.type].code, r2(e.x), r2(e.y), r2(e.z), r2(e.yaw), r2(e.slope || 0), e.rider ? 1 : 0, vehicleState(e)[5], e.hurt > 0 ? 1 : 0, e.flying ? 1 : 0, r2(e.bank || 0)];
+  if (e.vehicle) return [e.nid, VEHICLES[e.type].code, r2(e.x), r2(e.y), r2(e.z), r2(e.yaw), r2(e.slope || 0), e.rider ? 1 : 0, vehicleState(e)[5], e.hurt > 0 ? 1 : 0, e.flying ? 1 : 0, r2(e.bank || 0), r2(e.turret || 0), r2(e.gun || 0), e.tc | 0];
   if (e.type === 'xp') return [e.nid, -7, r2(e.x), r2(e.y), r2(e.z), e.value];
   return null;
 }
-const ENT_CODE = { '-1': 'tnt', '-2': 'falling', '-3': 'proj', '-5': 'minecart', '-6': 'car', '-7': 'xp', '-8': 'boat', '-9': 'submarine', '-10': 'flycar', '-11': 'broom', '-12': 'rocket', '-13': 'plane', '-14': 'jet', '-15': 'airliner' };
+const ENT_CODE = { '-1': 'tnt', '-2': 'falling', '-3': 'proj', '-5': 'minecart', '-6': 'car', '-7': 'xp', '-8': 'boat', '-9': 'submarine', '-10': 'flycar', '-11': 'broom', '-12': 'rocket', '-13': 'plane', '-14': 'jet', '-15': 'airliner', '-16': 'tank' };
 /* guest: creatures from the host glide to their latest positions */
 function updateProxy(e, dt) {
   e.age += dt;
@@ -110,6 +110,7 @@ function updateProxy(e, dt) {
   }
   const k = Math.min(1, dt * 10);
   if (e.vehicle) { e.yaw = lerpAngle(e.yaw, e.yawT || 0, k); e.slope = lerp(e.slope || 0, e.slopeT || 0, k); e.wheel += (e.flying ? 0 : e.speed || 0) * dt / VEHICLES[e.type].wheel; if (e.hurt > 0) e.hurt -= dt; }
+  if (e.type === 'tank') { e.turret = lerpAngle(e.turret === undefined ? e.turretT || 0 : e.turret, e.turretT || 0, k); e.gun = lerp(e.gun || 0, e.gunT || 0, k); tankTracks(e, (e.speed || 0) * dt, 0); }
   if (isPlane(e)) { e.bank = lerp(e.bank || 0, e.bankT || 0, k); e.prop = (e.prop || 0) + dt * (e.rider ? 30 : 0); e.sndT = (e.sndT || 0) - dt; if (e.sndT <= 0) planeSounds(e); }
   if (e.tx !== undefined) {
     const ox = e.x, oy = e.y, oz = e.z;
@@ -175,8 +176,8 @@ function cleanDataTiles(td) {
   }
   return out;
 }
-const FX_KINDS = ['break', 'place', 'door', 'boom', 'sfx', 'party', 'ice', 'tele', 'smoke', 'xpb', 'splash', 'spell', 'zap'];
-const SFX_NET = ['leverClick', 'buttonClick', 'honk', 'bowShoot', 'crossbowShoot', 'pearlThrow', 'dispense', 'dispenseFail', 'ghastShoot', 'endermanPortal', 'sonar', 'tvOn', 'tvOff', 'golemBuilt', 'snorkHappy', 'snorkToot', 'spellCast', 'patronus', 'camSwitch', 'airlockDrain', 'airlockHiss', 'planeTakeoff', 'chuteOpen'];
+const FX_KINDS = ['break', 'place', 'door', 'boom', 'sfx', 'party', 'ice', 'tele', 'smoke', 'xpb', 'splash', 'spell', 'zap', 'paint'];
+const SFX_NET = ['leverClick', 'buttonClick', 'honk', 'bowShoot', 'crossbowShoot', 'pearlThrow', 'dispense', 'dispenseFail', 'ghastShoot', 'endermanPortal', 'sonar', 'tvOn', 'tvOff', 'golemBuilt', 'snorkHappy', 'snorkToot', 'spellCast', 'patronus', 'camSwitch', 'airlockDrain', 'airlockHiss', 'planeTakeoff', 'chuteOpen', 'tankFire'];
 const GUEST_SFX = new Set(['leverClick', 'buttonClick', 'honk', 'sonar', 'tvOn', 'tvOff', 'snorkHappy', 'snorkToot', 'camSwitch', 'planeTakeoff', 'chuteOpen']);   // the sounds a guest can send
 const LINK_FAIL = "Found the game, but the two iPads couldn't connect to each other. Put both on the same Wi-Fi, then try again.";
 const STALE_T = new Set(['st', 'set', 'open', 'tile', 'close', 'tnt', 'egg', 'portal', 'shoot', 'mount', 'veh', 'dismount', 'veh+', 'sign', 'board', 'rocket', 'launch', 'snitch', 'robot+', 'robot']);
@@ -303,10 +304,10 @@ const MP = {
       }
       case 'tnt': if (tntKindOf(w.getBlock(m.x | 0, m.y | 0, m.z | 0))) igniteTNT(game, m.x | 0, m.y | 0, m.z | 0); break;
       case 'shoot': {   // a guest's arrow, pearl or fire charge: the real one is made here
-        const k = m.k === 'arrow' || m.k === 'pearl' || m.k === 'charge' || m.k === 'xpb' || m.k === 'potion' || m.k === 'spell' ? m.k : null;
+        const k = m.k === 'arrow' || m.k === 'pearl' || m.k === 'charge' || m.k === 'xpb' || m.k === 'potion' || m.k === 'spell' || m.k === 'paint' ? m.k : null;
         // (their position here can be a moment old: a guest falling fast is a few blocks further down by now)
         if (!k || !okXYZ(m.p) || !okXYZ(m.v) || Math.hypot(m.p[0] - r.tx, m.p[2] - r.tz) > 6 || Math.abs(m.p[1] - r.ty - 1.5) > 12 || Math.hypot(m.v[0], m.v[1], m.v[2]) > 70) break;
-        shootProjectile(game, k, m.p[0], m.p[1], m.p[2], m.v[0], m.v[1], m.v[2], { owner: r.id, dmg: k === 'arrow' ? clamp(+m.d || 0, 0, 25) : 0, crit: !!m.c, pickup: k === 'arrow' && r.mode === 'survival' && !m.np, tok: String(m.tok || '').slice(0, 12), kb: clamp(m.kb | 0, 0, 2), fire: m.fl ? 5 : 0, pk: clamp(m.pk | 0, 0, (k === 'spell' ? SPELLS : POTIONS).length - 1) });
+        shootProjectile(game, k, m.p[0], m.p[1], m.p[2], m.v[0], m.v[1], m.v[2], { owner: r.id, dmg: k === 'arrow' ? clamp(+m.d || 0, 0, 25) : 0, crit: !!m.c, pickup: k === 'arrow' && r.mode === 'survival' && !m.np, tok: String(m.tok || '').slice(0, 12), kb: clamp(m.kb | 0, 0, 2), fire: m.fl ? 5 : 0, pk: clamp(m.pk | 0, 0, (k === 'spell' ? SPELLS : k === 'paint' ? TANK_COLORS : POTIONS).length - 1) });
         const snd = SFX_NET.includes(m.s) ? m.s : k === 'pearl' ? 'pearlThrow' : k === 'charge' ? 'ghastShoot' : 'bowShoot';
         sfx(snd, m.p[0], m.p[1], m.p[2]); this.sfx(snd, m.p[0], m.p[1], m.p[2], r.id);
         break;
@@ -328,7 +329,7 @@ const MP = {
         const type = isVehicleType(m.k) ? m.k : null;
         if (!type || !okXYZ(m.at) || Math.hypot(m.at[0] - r.tx, m.at[2] - r.tz) > 8 || Math.abs(m.at[1] - r.ty) > 8) break;
         if (type === 'minecart' && w.getBlock(Math.floor(m.at[0]), Math.floor(m.at[1]), Math.floor(m.at[2])) !== B.RAIL) break;
-        spawnVehicle(game, type, m.at[0], m.at[1], m.at[2], isFinite(+m.yaw) ? +m.yaw : 0);
+        spawnVehicle(game, type, m.at[0], m.at[1], m.at[2], isFinite(+m.yaw) ? +m.yaw : 0, m.c | 0);
         break;
       }
       case 'mount': {
@@ -846,7 +847,7 @@ const MP = {
         e.vx = +a[5] || 0; e.vy = +a[6] || 0; e.vz = +a[7] || 0;
         continue;
       }
-      if (ti <= -5) { e.yawT = +a[5] || 0; e.slopeT = +a[6] || 0; e.rider = a[7] === 1 ? 'someone' : null; e.speed = +a[8] || 0; if (a[9]) e.hurt = 0.2; e.flying = a[10] === 1; e.bankT = clamp(+a[11] || 0, -1, 1); continue; }
+      if (ti <= -5) { e.yawT = +a[5] || 0; e.slopeT = +a[6] || 0; e.rider = a[7] === 1 ? 'someone' : null; e.speed = +a[8] || 0; if (a[9]) e.hurt = 0.2; e.flying = a[10] === 1; e.bankT = clamp(+a[11] || 0, -1, 1); if (e.type === 'tank') { e.turretT = +a[12] || 0; e.gunT = clamp(+a[13] || 0, -0.3, 0.6); e.tc = clamp(a[14] | 0, 0, TANK_COLORS.length - 1); } continue; }
       if (ti >= 0) {
         e.bodyT = +a[5] || 0; e.headT = +a[6] || 0; e.pitchT = +a[7] || 0; e.walkT = +a[8] || 0;
         const f = a[9] | 0;
@@ -923,6 +924,7 @@ const MP = {
       else if (k === 'party') partyEffect(x, y, z);
       else if (k === 'spell') { spellBurst(x, y, z, (SPELLS[id] || SPELLS[0]).tile, 16); sfx('spellHit', x, y, z); }
       else if (k === 'zap') { const r = game.entities.find(q => q.nid === id && q.type === 'robot'); if (r) zapBeam(r.x, r.y + 1.05, r.z, x, y, z); sfx('robotZap', x, y, z); }
+      else if (k === 'paint') paintFx(x, y, z, clamp(id, 0, TANK_COLORS.length - 1));
       else if (k === 'ice') iceEffect(x, y, z);
       else if (k === 'tele') { enderParticles(x, y, z, 20); sfx('endermanPortal', x, y + 1.4, z); }
       else if (k === 'smoke') smokeParticles(x, y, z, 5, 0.12, false);

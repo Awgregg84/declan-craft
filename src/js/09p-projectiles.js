@@ -10,6 +10,7 @@ const PROJ = {
   xpb: { grav: 20, drag: 0.99, r: 0.12 },    // a Bottle o' Enchanting: breaks into experience
   potion: { grav: 20, drag: 0.99, r: 0.12 }, // a splash potion: splashes everyone near where it breaks
   spell: { grav: 0, drag: 1, r: 0.15 },      // a spell from a magic wand (see 09x-wand.js)
+  paint: { grav: 9, drag: 1, r: 0.2 },       // a tank's paint shell: a harmless splat (see 09u-tanks.js)
 };
 const PROJ_KINDS = Object.keys(PROJ);
 const isPlayerOwner = o => o === 'me' || (typeof o === 'string' && o !== 'disp' && o !== 'mob');
@@ -31,7 +32,8 @@ function playerShoot(game, kind, vel, o) {
   const pl = game.player, [ex, ey, ez] = pl.eyePos();
   let [dx, dy, dz] = pl.lookDir();
   if (o.yawOff) { const c = Math.cos(o.yawOff), s = Math.sin(o.yawOff); [dx, dz] = [dx * c + dz * s, -dx * s + dz * c]; }   // (Multishot's side arrows)
-  const x = ex + dx * 0.5, y = ey - 0.12 + dy * 0.5, z = ez + dz * 0.5;
+  const [x, y, z] = o.from || [ex + dx * 0.5, ey - 0.12 + dy * 0.5, ez + dz * 0.5];   // (from: a tank's gun)
+  if (o.dir) [dx, dy, dz] = o.dir;
   let vx = dx * vel, vy = dy * vel, vz = dz * vel;
   if (kind === 'pearl') vy += 2;
   if (MP.role === 'guest') {
@@ -104,6 +106,8 @@ function projTrail(e, dt) {
     if (Math.random() < dt * 12) smokeParticles(e.x, e.y, e.z, 1, 0.15, false);
   } else if (e.kind === 'spell') {
     for (let i = 0; i < 2; i++) if (Math.random() < dt * 60) PARTICLES.push({ x: e.x + randRange(-0.1, 0.1), y: e.y + randRange(-0.1, 0.1), z: e.z + randRange(-0.1, 0.1), vx: randRange(-0.5, 0.5), vy: randRange(-0.5, 0.5), vz: randRange(-0.5, 0.5), life: 0.4, tile: TILE[spellOf(e).tile], u: 0, v: 0, us: 16, size: 0.05, grav: 0, bright: 1 });
+  } else if (e.kind === 'paint') {
+    if (Math.random() < dt * 30) PARTICLES.push({ x: e.x, y: e.y, z: e.z, vx: randRange(-0.3, 0.3), vy: randRange(-0.3, 0.3), vz: randRange(-0.3, 0.3), life: 0.35, tile: TILE['paint_' + clamp(e.pk | 0, 0, TANK_COLORS.length - 1)], u: 0, v: 0, us: 16, size: 0.06, grav: 2, bright: 1 });
   } else if (e.kind === 'pearl') {
     if (Math.random() < dt * 25) PARTICLES.push({ x: e.x, y: e.y, z: e.z, vx: randRange(-0.3, 0.3), vy: randRange(-0.3, 0.3), vz: randRange(-0.3, 0.3), life: 0.5, tile: TILE.ender_dot, u: 0, v: 0, us: 16, size: 0.05, grav: 0, bright: 1 });
   } else if (e.kind === 'xpb') {
@@ -124,6 +128,7 @@ function projHit(game, e, x, y, z, nx, ny, nz, ent, blk) {
   if (k === 'pearl') { e.removed = true; pearlLand(game, e, x - nx * 0.4, y - ny * 0.4, z - nz * 0.4, blk); return; }
   if (k === 'xpb') { e.removed = true; xpBottleBreak(game, x - nx * 0.3, y - ny * 0.3, z - nz * 0.3); return; }
   if (k === 'potion') { e.removed = true; splashPotion(game, x - nx * 0.3, y - ny * 0.3, z - nz * 0.3, clamp(e.pk | 0, 0, POTIONS.length - 1)); return; }
+  if (k === 'paint') { e.removed = true; paintSplat(game, e, x - nx * 0.2, y - ny * 0.2, z - nz * 0.2, nx, ny, nz, ent); return; }
   if (k === 'spell') { e.removed = true; spellHit(game, e, x - nx * 0.2, y - ny * 0.2, z - nz * 0.2, nx, ny, nz, ent, blk); return; }
   if (k === 'fireball') {
     e.removed = true;
@@ -229,6 +234,13 @@ function drawProjectile(e, dx, dy, dz) {
     M4.scale(_pj, _pj, 0.5 / 16, 0.5 / 16, 0.5 / 16);
     M4.translate(_pj, _pj, 0, -8, 0);
     drawMesh(tileMesh(spellOf(e).tile), _pj);
+    return;
+  }
+  if (e.kind === 'paint') {   // a round blob of paint
+    M4.rotY(_pj, _pj, R.cam.yaw); M4.rotX(_pj, _pj, R.cam.pitch);
+    M4.scale(_pj, _pj, 0.5 / 16, 0.5 / 16, 0.5 / 16);
+    M4.translate(_pj, _pj, 0, -8, 0);
+    drawMesh(tileMesh('paintball_' + clamp(e.pk | 0, 0, TANK_COLORS.length - 1)), _pj);
     return;
   }
   if (e.kind === 'pearl' || e.kind === 'xpb' || e.kind === 'potion') {

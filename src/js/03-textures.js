@@ -594,6 +594,7 @@ function buildTiles() {
   buildItemTiles();
   buildNewItemTiles();
   buildItemTiles3();
+  buildItemTiles5();
 }
 
 /* ---------- item sprites ---------- */
@@ -1175,6 +1176,7 @@ function buildSkins() {
   buildNewSkins();
   buildSkins3();
   buildSkins4();
+  buildSkins5();
   addSkin('item_glint', S => { /* reserved */ });
 }
 /* a player's face as a small picture, for menus */

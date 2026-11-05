@@ -32,6 +32,7 @@ const I = {
   COD: 333, COOKED_COD: 334, SALMON: 335, COOKED_SALMON: 336, TROPICAL_FISH: 337, PUFFERFISH: 338, BOAT: 339, SUBMARINE: 340, MAGMA_CREAM: 341, XP_BOTTLE: 342,
   WAND: 402, BROOM: 403, FLYING_CAR: 404, ROCKET: 405, SPACE_HELMET: 406, PLAN_BOOK: 407, ROBOT: 408, CHEESE: 409,
   BIRCH_DOOR: 410, SPRUCE_DOOR: 411, IRON_DOOR: 412, GLASS_DOOR: 413, AIRLOCK: 414, PLANE: 415, JET: 416, AIRLINER: 417,
+  TANK: 418, // 418..423 tanks, in TANK_COLORS order
   POTION: 370, // 370..381 potions, 390..401 splash potions, in POTIONS order
   SPLASH: 390,
   ARMOR: 350, // 350..365 = material*4 + slot
@@ -300,6 +301,11 @@ defItem(I.ROCKET, 'Rocket', { tex: 'rocket', stack: 1 });
 defItem(I.PLANE, 'Propeller Plane', { tex: 'plane', stack: 1 });
 defItem(I.JET, 'Jet', { tex: 'jet', stack: 1 });
 defItem(I.AIRLINER, 'Passenger Plane', { tex: 'airliner', stack: 1 });
+/* tanks, one for each colour (see 09u-tanks.js); new colours go on the end */
+const TANK_COLORS = ['#5f7a3a', '#c8a46a', '#3a6ad0', '#c8382a', '#ff86c0', '#34363a'];
+const TANK_NAMES = ['Green', 'Desert', 'Blue', 'Red', 'Pink', 'Black'];
+const TANK_WOOL = [13, 12, 11, 14, 6, 15];   // the wool in each one's recipe (and the colour a sheep's wool is painted)
+TANK_COLORS.forEach((c, i) => defItem(I.TANK + i, TANK_NAMES[i] + ' Tank', { tex: 'tank_' + i, stack: 1 }));
 defItem(I.WAND, 'Magic Wand', { tex: 'wand', stack: 1 });   // (see 09x-wand.js)
 defItem(I.PLAN_BOOK, 'Book of Building Plans', { tex: 'plan_book', stack: 1 });   // (see 09q-plans.js)
 defItem(I.ROBOT, 'Robot', { tex: 'robot', stack: 1 });   // (see 09z-robots.js)
@@ -454,6 +460,7 @@ shapeless(I.FLYING_CAR, 1, [I.CAR, I.FEATHER, I.FEATHER, I.FEATHER, I.FEATHER]);
 shaped(I.PLANE, 1, [' I ', 'WIW', ' I '], { I: I.IRON_INGOT, W: 'wool' });   // (wool wings, as the Wright brothers' were cloth)
 shapeless(I.JET, 1, [I.PLANE, I.GUNPOWDER, I.GUNPOWDER, I.IRON_INGOT, I.IRON_INGOT]);
 shapeless(I.AIRLINER, 1, [I.PLANE, I.PLANE, B.IRON_BLOCK]);
+TANK_WOOL.forEach((wl, i) => shaped(I.TANK + i, 1, [' W ', 'III'], { W: B.WOOL + wl, I: B.IRON_BLOCK }));   // (a wool turret on an iron body)
 shaped(I.BROOM, 1, ['  S', ' S ', 'F  '], { S: I.STICK, F: I.FEATHER });
 shaped(I.ROCKET, 1, [' I ', 'IGI', 'IFI'], { I: I.IRON_INGOT, G: B.GLASS, F: B.FURNACE });   // (the furnace is the engine)
 shapeless(I.WAND, 1, [I.STICK, I.FEATHER, I.GOLD_INGOT]);   // (a phoenix feather inside)
@@ -558,7 +565,7 @@ const CREATIVE_LIST = [
   B.COAL_ORE, B.IRON_ORE, B.GOLD_ORE, B.DIAMOND_ORE, B.EMERALD_ORE, B.LAPIS_ORE, B.COAL_BLOCK, B.IRON_BLOCK, B.GOLD_BLOCK, B.DIAMOND_BLOCK, B.EMERALD_BLOCK, B.LAPIS_BLOCK,
   B.NETHERRACK, B.SOUL_SAND, B.NETHER_QUARTZ_ORE, B.QUARTZ_BLOCK, B.NETHER_BRICKS,
   B.GLOWSTONE, B.TORCH, B.JACK_O_LANTERN, B.PUMPKIN, B.TNT, B.MEGA_TNT, B.ICE_TNT, B.DIG_TNT, B.PARTY_TNT, B.CLUSTER_TNT,
-  B.CRAFTING_TABLE, B.FURNACE, B.CHEST, B.BOOKSHELF, B.ENCH_TABLE, B.BREWING_STAND, B.SIGN, B.BOARD, B.TV, B.MONITOR, B.CAMERA, B.BED, I.DOOR, I.BIRCH_DOOR, I.SPRUCE_DOOR, I.GLASS_DOOR, I.IRON_DOOR, I.AIRLOCK, B.GARAGE_DOOR, B.DISPENSER, B.LEVER, B.BUTTON, B.RAIL, I.MINECART, I.CAR, I.FLYING_CAR, I.BROOM, I.ROCKET, I.PLANE, I.JET, I.AIRLINER, I.SPACE_HELMET, I.BOAT, I.SUBMARINE,
+  B.CRAFTING_TABLE, B.FURNACE, B.CHEST, B.BOOKSHELF, B.ENCH_TABLE, B.BREWING_STAND, B.SIGN, B.BOARD, B.TV, B.MONITOR, B.CAMERA, B.BED, I.DOOR, I.BIRCH_DOOR, I.SPRUCE_DOOR, I.GLASS_DOOR, I.IRON_DOOR, I.AIRLOCK, B.GARAGE_DOOR, B.DISPENSER, B.LEVER, B.BUTTON, B.RAIL, I.MINECART, I.CAR, I.FLYING_CAR, I.BROOM, I.ROCKET, I.PLANE, I.JET, I.AIRLINER, ...TANK_COLORS.map((c, i) => I.TANK + i), I.SPACE_HELMET, I.BOAT, I.SUBMARINE,
   B.CACTUS, B.SUGAR_CANE, B.TALL_GRASS, B.DANDELION, B.POPPY, B.CORNFLOWER, B.DEAD_BUSH, B.OAK_SAPLING, B.BIRCH_SAPLING, B.SPRUCE_SAPLING,
   B.WATER, B.LAVA, B.CORAL_RED, B.CORAL_YELLOW, B.CORAL_BLUE, B.MOON_DUST, B.MOON_ROCK, B.MOON_CHEESE, B.FLAG, B.SLATE, B.STAINED_GLASS, B.CANDLE, B.SORTING_HAT,
   ...TAGS.wool,
