@@ -72,6 +72,64 @@ const FRONT_FACE_OF = d => [4, 1, 5, 0][d & 3];
     check('librarians sell tales, and village chests often have one', lib.tr.length === 2 && lib.found > 10 && lib.found < 40, lib);
   }
 
+  if (on('lasers')) {
+    // ---------- the laser blaster ----------
+    const P = area(40, 0);
+    await goto(P);
+    await E(P => { T.stage(P.x, P.y, P.z, 14, 6); T.clearMobs(); game.setMode('survival'); game.settings.difficulty = 2; game.world.time = 0.25; }, P);
+    const info = await E(() => ({ name: itemName(I.LASER), icon: !!ICONS[I.LASER], creative: CREATIVE_LIST.includes(I.LASER), rec: (o => o && o.out === I.LASER)(matchRecipe([I.IRON_INGOT, I.IRON_INGOT, B.GLASS, I.IRON_INGOT, B.GLOWSTONE, 0, I.IRON_INGOT, 0, 0], 3)) }));
+    check('the Laser Blaster has a picture, a recipe, and is in Creative', info.name === 'Laser Blaster' && info.icon && info.creative && info.rec, info);
+    const shoot = await E(P => new Promise(res => {
+      const pl = game.player, out = {};
+      T.put(P.x + 0.5, P.y, P.z + 0.5, { yaw: 0, pitch: 0 }); T.hold(I.LASER, 1);
+      const z = spawnMob(game, 'zombie', P.x + 0.5, P.y, P.z - 8.5); z.noAI = true; z.ai = () => {};
+      out.btn = !el('tb-spell').hidden || null;
+      setTimeout(() => {
+        out.btn = !el('tb-spell').hidden;
+        T.aim(z.x, z.y + 1, z.z); const hp0 = z.hp; pl.useCd = 0; T.tap();
+        let parts = 0; const pc = setInterval(() => { parts = Math.max(parts, PARTICLES.filter(q => q.tile === TILE.laser_0).length); }, 20);
+        setTimeout(() => {
+          clearInterval(pc); out.zombie = hp0 - z.hp; out.parts = parts;
+          z.removed = true;
+          const friends = ['villager', 'pig', 'golem', 'snork', 'student'].map(t => { const m = spawnMob(game, t, P.x + 0.5, P.y, P.z - 6.5); return m; });
+          let k = 0; const hp = friends.map(m => m.hp);
+          const next = () => {
+            if (k > 0) friends[k - 1].removed = true;
+            if (k >= friends.length) { out.friends = friends.map((m, i) => hp[i] - m.hp); return res(out); }
+            const m = friends[k++]; m.x = P.x + 0.5; m.z = P.z - 6.5; m.vx = m.vz = 0;
+            T.aim(m.x, m.y + m.h * 0.5, m.z); pl.useCd = 0; T.tap(); setTimeout(next, 250);
+          };
+          next();
+        }, 300);
+      }, 300);
+    }), P);
+    check('a laser beam hurts a monster, with a glow where it hits', shoot.zombie >= 4 && shoot.parts > 20 && shoot.btn, shoot);
+    check('it never hurts villagers, pigs, golems, Snorks or students', shoot.friends.every(d => d === 0), shoot.friends);
+    const more = await E(P => new Promise(res => {
+      const pl = game.player, w = game.world, out = {};
+      T.clearMobs();
+      w.setBlock(P.x, P.y, P.z - 9, B.TNT, 0); w.setBlock(P.x + 2, P.y, P.z - 9, B.STONE, 0);
+      T.put(P.x + 0.5, P.y, P.z + 0.5); T.aim(P.x + 2.5, P.y + 0.5, P.z - 8.5); pl.useCd = 0; T.tap();
+      setTimeout(() => {
+        out.stone = w.getBlock(P.x + 2, P.y, P.z - 9) === B.STONE;
+        T.aim(P.x + 0.5, P.y + 0.5, P.z - 8.5); pl.useCd = 0; T.tap();
+        setTimeout(() => {
+          out.tnt = T.ents('tnt').length;
+          T.clearMobs(); w.setBlock(P.x, P.y, P.z - 9, B.AIR, 0);
+          // the colour button
+          const c0 = pl.laserC | 0; nextSpell(game); out.col = [c0, pl.laserC, el('tb-spell').textContent];
+          // a quick second tap is too soon
+          let n = 0; const f0 = window.fireLaser; window.fireLaser = (g, q) => { n++; return f0(g, q); };
+          pl.useCd = 0; T.tap();
+          setTimeout(() => { T.tap(); setTimeout(() => { out.shots = n; window.fireLaser = f0; out.cd = n === 1; res(out); }, 150); }, 120);
+        }, 300);
+      }, 300);
+    }), P);
+    check('it breaks no blocks, and lights TNT', more.stone && more.tnt === 1, more);
+    check('the Color button picks the beam colour, and the blaster has a short cooldown', more.col[1] === 1 && more.col[2] === 'Green' && more.cd, more);
+    await E(() => T.clearMobs());
+  }
+
   console.log(errs.length ? 'ERRORS:\n' + errs.join('\n') : 'no page errors');
   console.log(fails ? fails + ' FAILED' : 'ALL PASSED');
   await browser.close(); server.close();

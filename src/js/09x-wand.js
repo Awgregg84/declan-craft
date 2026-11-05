@@ -20,6 +20,7 @@ const spellOf = e => SPELLS[clamp(e.pk | 0, 0, SPELLS.length - 1)];
 /* the Spell button (or F): the next spell */
 function nextSpell(game) {
   const pl = game.player;
+  if (pl.heldId() === I.LASER) { nextLaserColor(pl); return; }
   if (pl.heldId() !== I.WAND) return;
   pl.spell = ((pl.spell | 0) + 1) % SPELLS.length;
   showSpell(pl, true);
@@ -32,8 +33,9 @@ function showSpell(pl, say) {
 }
 /* the wand in your hand (or not): the Spell button shows, and Lumos goes out when you put it away */
 function wandHeld(pl, id) {
-  el('tb-spell').hidden = id !== I.WAND;
+  el('tb-spell').hidden = id !== I.WAND && id !== I.LASER;
   if (id === I.WAND) showSpell(pl, false);
+  if (id === I.LASER) showLaserColor(pl, false);
   else if (pl.lumos) { pl.lumos = false; sfx('lumosOff', pl.x, pl.y + 1.5, pl.z); }
 }
 /* tap with the wand: cast the spell (returns how long until the next one) */

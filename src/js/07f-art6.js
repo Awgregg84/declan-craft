@@ -20,6 +20,14 @@ function buildItemTiles6() {
     const e = EMB[k];
     for (let y = 0; y < 5; y++) for (let x = 0; x < 5; x++) if (e[y][x] === '#') p.px(6 + x, 4 + y + Math.round(x * 0.2), C('#f2d24a'));
   }));
+  // the laser blaster: a silver body, a glass tip and a glowing heart; and a bright dot of beam in each colour
+  addTile('laser', p => {
+    shadeMask(p, mask(poly([[1.5, 5], [12, 5], [12, 8.5], [7, 8.5], [6, 14], [2.5, 14], [3.5, 8.5], [1.5, 8.5]])), PAL.iron, true);
+    shadeMask(p, mask(poly([[12, 5.5], [15, 6], [15, 8], [12, 8]])), [C('#8ae8ff'), C('#e0faff'), C('#4ab0d8'), C('#14485a')], true);
+    p.rect(5, 6, 3, 2, C('#ff4a3a')); p.px(6, 6, C('#ffd0c8'));
+    p.rect(2, 9, 1, 3, C('#5a5a5a'));
+  });
+  LASER_COLORS.forEach(([n, hex], k) => addTile('laser_' + k, p => p.fill((x, y) => { const d = Math.hypot(x - 7.5, y - 7.5); return d < 3 ? C('#ffffff') : d < 7 ? mixc(C(hex), C('#ffffff'), Math.max(0, 0.6 - d * 0.08)) : null; })));
 }
 function buildSkins6() {
 }

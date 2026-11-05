@@ -181,11 +181,11 @@ function cleanDataTiles(td) {
   }
   return out;
 }
-const FX_KINDS = ['break', 'place', 'door', 'boom', 'sfx', 'party', 'ice', 'tele', 'smoke', 'xpb', 'splash', 'spell', 'zap', 'paint'];
+const FX_KINDS = ['break', 'place', 'door', 'boom', 'sfx', 'party', 'ice', 'tele', 'smoke', 'xpb', 'splash', 'spell', 'zap', 'paint', 'laser'];
 const SFX_NET = ['leverClick', 'buttonClick', 'honk', 'bowShoot', 'crossbowShoot', 'pearlThrow', 'dispense', 'dispenseFail', 'ghastShoot', 'endermanPortal', 'sonar', 'tvOn', 'tvOff', 'golemBuilt', 'snorkHappy', 'snorkToot', 'spellCast', 'patronus', 'camSwitch', 'airlockDrain', 'airlockHiss', 'planeTakeoff', 'chuteOpen', 'tankFire', 'studentHi', 'whistle', 'quaffleCatch', 'quaffleThrow', 'gnomeGiggle', 'lakemonSay', 'mystery'];
 const GUEST_SFX = new Set(['leverClick', 'buttonClick', 'honk', 'sonar', 'tvOn', 'tvOff', 'snorkHappy', 'snorkToot', 'camSwitch', 'planeTakeoff', 'chuteOpen']);   // the sounds a guest can send
 const LINK_FAIL = "Found the game, but the two iPads couldn't connect to each other. Put both on the same Wi-Fi, then try again.";
-const STALE_T = new Set(['st', 'set', 'open', 'tile', 'close', 'tnt', 'egg', 'portal', 'shoot', 'mount', 'veh', 'dismount', 'veh+', 'sign', 'board', 'rocket', 'launch', 'snitch', 'robot+', 'robot', 'quaffle']);
+const STALE_T = new Set(['st', 'set', 'open', 'tile', 'close', 'tnt', 'egg', 'portal', 'shoot', 'mount', 'veh', 'dismount', 'veh+', 'sign', 'board', 'rocket', 'launch', 'snitch', 'robot+', 'robot', 'quaffle', 'laser']);
 
 const MP = {
   role: null, code: '', token: '', sig: null, roomOpen: false, hostLink: null, hostName: '', we: 0,
@@ -317,6 +317,7 @@ const MP = {
         sfx(snd, m.p[0], m.p[1], m.p[2]); this.sfx(snd, m.p[0], m.p[1], m.p[2], r.id);
         break;
       }
+      case 'laser': laserMsg(game, r, m); break;   // a guest fired a laser
       case 'quaffle': quaffleMsg(game, r, m); break;   // a guest grabs or throws the Quaffle
       case 'snitch': {   // a guest reached for the Golden Snitch
         const v = game.entities.find(q => q.nid === m.e && q.type === 'snitch' && !q.removed);
@@ -934,6 +935,7 @@ const MP = {
       else if (k === 'party') partyEffect(x, y, z);
       else if (k === 'spell') { spellBurst(x, y, z, (SPELLS[id] || SPELLS[0]).tile, 16); sfx('spellHit', x, y, z); }
       else if (k === 'zap') { const r = game.entities.find(q => q.nid === id && q.type === 'robot'); if (r) zapBeam(r.x, r.y + 1.05, r.z, x, y, z); sfx('robotZap', x, y, z); }
+      else if (k === 'laser') laserFx(x, y, z, clamp(id, 0, LASER_COLORS.length - 1), f[5]);
       else if (k === 'paint') paintFx(x, y, z, clamp(id, 0, TANK_COLORS.length - 1));
       else if (k === 'ice') iceEffect(x, y, z);
       else if (k === 'tele') { enderParticles(x, y, z, 20); sfx('endermanPortal', x, y + 1.4, z); }

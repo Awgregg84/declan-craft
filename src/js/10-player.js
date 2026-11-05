@@ -368,6 +368,7 @@ class Player {
     // a book of building plans: open it
     if (hid === I.PLAN_BOOK && inp.use && inp.usePressed && this.useCd <= 0 && !interactive) { inp.usePressed = false; inp.use = false; this.useCd = 0.3; this.swing(); openPlans(); return; }
     // a magic wand: tap to cast its spell
+    if (hid === I.LASER && inp.use && inp.usePressed && this.useCd <= 0 && !interactive) { inp.usePressed = false; this.useCd = fireLaser(game, this); return; }
     if (hid === I.WAND && inp.use && inp.usePressed && this.useCd <= 0 && !interactive) { inp.usePressed = false; this.useCd = castSpell(game, this); return; }
     // bows and crossbows
     const rtool = toolOf(hid);
@@ -808,6 +809,7 @@ const HELD_TIPS = {
   [I.ROBOT]: ['Tap the ground to let your robot out. Tap it to change what it does; hit it to put it back in your bag.', 'Right-click the ground to let your robot out. Right-click it to change what it does; hit it to put it back in your bag.'],
   [B.CAMERA]: ['Put the camera up on a wall: it looks out from the wall. On top of a block, it looks back at you.', 'Put the camera up on a wall: it looks out from the wall. On top of a block, it looks back at you.'],
   [B.MONITOR]: ['A monitor shows what your cameras see. Tap it to switch cameras.', 'A monitor shows what your cameras see. Right-click it to switch cameras.'],
+  [I.LASER]: ['Tap to fire the laser! It only hurts monsters. The button at the top picks its colour.', 'Right-click to fire the laser! It only hurts monsters. Press F to pick its colour.'],
   [I.WAND]: ['Tap to cast a spell! The Spell button (at the top) picks a different one.', 'Right-click to cast a spell! Press F to pick a different one.'],
   [I.SHIELD]: ['Hold Place to hide behind the shield. Put it in the slot beside your armor to use it with a sword.', 'Hold the right mouse button to hide behind the shield. Put it in the slot beside your armor to use it with a sword.'],
 };
