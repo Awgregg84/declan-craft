@@ -529,7 +529,7 @@ const want = process.argv.slice(2), on = k => !want.length || want.includes(k);
     }, F);
     await sleep(500);
     const rc = await E(() => ({ rod: matchRecipe([0, 0, I.STICK, 0, I.STICK, I.STRING, I.STICK, 0, I.STRING], 3), cod: SMELT[I.COD], salmon: SMELT[I.SALMON],
-      eggs: ['cod', 'salmon', 'tropical', 'pufferfish'].every(m => EGG_MOBS.includes(m)), fisher: VILLAGER_PROFS[VILLAGER_PROFS.length - 1], trades: tradesFor('fisherman', 1).map(t => t.get[0]) }));
+      eggs: ['cod', 'salmon', 'tropical', 'pufferfish'].every(m => EGG_MOBS.includes(m)), fisher: VILLAGER_PROFS.find(p => p === 'fisherman'), trades: tradesFor('fisherman', 1).map(t => t.get[0]) }));
     check('fishing rods can be crafted, fish can be cooked, and there are fish spawn eggs', rc.rod && rc.rod.out === 332 && rc.cod === 334 && rc.salmon === 336 && rc.eggs, rc);
     check('fishermen sell fishing rods and cooked fish', rc.fisher === 'fisherman' && rc.trades.includes(332) && rc.trades.includes(334), rc);
     // schools of fish turn up in water nearby
