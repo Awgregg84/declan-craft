@@ -1,6 +1,6 @@
 # Declan-craft
 
-A block-building game made for Declan. It has three worlds to explore (Sunny Valley, Sky Islands and Hogwarts), each with its own Nether, the Moon (go there in a rocket), plus a Hardcore world where you only get one life. There is mining, crafting, building, animals, fish and monsters, villages with villagers and iron golems, dungeons, Snorks in the sea, armor and shields, enchanting, potions, magic wands, books and signs, books of building plans, bows and crossbows, six kinds of TNT, levers and dispensers, minecarts, a car, a flying car, a broom, a boat and a submarine, three kinds of plane, doors of wood, glass and iron, airlocks for bases under the sea, garage doors, TVs, coloring boards and security cameras, robots, rain, snow and thunder, day and night, and survival and creative modes. You can make your own characters. Two to four players can share a world over the internet. Everything in it, including the worlds, textures, characters and sounds, is generated in code.
+A block-building game made for Declan. It has six worlds to explore (Sunny Valley, Sky Islands, Hogwarts, Declan Falls, Ghostbusters and Life Cycle), each with its own Nether, the Moon, Mars, Jupiter and Uranus (go there in a rocket), plus a Hardcore world where you only get one life. There is mining, crafting, building, animals, fish and monsters, villages with villagers and iron golems, dungeons, Snorks in the sea, armor and shields, enchanting, potions, magic wands, books and signs, story books of old tales, books of building plans, bows and crossbows, laser blasters, six kinds of TNT, levers and dispensers, minecarts, trains and stations, a car, a flying car, a broom, a boat and a submarine, three kinds of plane, doors of wood, glass and iron, airlocks for bases under the sea, garage doors, TVs, coloring boards and security cameras, robots, money and the Declan-craft Store, rain, snow and thunder, day and night, and survival and creative modes. You can make your own characters. Two to four players can share a world over the internet. Everything in it, including the worlds, textures, characters and sounds, is generated in code.
 
 **Play:** https://awgregg84.github.io/declan-craft/
 
@@ -72,7 +72,17 @@ Build a frame of obsidian 4 wide and 5 tall (the corners can be left out) and li
 
 - **Tanks in six colours.** Green, desert, blue, red, pink and black tanks, each made from three iron blocks with that colour of wool on top. A tank drives slowly and steadily, turns on the spot, climbs one-block steps and sinks in water, and its tracks run as it moves. The turret and gun turn to wherever the driver looks, and a tap fires a paint shell: a puff, a splat of paint in the tank's colour and a fun sound. Paint never hurts anyone and breaks nothing; it gives creatures a gentle shove and paints a sheep's wool. Each tank keeps its colour when the world is saved.
 - **More people at Hogwarts.** Students in black robes with their house colours walk about the Great Hall, the courtyard and Hogsmeade, and wave and say hello when you come near. Fly onto the Quidditch pitch and a match starts: your house (the host's house, or Gryffindor before the Sorting Hat has spoken) against another house, three players a side on broomsticks, passing the Quaffle and throwing it through the other team's hoops. Fly up to the Quaffle to grab it (or steal it), tap to throw it, and score through the hoops at the east end; the score is at the top of the screen. Catching the Golden Snitch ends the match: 150 points to your team, and the team with the most points wins.
-- **Declan Falls.** A new world: a little town in a tall pine forest by a lake, with the Mystery Shack (a wooden gift shop with its name on the roof), a water tower, a diner and a few houses. When you arrive you pick who you are: Dipper (Journal 3, and his pine tree cap), Mabel (lots of colourful sweaters), Grunkle Stan (his fez and lots of money), Soos (a golf cart to drive, and pizza) or Wendy (an axe, and her flannel shirt). Money and shops aren't in the game yet, so Grunkle Stan's money is gold ingots and emeralds for now. Six mysteries are hidden about the town and the forest ("Mysteries found 3/6"), garden gnomes giggle and run off, glowing lights float about in the forest, and something big lives in the lake; Journal 3 keeps track of what you have found. Who you are and what you have found are saved with the world, and a guest picks their own character.
+- **Declan Falls.** A new world: a little town in a tall pine forest by a lake, with the Mystery Shack (a wooden gift shop with its name on the roof), a water tower, a diner and a few houses. When you arrive you pick who you are: Dipper (Journal 3, and his pine tree cap), Mabel (lots of colourful sweaters), Grunkle Stan (his fez and lots of money), Soos (a golf cart to drive, and pizza) or Wendy (an axe, and her flannel shirt). Grunkle Stan's money is $500 in ten dollar bills (and emeralds), to spend at the Declan-craft Store on the main street. Six mysteries are hidden about the town and the forest ("Mysteries found 3/6"), garden gnomes giggle and run off, glowing lights float about in the forest, and something big lives in the lake; Journal 3 keeps track of what you have found. Who you are and what you have found are saved with the world, and a guest picks their own character.
+
+## The sixth wish list
+
+- **Story books of old tales.** Eight well-known tales told again in simple words: The Three Little Pigs, Goldilocks and the Three Bears, The Tortoise and the Hare, Little Red Riding Hood, Jack and the Beanstalk, The Boy Who Cried Wolf, The Gingerbread Man and The Ugly Duckling. Each opens page by page like any book, with its title at the top and a picture on its cover. They are in Creative, in village chests, sold by librarians and at the Declan-craft Store.
+- **The Laser Blaster.** Iron, glass and glowstone. A tap fires a bright beam in the colour you pick (the button at the top, or F, changes it), with a "pew" and a glow where it lands. It only hurts monsters (never players, pets, villagers, students, golems, robots or Snorks), breaks no blocks, lights TNT, and has a short wait between shots.
+- **Money and the Declan-craft Store.** Coins ($1) and ten dollar bills ($10) stack in your bag, and the inventory shows how much money you have. Sell things at a store, find coins in village and dungeon chests, mine a little out of gold ore; Grunkle Stan now starts with $500. Every village has a Declan-craft Store (and Declan Falls has one on its main street) with shelves, a counter and a shopkeeper: tap the shopkeeper to buy and sell for simple prices. In Creative everything is free. `/locate store` finds the nearest one. Worlds from before only get stores where nothing was built.
+- **Trains and stations.** A train (a furnace over three minecarts) goes on the rails: a red steam engine with two open carriages that follow it round the track. Get in the cab and push forward to set off (it keeps going), pull back to stop (and again to back up), and tap for the horn; friends tap it to sit in the carriages. A Train Station (yellow wool over stone bricks) put down beside the track builds a platform with a sign showing the station's name, and trains stop there for a few seconds before going on.
+- **Other planets.** Blasting off from home, you pick where to go: the Moon, Mars, Jupiter or Uranus; from any of them the rocket flies you home. Mars has red dust, rocks, deep canyons, a dusty orange sky and little rovers to find. Jupiter is a gas giant, so you land on floating islands of cloud under a stripy stormy sky with the Great Red Storm (fall off and the wind blows you back up). Uranus is icy blue-green and very cold, with ice crystals and rings across the sky. Each has its own gravity and sky, and needs a space helmet.
+- **Ghostbusters.** A new world: a spooky little city at dusk with the firehouse headquarters (GHOST BUSTERS on its board), houses along the main street (two of them haunted), the library and the park. Slimy green ghosts swoop and splat you with slime (it only slows you down for a moment), sheet ghosts go "Boo!" and bang doors open and shut, and a marshmallow giant stomps about the park. You start with a proton pack (hold to fire a crackling stream that holds a ghost still), a ghost trap (throw it under a held ghost to catch it) and a ghost detector (in your hand it lights up and beeps faster the closer a ghost is). The ghosts you catch are counted at the top of the screen and cheered at milestones.
+- **Life Cycle.** A new world: a friendly little city where you live a whole life in ten days (a day here lasts three minutes). You start as a baby, small and slow, inside your home's garden fence with two grown-ups who stay near you and keep you fed. Each day you grow up ("Day 3: You're a toddler!"): a kid can go out to the playground, the school and the park, a teen can use tools, a grown-up can drive the family car and build, and on day 10 you are old. After the last day a gentle ending says "The End: what a life!" with a few things you did; tap to start a new life. Playing together, each player has their own age from when they came, and the host's clock drives the days.
 
 ## Playing together
 
@@ -83,7 +93,7 @@ Both devices need the internet.
 3. On the other device: **Play Together**, **Join a Game**, type the code, then **Join**. A small typing mistake (WORSE8 for HORSE8) is corrected automatically.
 4. The host taps **Let them in**.
 
-The shared world, and everything a guest collects there, is saved on the host's device. A guest who leaves and joins again gets their things back. When one player goes through a Nether portal, everyone travels together. Arrows, TNT, levers, dispensers, minecarts, cars, boats and submarines, armor, enchanting, potions, brewing, fishing, signs, coloring boards and TVs, the weather, flying cars and brooms, the rocket, wands, Quidditch, plans, cameras, dungeons, robots, planes, the new doors and airlocks, tanks, the Hogwarts students and Quidditch teams, and Declan Falls all work for every player; a guest drives a car or a boat on their own device and the host follows along, and a friend can ride in a plane someone else is flying. Both devices need this version of the game.
+The shared world, and everything a guest collects there, is saved on the host's device. A guest who leaves and joins again gets their things back. When one player goes through a Nether portal, everyone travels together. Arrows, TNT, levers, dispensers, minecarts, cars, boats and submarines, armor, enchanting, potions, brewing, fishing, signs, coloring boards and TVs, the weather, flying cars and brooms, the rocket, wands, Quidditch, plans, cameras, dungeons, robots, planes, the new doors and airlocks, tanks, the Hogwarts students and Quidditch teams, Declan Falls, lasers, the stores (the host checks each purchase), trains, the planets, the Ghostbusters city and the Life Cycle world all work for every player; a guest drives a car or a boat on their own device and the host follows along, and a friend can ride in a plane someone else is flying. Both devices need this version of the game.
 
 If joining doesn't work, tap **Check Connection** on the Play Together screen on both devices. It tests each matchmaking service and the network, and failed joins show a short code (for example `S0` for no internet, `G1` for a wrong room code, `D1` when the two devices can't reach each other).
 
@@ -95,21 +105,24 @@ Requires Node.js.
 
 - `node build.mjs` writes `dist/site/` (the website, published on the `gh-pages` branch) and `dist/declan-craft.html` (a single file that opens in a desktop browser).
 - `node tools/make-assets.mjs` regenerates the icons and link-preview picture in `assets/`. It needs Playwright.
-- `test/` holds browser tests that use Playwright with Chromium, for example `node test/site.mjs`. `test/wishlist.mjs` covers the bows, TNT, machines, endermen, ghasts and vehicles, `test/wishlist2.mjs` the armor, enchanting, books, potions, fish, boats, TVs, coloring boards, Hardcore and made characters, and `test/wishlist3.mjs` the golems, weather, Snorks, flying, the Moon, wands, plans, cameras, dungeons, robots and Hogwarts, `test/wishlist4.mjs` the doors, airlocks, garage doors and planes, and `test/wishlist5.mjs` the tanks, the Hogwarts students and Quidditch, and Declan Falls (sections can be picked: `node test/wishlist2.mjs fish boats`). `test/upgrade-wishlist2.mjs <previous build>` opens a world saved by the previous version. `test/loading.mjs` checks that a world always finishes loading (at every render distance, and when part of it never arrives). The playing-together tests (`test/mp.mjs`, `test/mp-touch.mjs`, `test/mp-nether.mjs`, `test/mp-backup.mjs`, `test/mp-wishlist.mjs`, `test/mp-wishlist2.mjs`, `test/mp-wishlist3.mjs`, `test/mp-wishlist4.mjs`, `test/mp-wishlist5.mjs`) run local copies of the PeerJS and MQTT services; install them first with `npm install` in `tools/`.
+- `test/` holds browser tests that use Playwright with Chromium, for example `node test/site.mjs`. `test/wishlist.mjs` covers the bows, TNT, machines, endermen, ghasts and vehicles, `test/wishlist2.mjs` the armor, enchanting, books, potions, fish, boats, TVs, coloring boards, Hardcore and made characters, and `test/wishlist3.mjs` the golems, weather, Snorks, flying, the Moon, wands, plans, cameras, dungeons, robots and Hogwarts, `test/wishlist4.mjs` the doors, airlocks, garage doors and planes, `test/wishlist5.mjs` the tanks, the Hogwarts students and Quidditch, and Declan Falls, and `test/wishlist6.mjs` the story books, lasers, money and stores, trains, the planets, Ghostbusters and Life Cycle (sections can be picked: `node test/wishlist2.mjs fish boats`). `test/upgrade-wishlist2.mjs <previous build>` opens a world saved by the previous version. `test/loading.mjs` checks that a world always finishes loading (at every render distance, and when part of it never arrives). The playing-together tests (`test/mp.mjs`, `test/mp-touch.mjs`, `test/mp-nether.mjs`, `test/mp-backup.mjs`, `test/mp-wishlist.mjs`, `test/mp-wishlist2.mjs`, `test/mp-wishlist3.mjs`, `test/mp-wishlist4.mjs`, `test/mp-wishlist5.mjs`, `test/mp-wishlist6.mjs`) run local copies of the PeerJS and MQTT services; install them first with `npm install` in `tools/`.
 
 ## Layout
 
 - `src/js/`: game code, joined in file-name order
   - `02-gen.js`: terrain, trees, caves, ores, villages and the Nether
-  - `02b-gen3.js`: the Moon, Hogwarts, Declan Falls and dungeons
+  - `02b-gen3.js`: the Moon, Mars, Jupiter, Uranus, Hogwarts, Declan Falls, the Ghostbusters city, the Life Cycle city, and dungeons
   - `03b-tiles2.js`, `07b-models2.js`: pictures, skins and models for the second wish list
   - `03c-tiles3.js`, `07c-models3.js`, `11b-audio3.js`: pictures, skins, models and sounds for the third wish list
   - `07d-models4.js`, `11c-audio4.js`: models, skins and sounds for the fourth wish list (its pictures are in `03c-tiles3.js`)
   - `07e-art5.js`, `11d-audio5.js`: pictures, skins, models and sounds for the fifth wish list
+  - `07f-art6.js`, `11e-audio6.js`: pictures, skins, models and sounds for the sixth wish list
   - `08c-dyntex.js`: live pictures (sign words, coloring boards, TV shows)
   - `09a-armor.js`: armor and shields
   - `09b-books.js`: paper, books, story books and signs
+  - `09ba-tales.js`: story books of old tales
   - `09c-vehicles.js`: rails, minecarts, the car and the golf cart
+  - `09ct-trains.js`: trains, carriages and stations
   - `09d-boats.js`: the boat and the submarine
   - `09e-ender.js`: endermen and ghasts
   - `09f-fish.js`: fish and fishing
@@ -120,6 +133,7 @@ Requires Node.js.
   - `09k-tnt.js`: the kinds of TNT
   - `09l-planes.js`: planes, passenger seats and parachutes
   - `09m-moon.js`: the rocket and the Moon
+  - `09ma-planets.js`: Mars, Jupiter and Uranus, and picking where the rocket goes
   - `09n-enchant.js`: experience and enchanting
   - `09o-potions.js`: brewing, potions and their effects
   - `09p-projectiles.js`: arrows, fireballs, fire charges, ender pearls and spells
@@ -129,15 +143,19 @@ Requires Node.js.
   - `09t-tv.js`: TVs and coloring boards
   - `09u-tanks.js`: tanks and paint shells
   - `09v-villagers.js`: trading and how villagers move about
+  - `09vs-shop.js`: money, the Declan-craft Store and its shopkeeper
   - `09w-weather.js`: rain, snow and thunder
   - `09x-wand.js`: magic wands and spells
+  - `09xl-laser.js`: the Laser Blaster
   - `09y-dungeons.js`: dungeon chests, monster spawners and finding dungeons
   - `09z-robots.js`: robots
   - `12b-looks.js`: making your own characters
   - `12c-character.js`: character look and name
   - `12f-falls.js`: Declan Falls: picking who you are, the mysteries, the gnomes, the lake monster and the forest lights, and Journal 3
+  - `12g-ghosts.js`: the Ghostbusters city: the ghosts, the proton pack, the trap and the detector
   - `12h-hogwarts.js`: Hogwarts: the Sorting Hat, Quidditch and the Golden Snitch
   - `12i-students.js`: Hogwarts students, and Quidditch matches with two teams and the Quaffle
+  - `12l-life.js`: the Life Cycle world: growing up day by day, the caretakers, and the ending
   - `12n-net.js`: room codes and direct connections
   - `12p-mp.js`: playing together (host and guest)
   - `12q-portal.js`: Nether portals (frames, linking, building the other side)
