@@ -327,7 +327,7 @@ const FRONT_FACE_OF = d => [4, 1, 5, 0][d & 3];
         pl.inv = pl.inv.map(() => null); game.stats.fc = 0; pickFallsChar(i);
         const has = id => T.count(id), worn = k => pl.inv[ARMOR_INV + k] && pl.inv[ARMOR_INV + k].id;
         out[FALLS_CHARS[i].name] = i === 1 ? SWEATERS.every((s, k) => has(I.SWEATER + k) === 1) && worn(1) === I.SWEATER
-          : i === 2 ? worn(0) === I.FEZ && has(I.GOLD_INGOT) === 32 && has(I.EMERALD) === 32
+          : i === 2 ? worn(0) === I.FEZ && has(I.BILL) === 50 && has(I.EMERALD) === 32
           : i === 3 ? has(I.GOLF_CART) === 1 && has(I.PIZZA) === 8
           : /Axe/.test(itemName(toolId(2, 1))) && has(toolId(2, 1)) === 1 && mySkin() === 'falls_4';
       }
