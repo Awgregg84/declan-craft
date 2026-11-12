@@ -17,12 +17,18 @@ const PLANETS = {
   uranus: { name: 'Uranus', title: 'Uranus', g: 0.9, about: 'Icy, blue-green and very cold, with rings', color: '#7ad8d8',
     welcome: 'Welcome to Uranus! Brrr, it is VERY cold. Everything is ice. Look up to see its rings!' },
 };
-const gravOf = map => PLANETS[map] ? PLANETS[map].g : 1;
+const gravOf = map => map === 'marsworld' ? PLANETS.mars.g : PLANETS[map] ? PLANETS[map].g : 1;   // (the Mars world pulls like Mars)
 const placeName = d => PLANETS[d] ? PLANETS[d].name : d === 'nether' ? 'the Nether' : MAPS[game.mapId] ? MAPS[game.mapId].name : 'home';
 defBlock(B.MARS_DUST, 'Mars Dust', { tex: 'mars_dust', hardness: 0.5, tool: 'shovel', sound: 'sand' });
 defBlock(B.MARS_ROCK, 'Mars Rock', { tex: 'mars_rock', hardness: 1.5, tool: 'pickaxe', tier: 1 });
 defBlock(B.CLOUD, 'Jupiter Cloud', { tex: 'cloud', hardness: 0.3, sound: 'wool' });
 defBlock(B.URANUS_ICE, 'Uranus Ice', { tex: 'uranus_ice', hardness: 0.6, tool: 'pickaxe', sound: 'glass' });
+// the Mars world's race tracks, its vehicles and a present from a Martian (see 12m-mars.js)
+defBlock(B.TRACK, 'Race Track', { tex: 'track', hardness: 1.5, tool: 'pickaxe', tier: 1 });
+defBlock(B.BOOST, 'Boost Pad', { tex: { top: 'boost', bottom: 'track', side: 'track' }, hardness: 1.5, tool: 'pickaxe', tier: 1, emit: 10 });
+defItem(I.MARS_CRYSTAL, 'Mars Crystal', { tex: 'mars_crystal' });
+defItem(I.BUGGY, 'Rover Buggy', { tex: 'buggy', stack: 1 });
+defItem(I.SAUCER, 'Flying Saucer', { tex: 'saucer', stack: 1 });
 
 /* ---- where does the rocket go? (picked before the countdown, at home) ---- */
 function pickPlanet(game, pl, v, go) {
@@ -32,6 +38,7 @@ function pickPlanet(game, pl, v, go) {
   box.appendChild(h('h3', { text: 'Where shall we go?' }));
   const close = () => { root.hidden = true; game.uiOpen = false; if (!game.touchOn && !game.dragLook) game.requestPointer(); };
   for (const d of SPACE_DIMS) {
+    if (d === 'mars' && game.mapId === 'marsworld') continue;   // (in the Mars world you are there already)
     const P = PLANETS[d], b = h('button', { type: 'button', class: 'planet-btn', 'data-planet': d });
     b.appendChild(h('span', { class: 'planet-dot', style: 'background:' + P.color }));
     b.appendChild(h('span', { class: 'planet-name', text: P.title }));
@@ -55,7 +62,11 @@ function spaceArrival(game) {
   if (!isSpace(d) || !pl.alive) return;
   const key = d === 'moon' ? 'moon' : 'p_' + d;
   if (!game.stats[key]) { game.stats[key] = 1; chat(PLANETS[d].welcome, '#ffd24a'); if (d === 'mars') roverHint(game); }
-  if (game.mode !== 'survival') return;
+  spaceHelmet(game);
+}
+function spaceHelmet(game) {
+  const pl = game.player;
+  if (game.mode !== 'survival' || !pl.alive) return;
   if (wearsSpaceHelmet(pl) || pl.inv.some(s => s && s.id === I.SPACE_HELMET)) return;
   if (!pl.inv[ARMOR_INV]) pl.inv[ARMOR_INV] = { id: I.SPACE_HELMET, count: 1 };
   else if (pl.give(I.SPACE_HELMET, 1) > 0) dropItem(game, pl.x, pl.y + 1, pl.z, I.SPACE_HELMET, 1);

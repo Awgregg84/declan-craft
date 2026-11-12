@@ -11,9 +11,10 @@ const MAPS = {
   falls: { name: 'Declan Falls', desc: 'A little town in a tall pine forest by a lake, with the Mystery Shack. Be Dipper, Mabel, Grunkle Stan, Soos or Wendy, and find six mysteries!' },
   life: { name: 'Life Cycle', desc: 'A friendly little city where you live a whole life: start as a baby and grow up a little every day, all the way to old and wise.' },
   ghost: { name: 'Ghostbusters', desc: 'A spooky little city at dusk, full of ghosts. You have a proton pack, a ghost trap and a ghost detector: how many can you catch?' },
+  marsworld: { name: 'Mars', desc: 'The red planet! Friendly Martians in a village of glass domes, a flying saucer with a tractor beam, and buggy races round the canyons.' },
 };
 /* the saved worlds: each has its own save, and the land it is made of (Hardcore is a Sunny Valley you only get one life in) */
-const SLOTS = { valley: { map: 'valley' }, sky: { map: 'sky' }, hogwarts: { map: 'hogwarts' }, falls: { map: 'falls' }, ghost: { map: 'ghost' }, life: { map: 'life' }, hardcore: { map: 'valley', hardcore: true } };
+const SLOTS = { valley: { map: 'valley' }, sky: { map: 'sky' }, hogwarts: { map: 'hogwarts' }, falls: { map: 'falls' }, ghost: { map: 'ghost' }, life: { map: 'life' }, marsworld: { map: 'marsworld' }, hardcore: { map: 'valley', hardcore: true } };
 const HC_LAST_KEY = 'declancraft:v1:hardcore-last';
 /* Hardcore is always at least Normal */
 const difficulty = () => game.hardcore ? Math.max(2, game.settings.difficulty) : game.settings.difficulty;
@@ -536,6 +537,7 @@ function drawThumb(cv, map) {
   if (map === 'falls') { drawFallsThumb(ctx, W, H); return; }
   if (map === 'ghost') { drawGhostThumb(ctx, W, H); return; }
   if (map === 'life') { drawLifeThumb(ctx, W, H); return; }
+  if (map === 'marsworld') { drawMarsThumb(ctx, W, H); return; }
   const r = mulberry32(map === 'sky' ? 7 : 3);
   const g = ctx.createLinearGradient(0, 0, 0, H);
   g.addColorStop(0, '#5f8ff0'); g.addColorStop(1, map === 'sky' ? '#d8e8ff' : '#a9c8ff');
@@ -567,7 +569,7 @@ function buildWorldCards() {
   const wrap = el('world-cards');
   wrap.textContent = '';
   el('worlds-h').textContent = ui.hostMode ? 'Choose a World to Share' : 'Choose a World';
-  for (const id of ['valley', 'sky', 'hogwarts', 'falls', 'ghost', 'life', 'hardcore']) {
+  for (const id of ['valley', 'sky', 'hogwarts', 'falls', 'ghost', 'life', 'marsworld', 'hardcore']) {
     const hc = !!SLOTS[id].hardcore, info = hc ? { name: 'Hardcore', desc: 'Sunny Valley, but you only get one life! If you die, the world is gone and you start a new one.' } : MAPS[id], save = loadSaveMeta(id);
     const card = h('article', { class: 'card' + (hc ? ' hardcore' : '') });
     const cv = h('canvas', { 'aria-hidden': 'true' });

@@ -44,6 +44,7 @@ function initRenderExtras() {
 const NETHER_FOG = [0.24, 0.05, 0.035];
 const EARTH_DIR = [0.34, 0.62, -0.71];   // where the Earth is in the Moon's sky (it never moves)
 function skyState(time, map, underwater) {
+  if (map === 'marsworld') map = 'mars';   // (the Mars world has Mars's sky)
   if (map === 'moon') {   // no air: a black sky full of stars, a bright sun and the Earth; the ground is lit by the sun, or the Earth at night
     const ang = time * TAU, sy = Math.sin(ang), len = Math.hypot(Math.cos(ang), sy, 0.22), black = [0.004, 0.004, 0.01], far = [0.02, 0.02, 0.032];
     return { sunDir: [Math.cos(ang) / len, sy / len, 0.22 / len], day: 1, zenith: black, horizon: far, bottom: black, glow: [1, 1, 1], glowAmt: 0, stars: 1, sunVis: 1,

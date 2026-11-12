@@ -60,12 +60,14 @@ function genModule3(B, H) {
   const ROVER_CELL = 96, ISLE_CELL = 44;
   /* Mars: red dust over dark red rock, rolling hills cut by deep canyons, boulders, and a little rover in each 96-block square */
   function roverAt(seed, gx, gz) { const r = mulberry32(hash3(seed ^ 0x40e, gx, gz)); return { x: Math.floor((gx + 0.2 + r() * 0.6) * ROVER_CELL), z: Math.floor((gz + 0.2 + r() * 0.6) * ROVER_CELL), yaw: (r() * 4) | 0 }; }
-  function marsGen(seed) {
+  function marsGen(seed, town) {   // (town: the Mars world, with its base, the aliens' village and the race tracks)
     const nA = makeNoise(seed ^ 0x3a5a), nB = makeNoise(seed ^ 0x3a5b), nC = makeNoise(seed ^ 0x3a5c);
     function column(x, z) {
       const base = 54 + fbm2(nA, x * 0.006, z * 0.006, 3) * 12 + fbm2(nB, x * 0.05, z * 0.05, 2) * 1.5;
       const c = Math.abs(fbm2(nC, x * 0.004, z * 0.004, 2)), cut = c < 0.07 ? (1 - c / 0.07) : 0;   // a winding canyon where the noise crosses zero
-      return Math.round(clamp(base - Math.pow(cut, 0.6) * 26, 8, WH - 24));
+      let h = base - Math.pow(cut, 0.6) * 26;
+      if (town) { const T = MW.town, d = Math.hypot(x - T.x, z - T.z); if (d < T.r + 18) { const k = d <= T.r ? 1 : 1 - (d - T.r) / 18; h += (T.y - h) * k * k * (3 - 2 * k); } }   // (level ground for the base and the village)
+      return Math.round(clamp(h, 8, WH - 24));
     }
     function generate(cx, cz) {
       const blocks = new Uint8Array(CVOL), x0 = cx * 16, z0 = cz * 16, r = mulberry32(hash3(seed ^ 0x3a5, cx, cz));
@@ -92,10 +94,135 @@ function genModule3(B, H) {
         for (let a = -2; a <= 0; a++) for (const b of [-1, 0, 1]) P(a, b, h + 3, B.LAPIS_BLOCK);
         P(2, 0, h + 3, B.IRON_BARS); P(2, 0, h + 4, B.IRON_BARS); P(2, 0, h + 5, B.GLASS);
       }
+      if (town) { const P = painter(blocks, cx, cz); paintMarsTown(P); for (const tr of marsTracks()) paintTrack(blocks, cx, cz, tr, column); }
       return { blocks, spawns: [] };
     }
-    function spawn() { return [0.5, column(0, 0) + 1, 0.5]; }
+    function spawn() { return town ? MW.spawn.slice() : [0.5, column(0, 0) + 1, 0.5]; }
     return { generate, spawn, column };
+  }
+  /* ---- the Mars world (the seventh wish list): a landing pad, the aliens' village of glass domes, and two race tracks ---- */
+  const MW = {
+    town: { x: 0, z: 0, r: 46, y: 58 },
+    spawn: [0.5, 59, 10.5],
+    rocket: [10, 24], saucer: [-12, 24],   // the two landing pads
+    plaza: [-22, -16],
+    domes: [[-22, -31, 14], [-36, -22, 5], [-36, -8, 11], [-9, -24, 4], [-20, -2, 10]],   // [x, z, floor colour]
+    tracks: [
+      { name: 'Canyon Loop', laps: 3, y: 58, garage: [27, 12],
+        way: [[40, 4], [40, -30], [52, -58], [80, -66], [104, -50], [108, -14], [96, 14], [104, 40], [88, 62], [58, 58], [42, 36]],
+        boost: [0.12, 0.62], boxes: [0.26, 0.74], ramps: [[0.46, 2]], dips: [], tunnels: [[0.84, 0.05]] },
+      { name: 'Crater Run', laps: 3, y: 58, garage: [-4, -38],
+        way: [[-10, -52], [-44, -56], [-72, -76], [-76, -112], [-52, -138], [-60, -170], [-30, -190], [4, -176], [0, -140], [24, -120], [30, -86], [14, -60]],
+        boost: [0.08, 0.5, 0.8], boxes: [0.2, 0.46, 0.72], ramps: [[0.3, 3], [0.9, 2]], dips: [[0.55, 0.12, 4]], tunnels: [[0.38, 0.05]] },
+    ],
+  };
+  /* a track: its waypoints joined by a smooth closed curve and walked one block at a time. pts: [x, z, y] for each step;
+     boost and tunnel: flags for each step; boxes: the steps where pickup boxes float */
+  let _tracks = null;
+  function marsTracks() {
+    if (_tracks) return _tracks;
+    _tracks = MW.tracks.map((tr, ti) => {
+      const W = tr.way, n = W.length, dense = [];
+      for (let i = 0; i < n; i++) {
+        const p0 = W[(i + n - 1) % n], p1 = W[i], p2 = W[(i + 1) % n], p3 = W[(i + 2) % n];
+        for (let s = 0; s < 40; s++) {
+          const t = s / 40, t2 = t * t, t3 = t2 * t;
+          dense.push([0, 1].map(k => 0.5 * (2 * p1[k] + (p2[k] - p0[k]) * t + (2 * p0[k] - 5 * p1[k] + 4 * p2[k] - p3[k]) * t2 + (3 * p1[k] - p0[k] - 3 * p2[k] + p3[k]) * t3)));
+        }
+      }
+      const pts = [[dense[0][0], dense[0][1], tr.y]];
+      let last = dense[0];
+      for (let i = 1; i <= dense.length; i++) {   // one step for each block of the way round
+        const q = dense[i % dense.length];
+        let d = Math.hypot(q[0] - last[0], q[1] - last[1]);
+        while (d >= 1) { last = [last[0] + (q[0] - last[0]) / d, last[1] + (q[1] - last[1]) / d]; pts.push([last[0], last[1], tr.y]); d = Math.hypot(q[0] - last[0], q[1] - last[1]); }
+      }
+      if (Math.hypot(pts[pts.length - 1][0] - pts[0][0], pts[pts.length - 1][1] - pts[0][1]) < 0.6) pts.pop();
+      const N = pts.length, at = f => Math.floor(f * N) % N, boost = new Uint8Array(N), tunnel = new Uint8Array(N), pit = new Uint8Array(N);
+      for (const [f, rise] of tr.ramps) for (let k = 0; k < rise * 3; k++) pts[(at(f) + k) % N][2] = tr.y + Math.floor(k / 3) + 1;   // up a ramp, and off the end
+      for (const [f, len, depth] of tr.dips) { const L = Math.floor(len * N); for (let i = 0; i < L; i++) pts[(at(f) + i) % N][2] = tr.y - Math.min(depth, Math.floor(i / 2) + 1, Math.floor((L - 1 - i) / 4) + 1); }
+      for (const f of tr.boost) for (let k = 0; k < 4; k++) boost[(at(f) + k) % N] = 1;
+      for (const [f, len] of tr.tunnels) for (let k = 0; k < Math.floor(len * N); k++) tunnel[(at(f) + k) % N] = 1;
+      for (let k = 10; k <= 22; k++) pit[N - k] = 1;   // (the way in from the garage, just before the start line)
+      let x0 = 1e9, z0 = 1e9, x1 = -1e9, z1 = -1e9;
+      for (const q of pts) { x0 = Math.min(x0, q[0]); z0 = Math.min(z0, q[1]); x1 = Math.max(x1, q[0]); z1 = Math.max(z1, q[1]); }
+      return { i: ti, name: tr.name, laps: tr.laps, y: tr.y, garage: tr.garage, pts, N, boost, tunnel, pit, boxes: tr.boxes.map(at), bbox: [x0 - 11, z0 - 11, x1 + 11, z1 + 11] };
+    });
+    return _tracks;
+  }
+  /* the nearest step of a track to a spot: [step, distance, which side (-1 left, 1 right of the way you drive)] */
+  function trackNear(tr, x, z, from, span) {
+    let bi = -1, bd = 1e9;
+    const N = tr.N, a = from === undefined ? 0 : from, n = span === undefined ? N : span;
+    for (let k = 0; k < n; k++) { const i = ((a + k) % N + N) % N, q = tr.pts[i], d = (q[0] - x) * (q[0] - x) + (q[1] - z) * (q[1] - z); if (d < bd) { bd = d; bi = i; } }
+    const q = tr.pts[bi], nx = tr.pts[(bi + 1) % N], side = (nx[0] - q[0]) * (z - q[1]) - (nx[1] - q[1]) * (x - q[0]) < 0 ? -1 : 1;
+    return [bi, Math.sqrt(bd), side];
+  }
+  /* the track in one chunk: a dark road nine blocks wide between striped barriers, cut through the hills and carried on
+     bridges over the canyons; boost pads, a start line under an arch, ramps to jump off, and a tunnel */
+  function paintTrack(blocks, cx, cz, tr, column) {
+    const x0 = cx * 16, z0 = cz * 16, bb = tr.bbox;
+    if (bb[2] < x0 || bb[0] > x0 + 15 || bb[3] < z0 || bb[1] > z0 + 15) return;
+    const near = [];
+    for (let i = 0; i < tr.N; i++) { const q = tr.pts[i]; if (q[0] > x0 - 11 && q[0] < x0 + 27 && q[1] > z0 - 11 && q[1] < z0 + 27) near.push(i); }
+    if (!near.length) return;
+    for (let lz = 0; lz < 16; lz++) for (let lx = 0; lx < 16; lx++) {
+      const x = x0 + lx + 0.5, z = z0 + lz + 0.5;
+      let bi = -1, bd = 1e9;
+      for (const i of near) { const q = tr.pts[i], d = (q[0] - x) * (q[0] - x) + (q[1] - z) * (q[1] - z); if (d < bd) { bd = d; bi = i; } }
+      const d = Math.sqrt(bd), q = tr.pts[bi], nx = tr.pts[(bi + 1) % tr.N], left = (nx[0] - q[0]) * (z - q[1]) - (nx[1] - q[1]) * (x - q[0]) < 0;
+      const open = tr.pit[bi] && left, wide = open ? 10.5 : 5.6;   // (the pit lane is on the left, towards the base)
+      if (d > wide) continue;
+      const ty = q[2], h = column(x0 + lx, z0 + lz), road = d <= 4.3 || open, arch = bi < 2 || bi === tr.N - 1, tun = tr.tunnel[bi];
+      const set = (y, id) => { if (y > 0 && y < WH) blocks[idx(lx, y, lz)] = id; };
+      if (h < ty - 3) { set(ty - 1, B.MARS_ROCK); if (bi % 12 === 0 && d < 1.6) for (let y = h + 1; y < ty - 1; y++) set(y, B.MARS_ROCK); }   // a bridge, on a pillar now and then
+      else for (let y = Math.min(h, ty) + 1; y < ty; y++) set(y, B.MARS_ROCK);
+      set(ty, arch && road ? B.WOOL + (((x0 + lx + z0 + lz) & 1) ? 15 : 0) : road && tr.boost[bi] && d <= 2.1 ? B.BOOST : B.TRACK);
+      const top = tun ? ty + 5 : WH - 1;
+      for (let y = ty + 1; y <= top; y++) set(y, B.AIR);
+      if (tun) { set(ty + 6, B.MARS_ROCK); set(ty + 7, B.MARS_ROCK); if (bi % 6 === 0 && d < 1) set(ty + 5, B.GLOWSTONE); }
+      if (!road && tun) for (let y = ty + 1; y <= ty + 5; y++) set(y, B.MARS_ROCK);   // (a tunnel's walls)
+      else if (!road) { set(ty + 1, B.WOOL + ((bi >> 1) & 1 ? 14 : 0)); set(ty + 2, arch ? B.QUARTZ_BLOCK : B.IRON_BARS); if (arch) for (let y = ty + 3; y <= ty + 5; y++) set(y, B.QUARTZ_BLOCK); }
+      if (arch && !tun) set(ty + 6, B.WOOL + (((x0 + lx + z0 + lz) & 1) ? 15 : 0));   // the start arch, in black and white checks
+    }
+  }
+  function paintMarsTown(P) {
+    const T = MW.town, Y = T.y + 1;
+    if (!P.near(-60, -60, 60, 60)) return;
+    for (const [px, pz, id] of [[MW.rocket[0], MW.rocket[1], B.STONE_BRICKS], [MW.saucer[0], MW.saucer[1], B.LAPIS_BLOCK]]) {   // the landing pads, with lamps round them
+      P.disc(px, pz, 4.6, Y, Y + 8, B.AIR, false);
+      P.disc(px, pz, 3.6, T.y, T.y, id, false);
+      for (const [dx, dz] of [[4, 0], [-4, 0], [0, 4], [0, -4]]) P.set(px + dx, T.y, pz + dz, B.GLOWSTONE);
+    }
+    // paths of darker rock: from where you start to the pads, the village and the two garages
+    const path = (ax, az, bx, bz) => { for (const [ox, oz] of [[0, 0], [1, 0], [0, 1]]) P.line(ax + ox, az + oz, bx + ox, bz + oz, T.y, T.y, B.MARS_ROCK); };
+    path(0, 10, MW.rocket[0] - 3, MW.rocket[1] - 3); path(0, 10, MW.saucer[0] + 3, MW.saucer[1] - 3);
+    path(0, 10, MW.plaza[0] + 4, MW.plaza[1] + 4); path(2, 10, MW.tracks[0].garage[0] - 6, MW.tracks[0].garage[1]);
+    path(MW.plaza[0] + 4, MW.plaza[1] - 4, MW.tracks[1].garage[0] - 2, MW.tracks[1].garage[1] + 5);
+    // the aliens' village: glass domes round a plaza with a glowing crystal
+    const [vx, vz] = MW.plaza;
+    P.disc(vx, vz, 5.5, T.y, T.y, B.QUARTZ_BLOCK, false);
+    P.box(vx, Y, vz, vx, Y + 3, vz, B.STAINED_GLASS); P.set(vx, Y + 4, vz, B.GLOWSTONE);
+    for (const [dx, dz, col] of MW.domes) {
+      for (let x = -6; x <= 6; x++) for (let z = -6; z <= 6; z++) {
+        const r = Math.hypot(x, z);
+        if (r <= 5.4) P.set(dx + x, T.y, dz + z, r > 4.4 ? B.QUARTZ_BLOCK : B.WOOL + col);
+        for (let y = 0; y <= 6; y++) { const rr = Math.hypot(x, y, z); if (rr > 4.5 && rr <= 5.5) P.set(dx + x, Y + y, dz + z, B.GLASS); else if (rr <= 4.5) P.set(dx + x, Y + y, dz + z, B.AIR); }
+      }
+      const a = Math.atan2(vz - dz, vx - dx), ox = Math.round(Math.cos(a) * 5), oz = Math.round(Math.sin(a) * 5);   // the doorway faces the plaza
+      for (let k = 4; k <= 6; k++) { const ex = dx + Math.round(Math.cos(a) * k), ez = dz + Math.round(Math.sin(a) * k); P.box(ex, Y, ez, ex, Y + 1, ez, B.AIR); }
+      P.set(dx, T.y, dz, B.GLOWSTONE);
+      P.set(dx - Math.sign(ox || 1) * 2, Y, dz - Math.sign(oz || 1) * 2, B.WOOL + ((col + 3) % 16));   // (a little table)
+    }
+    // a garage at each track: a roof on four posts, where the buggies wait
+    for (const tr of MW.tracks) {
+      const [gx, gz] = tr.garage;
+      P.box(gx - 5, Y, gz - 4, gx + 5, Y + 4, gz + 4, B.AIR);
+      for (const [dx, dz] of [[-4, -3], [4, -3], [-4, 3], [4, 3]]) P.box(gx + dx, Y, gz + dz, gx + dx, Y + 3, gz + dz, B.IRON_BLOCK);
+      P.box(gx - 5, Y + 4, gz - 4, gx + 5, Y + 4, gz + 4, B.QUARTZ_BLOCK);
+      P.box(gx - 4, T.y, gz - 3, gx + 4, T.y, gz + 3, B.STONE_BRICKS);
+      P.set(gx, Y + 3, gz, B.GLOWSTONE);
+    }
   }
   /* Jupiter: nobody can stand on a gas giant, so: floating islands of cloud, one in each 44-block square, over nothing */
   function isleAt(seed, gx, gz) {
@@ -1062,5 +1189,5 @@ function genModule3(B, H) {
     return { generate, spawn, column };
   }
 
-  return { moonGen, marsGen, jupiterGen, uranusGen, planetLanding, nearestRover, hogwartsGen, HW, fallsGen, FF, ghostGen, GB, lifeGen, LC, dungeonPlanner };
+  return { MW, marsTracks, trackNear, moonGen, marsGen, jupiterGen, uranusGen, planetLanding, nearestRover, hogwartsGen, HW, fallsGen, FF, ghostGen, GB, lifeGen, LC, dungeonPlanner };
 }

@@ -158,6 +158,7 @@ function buildModels() {
   buildModels4();
   buildModels5();
   buildModels6();
+  buildModels7();
   defModel('pig', 'pig', 1 / 16, [
     { name: 'head', box: [-4, 8, 6, 8, 8, 8], uv: [0, 0], pivot: [0, 12, 6] },
     { name: 'snout', box: [-2, 9, 14, 4, 3, 1], uv: [32, 0], pivot: [0, 12, 6], follow: 'head' },

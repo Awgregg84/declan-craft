@@ -17,7 +17,8 @@ function bigText(text, secs) {
 const wearsSpaceHelmet = p => !!(p.inv && p.inv[ARMOR_INV] && p.inv[ARMOR_INV].id === I.SPACE_HELMET);
 const inRocket = p => !!(p.riding && p.riding.type === 'rocket');
 /* can this player breathe where they are? (on the Moon: only in a space helmet, or inside the rocket) */
-const canBreatheHere = p => !isSpace(game.dim) || wearsSpaceHelmet(p) || inRocket(p);
+const noAir = () => isSpace(game.dim) || (game.mapId === 'marsworld' && game.dim === 'over');   // (the Mars world is on Mars too)
+const canBreatheHere = p => !noAir() || wearsSpaceHelmet(p) || inRocket(p);
 
 /* tap inside a rocket: the countdown starts (and everyone playing together is told) */
 function rocketLaunch(game, pl, v) {

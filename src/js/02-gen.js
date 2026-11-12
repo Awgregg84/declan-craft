@@ -808,7 +808,7 @@ function genModule(B, P) {
   function getGen(map, seed) {
     const k = map + ':' + seed;
     let g = gens.get(k);
-    if (!g) { g = map === 'sky' ? skyGen(seed) : map === 'nether' ? netherGen(seed) : map === 'moon' ? GEN3.moonGen(seed) : map === 'mars' ? GEN3.marsGen(seed) : map === 'jupiter' ? GEN3.jupiterGen(seed) : map === 'uranus' ? GEN3.uranusGen(seed) : map === 'hogwarts' ? GEN3.hogwartsGen(seed) : map === 'falls' ? GEN3.fallsGen(seed) : map === 'ghost' ? GEN3.ghostGen(seed) : map === 'life' ? GEN3.lifeGen(seed) : valleyGen(seed); gens.set(k, g); }
+    if (!g) { g = map === 'sky' ? skyGen(seed) : map === 'nether' ? netherGen(seed) : map === 'moon' ? GEN3.moonGen(seed) : map === 'mars' ? GEN3.marsGen(seed) : map === 'marsworld' ? GEN3.marsGen(seed, true) : map === 'jupiter' ? GEN3.jupiterGen(seed) : map === 'uranus' ? GEN3.uranusGen(seed) : map === 'hogwarts' ? GEN3.hogwartsGen(seed) : map === 'falls' ? GEN3.fallsGen(seed) : map === 'ghost' ? GEN3.ghostGen(seed) : map === 'life' ? GEN3.lifeGen(seed) : valleyGen(seed); gens.set(k, g); }
     return g;
   }
 
@@ -944,9 +944,9 @@ function genModule(B, P) {
   }
   /* what falls from the sky here when the weather turns: 0 nothing (a desert), 1 rain, 2 snow (cold places) */
   function climateAt(map, seed, x, z) {
-    if (map === 'moon' || map === 'nether' || map === 'mars' || map === 'jupiter' || map === 'uranus') return 0;
+    if (map === 'moon' || map === 'nether' || map === 'mars' || map === 'marsworld' || map === 'jupiter' || map === 'uranus') return 0;
     const bio = map === 'valley' ? getGen(map, seed).column(Math.floor(x), Math.floor(z)) >> 8 : map === 'sky' ? getGen(map, seed).biomeAt(Math.floor(x), Math.floor(z)) : PLAINS;
     return bio === DESERT ? 0 : bio === SNOWY || bio === PEAKS || bio === FROZEN ? 2 : 1;
   }
-  return { generateChunk, spawnPoint, computeLight, makeNoise, mulberry32, hash3, villagesTouching, storesTouching, findStore, planetLanding: GEN3.planetLanding, nearestRover: GEN3.nearestRover, findVillage, dungeonsTouching, findDungeon, dungeonHere, dungeonsNear, climateAt, hogwarts: GEN3.HW, falls: GEN3.FF, ghost: GEN3.GB, life: GEN3.LC, ghostGround: (seed, x, z) => getGen('ghost', seed).column(Math.floor(x), Math.floor(z)), fallsGround: (seed, x, z) => getGen('falls', seed).column(Math.floor(x), Math.floor(z)) };
+  return { generateChunk, spawnPoint, computeLight, makeNoise, mulberry32, hash3, villagesTouching, storesTouching, findStore, planetLanding: GEN3.planetLanding, nearestRover: GEN3.nearestRover, findVillage, dungeonsTouching, findDungeon, dungeonHere, dungeonsNear, climateAt, hogwarts: GEN3.HW, falls: GEN3.FF, ghost: GEN3.GB, marsw: GEN3.MW, marsTracks: GEN3.marsTracks, trackNear: GEN3.trackNear, marsGround: (seed, x, z) => getGen('marsworld', seed).column(Math.floor(x), Math.floor(z)), life: GEN3.LC, ghostGround: (seed, x, z) => getGen('ghost', seed).column(Math.floor(x), Math.floor(z)), fallsGround: (seed, x, z) => getGen('falls', seed).column(Math.floor(x), Math.floor(z)) };
 }

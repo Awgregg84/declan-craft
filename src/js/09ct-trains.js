@@ -48,9 +48,9 @@ function trainSeat(v, k) {
   return [p.x + c * s[0] + sn * s[2], p.y + s[1], p.z - sn * s[0] + c * s[2]];
 }
 /* seats for passengers: a plane's or a train's */
-const hasSeats = v => isPlane(v) || (!!v && v.type === 'train');
-const seatCount = v => isPlane(v) ? PLANES[v.type].seats.length : v && v.type === 'train' ? TRAIN_SEATS.length : 0;
-const seatPos = (v, k) => v.type === 'train' ? trainSeat(v, k) : planeSeat(v, k);
+const hasSeats = v => isPlane(v) || (!!v && (v.type === 'train' || v.type === 'saucer'));
+const seatCount = v => isPlane(v) ? PLANES[v.type].seats.length : v && v.type === 'train' ? TRAIN_SEATS.length : v && v.type === 'saucer' ? 2 : 0;
+const seatPos = (v, k) => v.type === 'train' ? trainSeat(v, k) : v.type === 'saucer' ? saucerSeat(v, k) : planeSeat(v, k);
 
 /* ---- driving ---- */
 /* forward: off it goes (and keeps going); back: stop, and back again to reverse slowly */

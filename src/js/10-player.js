@@ -323,6 +323,18 @@ class Player {
     inp.minePressed = false;
     // talk to a villager
     const tEnt = this.targetEnt;
+    // in a race on Mars: a tap uses your pickup
+    if (inp.use && inp.usePressed && RACE && RACE.me.in && RACE.state === 'run' && this.riding && !this.seat) {
+      if (this.useCd <= 0) { this.useCd = 0.3; raceUsePickup(game, this); }
+      inp.use = false; inp.usePressed = false;
+      return;
+    }
+    // tap a Martian: a present for something from Earth (the race marshal starts a race)
+    if (inp.use && inp.usePressed && tEnt && tEnt.type === 'martian' && this.useCd <= 0 && !tEnt.dead) {
+      this.swing(); martianTap(game, this, tEnt, hid, creative); this.useCd = 0.4;
+      inp.use = false; inp.usePressed = false;
+      return;
+    }
     if (inp.use && tEnt && tEnt.type === 'villager' && this.useCd <= 0 && !tEnt.dead) {
       this.swing(); openTrade(tEnt); this.useCd = 0.3;
       inp.use = false; inp.usePressed = false;
@@ -355,12 +367,17 @@ class Player {
       inp.usePressed = false;
       return;
     }
+    if (this.riding && this.riding.type === 'saucer' && !this.seat && inp.use) {   // flying a saucer: a tap switches its tractor beam on and off
+      if (inp.usePressed && this.useCd <= 0) { this.useCd = 0.5; saucerBeam(game, this, this.riding); }
+      inp.usePressed = false;
+      return;
+    }
     if (this.riding && this.riding.type === 'tank' && !this.seat && inp.use) {   // in a tank: a tap fires a paint shell
       if (inp.usePressed && this.useCd <= 0) { this.useCd = 0.7; tankFire(game, this, this.riding); }
       inp.usePressed = false;
       return;
     }
-    if (this.riding && (this.riding.type === 'car' || this.riding.type === 'golfcart' || this.riding.type === 'flycar' || this.riding.type === 'submarine') && inp.use) {   // (in a submarine: a sonar ping)
+    if (this.riding && (this.riding.type === 'car' || this.riding.type === 'golfcart' || this.riding.type === 'buggy' || this.riding.type === 'flycar' || this.riding.type === 'submarine') && inp.use) {   // (in a submarine: a sonar ping)
       if (inp.usePressed && this.useCd <= 0) {
         this.useCd = 0.5;
         if (this.riding.type === 'submarine') sonarPing(game, this);
@@ -561,8 +578,8 @@ class Player {
     }
     if (hid >= 256 && ITEMS[hid] && ITEMS[hid].door && t.face >= 0) return placeDoor(game, this, hid, t, creative);
     if (hid === B.GARAGE_DOOR && t.face >= 0) return placeGarage(game, this, t, creative);
-    if ((hid === I.MINECART || hid === I.TRAIN || hid === I.CAR || hid === I.BOAT || hid === I.SUBMARINE || hid === I.FLYING_CAR || hid === I.BROOM || hid === I.ROCKET || hid === I.PLANE || hid === I.JET || hid === I.AIRLINER || hid === I.GOLF_CART || isTankItem(hid)) && t.face >= 0) {
-      const type = hid === I.TRAIN ? 'train' : hid === I.CAR ? 'car' : hid === I.BOAT ? 'boat' : hid === I.SUBMARINE ? 'submarine' : hid === I.FLYING_CAR ? 'flycar' : hid === I.BROOM ? 'broom' : hid === I.ROCKET ? 'rocket' : hid === I.PLANE ? 'plane' : hid === I.JET ? 'jet' : hid === I.AIRLINER ? 'airliner' : hid === I.GOLF_CART ? 'golfcart' : isTankItem(hid) ? 'tank' : 'minecart';
+    if ((hid === I.MINECART || hid === I.TRAIN || hid === I.CAR || hid === I.BOAT || hid === I.SUBMARINE || hid === I.FLYING_CAR || hid === I.BROOM || hid === I.ROCKET || hid === I.PLANE || hid === I.JET || hid === I.AIRLINER || hid === I.GOLF_CART || hid === I.BUGGY || hid === I.SAUCER || isTankItem(hid)) && t.face >= 0) {
+      const type = hid === I.TRAIN ? 'train' : hid === I.CAR ? 'car' : hid === I.BOAT ? 'boat' : hid === I.SUBMARINE ? 'submarine' : hid === I.FLYING_CAR ? 'flycar' : hid === I.BROOM ? 'broom' : hid === I.ROCKET ? 'rocket' : hid === I.PLANE ? 'plane' : hid === I.JET ? 'jet' : hid === I.AIRLINER ? 'airliner' : hid === I.GOLF_CART ? 'golfcart' : hid === I.BUGGY ? 'buggy' : hid === I.SAUCER ? 'saucer' : isTankItem(hid) ? 'tank' : 'minecart';
       let vx = t.x + 0.5, vy = t.y + 1, vz = t.z + 0.5;
       if (hid === I.MINECART || hid === I.TRAIN) {
         if (t.id !== B.RAIL) { if (!this.toldRails) { this.toldRails = true; toast((hid === I.TRAIN ? 'Trains' : 'Minecarts') + ' go on rails. Put some rails down first.', 3); } return false; }
@@ -826,6 +843,9 @@ const HELD_TIPS = {
   [I.GHOST_DETECTOR]: ['The lights and the beeping tell you how close a ghost is: faster beeps, closer ghost!', 'The lights and the beeping tell you how close a ghost is: faster beeps, closer ghost!'],
   [I.LASER]: ['Tap to fire the laser! It only hurts monsters. The button at the top picks its colour.', 'Right-click to fire the laser! It only hurts monsters. Press F to pick its colour.'],
   [I.TRAIN]: ['Tap a railway track to put the train on it, then tap the train to get in.', 'Right-click a railway track to put the train on it, then right-click the train to get in.'],
+  [I.BUGGY]: ['Tap the ground to put the rover buggy down, then tap it to get in. It is fast!', 'Right-click the ground to put the rover buggy down, then right-click it to get in. It is fast!'],
+  [I.SAUCER]: ['Tap the ground to put the flying saucer down, then tap it to get in. In the air, tap for the tractor beam!', 'Right-click the ground to put the flying saucer down, then right-click it to get in. In the air, click for the tractor beam!'],
+  [I.MARS_CRYSTAL]: ['A present from a Martian! A store will buy it for a good price.', 'A present from a Martian! A store will buy it for a good price.'],
   [B.STATION]: ['Put the Train Station right beside the track: it builds a platform with a sign, and trains stop there.', 'Put the Train Station right beside the track: it builds a platform with a sign, and trains stop there.'],
   [I.WAND]: ['Tap to cast a spell! The Spell button (at the top) picks a different one.', 'Right-click to cast a spell! Press F to pick a different one.'],
   [I.SHIELD]: ['Hold Place to hide behind the shield. Put it in the slot beside your armor to use it with a sword.', 'Hold the right mouse button to hide behind the shield. Put it in the slot beside your armor to use it with a sword.'],

@@ -74,6 +74,8 @@ const VEHICLES = {
   tank: { w: 0.95, h: 1.3, item: I.TANK, hits: 6, code: -16, wheel: 0.2 },   // (see 09u-tanks.js)
   golfcart: { w: 0.7, h: 1.6, item: I.GOLF_CART, hits: 3, code: -17, wheel: 0.14 },   // (Soos's, in Declan Falls: a little car)
   train: { w: 1.1, h: 2.8, item: I.TRAIN, hits: 6, code: -18, wheel: 0.2 },   // (see 09ct-trains.js)
+  buggy: { w: 0.8, h: 1.2, item: I.BUGGY, hits: 4, code: -19, wheel: 0.25 },   // (a rover buggy, for racing on Mars: see 12m-mars.js)
+  saucer: { w: 1.1, h: 1.2, item: I.SAUCER, hits: 5, code: -20, wheel: 1 },   // (a flying saucer with a tractor beam)
 };
 const VEHICLE_TYPES = Object.keys(VEHICLES);
 const isVehicleType = t => typeof t === 'string' && Object.prototype.hasOwnProperty.call(VEHICLES, t);   // (not "constructor" and the like)
@@ -93,6 +95,8 @@ function seatOf(v) {
   if (v.type === 'train') return trainSeat(v, 0);   // (in the engine's cab)
   if (v.type === 'tank') return [v.x, v.y + 0.2, v.z];   // (in the hatch on top, head and shoulders out)
   if (v.type === 'broom') return [v.x, v.y + 0.05, v.z];
+  if (v.type === 'saucer') return [v.x, v.y + 0.3, v.z];   // (under the glass dome)
+  if (v.type === 'buggy') return [v.x + Math.sin(v.yaw) * 0.1, v.y + 0.1, v.z + Math.cos(v.yaw) * 0.1];
   if (v.type === 'rocket') return [v.x, v.y + 0.6, v.z];   // (inside, looking out of the window)
   if (v.type === 'boat') return [v.x, v.y - 0.64, v.z];
   if (v.type === 'submarine') return [v.x, v.y - 0.58, v.z];
@@ -110,8 +114,10 @@ function updateVehicle(game, e, dt) {
   }
   if (e.rider === 'me' && game.player.riding !== e) e.rider = null;
   if (e.rider === 'me' && (game.paused || game.uiOpen || game.state !== 'playing')) { e.ctrlX = e.ctrlZ = 0; e.push = null; }   // the menu is open: let go of the wheel
+  if (e.boostT > 0) e.boostT -= dt;   // (a race's boost pad or turbo, and a dust cloud's slow-down: see 12m-mars.js)
+  if (e.slowT > 0) e.slowT -= dt;
   const steps = Math.max(1, Math.ceil(Math.hypot(e.vx, e.vy, e.vz) * dt / 0.3));
-  const step = e.type === 'train' ? trainStep : e.type === 'car' || e.type === 'golfcart' ? carStep : e.type === 'tank' ? tankStep : e.type === 'boat' ? boatStep : e.type === 'submarine' ? subStep : isFlyer(e) ? flyStep : isPlane(e) ? planeStep : e.type === 'rocket' ? rocketStep : cartStep;
+  const step = e.type === 'train' ? trainStep : e.type === 'car' || e.type === 'golfcart' || e.type === 'buggy' ? carStep : e.type === 'tank' ? tankStep : e.type === 'boat' ? boatStep : e.type === 'submarine' ? subStep : isFlyer(e) ? flyStep : isPlane(e) ? planeStep : e.type === 'rocket' ? rocketStep : cartStep;
   for (let i = 0; i < steps; i++) step(game, e, dt / steps);
   if (e.y < -40) { e.removed = true; return; }
   if (e.type === 'train') trainTrail(e);
@@ -124,6 +130,7 @@ function updateVehicle(game, e, dt) {
   else if (e.sndT <= 0 && sp > 0.5) {
     if (e.type === 'tank' && e.rider) { e.sndT = 0.22; sfx('tankEngine', e.x, e.y, e.z, clamp(0.5 + sp / 8, 0.5, 1)); }
     else if (e.type === 'golfcart' && e.rider) { e.sndT = 0.2; sfx('cartHum', e.x, e.y, e.z, clamp(0.4 + sp / 8, 0.4, 1)); }
+    else if (e.type === 'buggy' && e.rider) { e.sndT = 0.15; sfx('buggyEngine', e.x, e.y, e.z, clamp(0.4 + sp / 14, 0.4, 1)); }
     else if (e.type === 'car' && e.rider) { e.sndT = 0.16; sfx('carEngine', e.x, e.y, e.z, clamp(0.4 + sp / 12, 0.4, 1)); }
     else if (e.type === 'minecart' && e.onRail) { e.sndT = 0.32 - Math.min(0.2, sp * 0.02); sfx('minecartRoll', e.x, e.y, e.z, clamp(sp / 8, 0.25, 1)); }
   }
@@ -131,7 +138,7 @@ function updateVehicle(game, e, dt) {
 function sitRider(pl, v) {
   const [x, y, z] = seatOf(v);
   pl.x = x; pl.y = y; pl.z = z; pl.vx = v.vx; pl.vz = v.vz; pl.vy = 0; pl.fallDist = 0; pl.onGround = true;
-  if (v.type === 'car' || v.type === 'golfcart' || v.type === 'boat') {   // the view turns with the car or boat
+  if (v.type === 'car' || v.type === 'golfcart' || v.type === 'buggy' || v.type === 'boat') {   // the view turns with the car or boat
     const d = ((v.yaw - (v.lastYaw === undefined ? v.yaw : v.lastYaw) + Math.PI) % TAU + TAU) % TAU - Math.PI;
     pl.yaw += d;
     pl.bodyYaw = v.yaw;
@@ -181,10 +188,12 @@ function carStep(game, e, dt) {
   const w = game.world, driven = !!e.rider;
   const throttle = driven ? e.ctrlZ || 0 : 0, steer = driven ? e.ctrlX || 0 : 0;
   let fx = -Math.sin(e.yaw), fz = -Math.cos(e.yaw), v = e.vx * fx + e.vz * fz;
-  if (throttle > 0.1) v += throttle * (v < 0 ? 16 : 8) * dt;
+  const buggy = e.type === 'buggy', top = (e.type === 'golfcart' ? 7 : buggy ? 13 : 11) * (e.boostT > 0 ? 1.45 : 1) * (e.slowT > 0 ? 0.45 : 1);   // (boost pads and dust clouds in a race)
+  if (throttle > 0.1) v += throttle * (v < 0 ? 16 : buggy ? 11 : 8) * (e.boostT > 0 ? 2.5 : 1) * dt;
   else if (throttle < -0.1) v += throttle * (v > 0 ? 16 : 6) * dt;
   else v *= Math.pow(e.onGround ? 0.3 : 0.9, dt);
-  v = clamp(v, -4, e.type === 'golfcart' ? 7 : 11);
+  v = clamp(v, -4, top);
+  if (e.rider === 'me' && e.onGround && w.getBlock(Math.floor(e.x), Math.floor(e.y - 0.5), Math.floor(e.z)) === B.BOOST) raceBoost(e);
   if (e.inWater) v = clamp(v, -1.2, 2);
   e.yaw -= steer * clamp(Math.abs(v) / 3, 0, 1) * 2 * Math.sign(v || 1) * dt;
   fx = -Math.sin(e.yaw); fz = -Math.cos(e.yaw);
@@ -193,10 +202,10 @@ function carStep(game, e, dt) {
   physicsStep(w, e, dt, 24);
   if (e.collidedH && before && want && boxFree(w, e.x + fx * 0.35 * want, e.y + 1.05, e.z + fz * 0.35 * want, e.w, e.h)) {   // a one-block step: hop up it
     const sp = Math.max(Math.abs(v), 2.5) * want;
-    e.vy = 7.2; e.vx = fx * sp; e.vz = fz * sp;
+    e.vy = 7.2 * Math.sqrt(gravOf(w.map)); e.vx = fx * sp; e.vz = fz * sp;   // (just up the step, whatever the gravity)
   }
   e.fallDist = 0;
-  e.wheel += v * dt / 0.19;
+  e.wheel += v * dt / (buggy ? 0.25 : 0.19);
   e.steer = lerp(e.steer || 0, steer * 0.45, Math.min(1, dt * 8));
   // driving into creatures knocks them flying
   if (Math.abs(v) > 3.5) {
@@ -234,7 +243,7 @@ function mountVehicle(game, v) {
   if (v.rider && !hasSeats(v)) { toast('Someone is already in it.', 2); return; }
   if (!v.rider && !lifeCan('drive')) return;   // (in the Life Cycle world: only grown-ups drive; anyone can ride along)
   if (MP.role === 'guest') { if (!v.askT || performance.now() - v.askT > 1500) { v.askT = performance.now(); MP.send({ t: 'mount', e: v.nid }); } return; }   // the host says yes or no
-  if (v.rider) { const k = freeSeat(v); if (k) boardSeat(game, v, k); else toast(isPlane(v) ? 'This plane is full.' : 'The train is full.', 2); return; }   // (a plane's pilot is already in: a passenger seat)
+  if (v.rider) { const k = freeSeat(v); if (k) boardSeat(game, v, k); else toast(isPlane(v) ? 'This plane is full.' : v.type === 'saucer' ? 'Someone is in the beam already.' : 'The train is full.', 2); return; }   // (a plane's pilot is already in: a passenger seat)
   boardVehicle(game, v);
 }
 function boardVehicle(game, v) {
@@ -243,7 +252,7 @@ function boardVehicle(game, v) {
   pl.riding = v; pl.sneakHeld = true; pl.flying = false; pl.drawT = pl.loadT = 0;
   if (v.type !== 'minecart') pl.yaw = v.yaw;
   sitRider(pl, v);
-  sfx(v.type === 'car' || v.type === 'golfcart' ? 'carStart' : 'click', v.x, v.y, v.z);
+  sfx(v.type === 'car' || v.type === 'golfcart' || v.type === 'buggy' ? 'carStart' : 'click', v.x, v.y, v.z);
   if (!game.tipped) game.tipped = {};
   if (!game.tipped[v.type]) { game.tipped[v.type] = 1; toast(RIDE_TIPS[v.type], 5); }
 }
@@ -261,10 +270,12 @@ const RIDE_TIPS = {
   golfcart: 'Drive with the joystick (or W A S D). Tap to beep! Press Sneak to get out.',
   tank: 'Drive with the joystick (or W A S D). The gun points where you look: tap to fire a paint shell! Press Sneak to get out.',
   train: 'Push forward to set off: the train keeps going by itself. Pull back to stop (and again to back up). Tap for the horn! It stops at stations. Press Sneak to get out.',
+  buggy: 'Drive with the joystick (or W A S D). It is fast, and jumps high on Mars! Tap a race marshal to start a race. Press Sneak to get out.',
+  saucer: 'Push forward to fly where you look! Jump goes up, Sneak goes down. Tap to switch the tractor beam on: it lifts the creature below you. Land, then Sneak to get out.',
 };
 /* host: where a guest's vehicle has got to */
 function applyVehState(v, s) {
-  const sp = clamp(s[5], -12, isPlane(v) ? 45 : 12);
+  const sp = clamp(s[5], -12, isPlane(v) ? 45 : 20);
   v.x = s[0]; v.y = s[1]; v.z = s[2]; v.yaw = s[3] % TAU; v.slope = clamp(s[4], -1, 1);
   if (isFlyer(v) || isPlane(v)) v.flying = s[6] === 1;
   if (isPlane(v)) { v.bank = clamp(+s[7] || 0, -1, 1); v.vy = clamp(+s[8] || 0, -60, 60); v.spd = Math.abs(sp); v.slope = clamp(s[4], -1, 1); }
@@ -357,9 +368,10 @@ function drawVehicle(game, e, dx, dy, dz, s) {
   if (isFlyer(e)) e.wing = clamp((e.wing || 0) + ((e.flying ? 1 : 0) - (e.wing || 0)) * 0.12, 0, 1);   // (the flying car's wings fold out in the air)
   const fold = (1 - (e.wing || 0)) * 1.35;   // (folded down along its sides)
   if (e.type === 'tank') { drawTank(e, _eb); return; }
-  drawModel(model, _eb, e.type === 'car' || e.type === 'golfcart' ? { wfl: [wr, st, 0], wfr: [wr, st, 0], wbl: [wr, 0, 0], wbr: [wr, 0, 0] }
+  drawModel(model, _eb, e.type === 'car' || e.type === 'golfcart' || e.type === 'buggy' ? { wfl: [wr, st, 0], wfr: [wr, st, 0], wbl: [wr, 0, 0], wbr: [wr, 0, 0] }
     : e.type === 'flycar' ? { wfl: [wr, 0, 0], wfr: [wr, 0, 0], wbl: [wr, 0, 0], wbr: [wr, 0, 0], lwing: [0, 0, -fold], rwing: [0, 0, fold] }
     : isPlane(e) ? { prop: [0, 0, e.prop || 0] }
-    : e.type === 'minecart' || e.type === 'broom' || e.type === 'rocket' ? null : boatPose(e));
+    : e.type === 'minecart' || e.type === 'broom' || e.type === 'rocket' || e.type === 'saucer' ? null : boatPose(e));
+  if (e.type === 'saucer') { drawSubGlass(_eb, Math.max(bright, 0.7), MODELS.saucer_glass); if (e.beamOn) drawSubGlass(_eb, 1, MODELS.saucer_beam); }   // (its glass dome, and its tractor beam)
   if (e.type === 'submarine') drawSubGlass(_eb, bright);
 }

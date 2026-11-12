@@ -40,6 +40,9 @@ const MOB_DEFS = {
   slimer: { model: 'slimer', w: 0.4, h: 1.1, hp: 20, speed: 2, ghost: true, special: true, unhurt: true, glow: true, xp: [0, 0], drops: [], sound: 'ghost' },
   sheetghost: { model: 'sheetghost', w: 0.35, h: 1.8, hp: 20, speed: 2, ghost: true, special: true, unhurt: true, glow: true, xp: [0, 0], drops: [], sound: 'ghost' },
   marshmallow: { model: 'marshmallow', w: 1.2, h: 5.6, hp: 200, speed: 1, ghost: true, special: true, unhurt: true, glow: true, xp: [0, 0], drops: [], sound: 'ghost' },
+  // the Mars world (see 12m-mars.js): friendly Martians, and the alien racers in their buggies
+  martian: { model: 'martian_0', w: 0.3, h: 1.3, hp: 20, speed: 1.6, martian: true, special: true, unhurt: true, xp: [0, 0], drops: [], sound: 'martian' },
+  racer: { model: 'martian_0', w: 0.6, h: 1.4, hp: 20, speed: 0, racer: true, special: true, unhurt: true, xp: [0, 0], drops: [], sound: 'martian' },
 };
 const MOB_TYPES = Object.keys(MOB_DEFS);
 let ENTITY_NID = 0;
@@ -491,6 +494,7 @@ function updateMob(game, e, dt) {
   }
   if (e.angryT > 0) e.angryT -= dt;
   if (e.fleeT > 0) e.fleeT -= dt;   // (chased off by a Patronus)
+  if (e.beamV && beamedMob(game, e, dt)) return;   // (held in a flying saucer's tractor beam)
   if (d.spirit) { updatePatronus(game, e, dt); return; }
   if (d.snitch) { updateSnitch(game, e, dt); return; }
   if (d.qplayer) { updateQPlayer(game, e, dt); return; }
@@ -498,6 +502,7 @@ function updateMob(game, e, dt) {
   if (d.lakemon) { updateLakemon(game, e, dt); return; }
   if (d.wisp) { updateWisp(game, e, dt); return; }
   if (d.ghost) { updateGhost(game, e, dt); return; }
+  if (d.racer) { updateRacer(game, e, dt); return; }
   if (d.ender) { enderTick(game, e, dt); if (e.removed || e.dead) return; }
   if (d.fish) { updateFish(game, e, d, dt); return; }
   if (d.swimmer) { updateSnork(game, e, d, dt); return; }
@@ -529,6 +534,9 @@ function updateMob(game, e, dt) {
     mx = st[0]; mz = st[1]; speed *= st[2];
   } else if (d.gnome) {
     const st = gnomeSteer(game, e, dt);
+    mx = st[0]; mz = st[1]; speed *= st[2];
+  } else if (d.martian) {
+    const st = martianSteer(game, e, dt);
     mx = st[0]; mz = st[1]; speed *= st[2];
   } else if (d.student) {
     const st = studentSteer(game, e, dt);
@@ -619,6 +627,7 @@ function spawnTick(game) {
   if (world.map === 'falls') fallsSpawnTick(game);
   if (world.map === 'ghost') { ghostSpawnTick(game); return; }   // (spooky, but no monsters)
   if (world.map === 'life') { lifeSpawnTick(game); return; }   // (a friendly city: no monsters)
+  if (world.map === 'marsworld') { marsSpawnTick(game); return; }   // (Martians, and nothing that bites)
   if (game.settings.animals) { fishSpawnTick(game); snorkSpawnTick(game); }
   const players = allPlayers(game).filter(p => p.alive && (p === game.player ? game.mode : p.mode) === 'survival');
   if (!players.length || difficulty() === 0) return;
@@ -690,6 +699,11 @@ function mobPose(e, t) {
   if (e.type === 'villager') return { head, rleg: [a, 0, 0], lleg: [-a, 0, 0], rarmU: [-0.75, 0, 0], larmU: [-0.75, 0, 0] };
   if (e.type === 'snitch') { const f = Math.sin(e.walk) * 0.9; return { lwing: [0, 0, f], rwing: [0, 0, -f] }; }   // (its wings a blur)
   if (e.type === 'student') { const wv = e.waveT > 0 ? Math.sin(t * 12) * 0.35 : 0; return { head, rleg: [a, 0, 0], lleg: [-a, 0, 0], rarm: e.waveT > 0 ? [-2.7 + wv, 0, 0.25] : [-a * 0.8, 0, 0], larm: [a * 0.8, 0, 0] }; }
+  if (e.type === 'martian') {   // (the marshal holds his flag up, and waves it)
+    const wv = e.waveT > 0 ? Math.sin(t * 12) * 0.35 : 0, bob = Math.sin(t * 3 + e.nid) * 0.06;
+    return { head: [head[0] + bob, head[1], bob], rleg: [a, 0, 0], lleg: [-a, 0, 0], rarm: e.marshal !== undefined ? [-2.9 + wv * 1.6, 0, 0.2] : e.waveT > 0 ? [-2.7 + wv, 0, 0.25] : [-a * 0.8, 0, 0], larm: [a * 0.8, 0, 0] };
+  }
+  if (e.type === 'racer') return { head, rleg: [-1.4, 0.15, 0], lleg: [-1.4, -0.15, 0], rarm: [-1.1, 0.2, 0], larm: [-1.1, -0.2, 0] };   // sitting in its buggy
   if (e.type === 'gnome') return { head, rleg: [a, 0, 0], lleg: [-a, 0, 0], rarm: [-a * 0.9, 0, 0.1], larm: [a * 0.9, 0, -0.1] };
   if (e.type === 'lakemon') { const sw = Math.sin(t * 0.7) * 0.12; return { neck: [sw - 0.1, Math.sin(t * 0.4) * 0.25, 0], lfl: [0, 0, Math.sin(t * 2) * 0.4], rfl: [0, 0, -Math.sin(t * 2) * 0.4], tail: [0, Math.sin(t * 1.3) * 0.3, 0] }; }
   if (e.type === 'qplayer') return { head, rleg: [-0.55, 0.1, 0.12], lleg: [-0.55, -0.1, -0.12], rarm: e.hold ? [-2.4, 0, 0.2] : [-1.2, -0.15, 0], larm: [-1.2, 0.15, 0] };   // astride a broomstick (one arm up with the Quaffle)
@@ -738,7 +752,7 @@ function drawEntities(game, s, t, cam) {
     if (!boxInFrustum(R.planes, dx - bw, dy - low, dz - bw, dx + bw, dy + Math.max(2.2, e.h + 0.4), dz + bw)) continue;
     if (e.vehicle) { drawVehicle(game, e, dx, dy, dz, s); continue; }
     if (mobInvisible(e)) continue;
-    const def = MOB_DEFS[e.type], model = MODELS[e.type === 'villager' ? 'villager_' + (e.prof || 'farmer') : e.type === 'ghast' && e.firing > 0 ? 'ghast_fire' : e.type === 'snork' ? 'snork_' + (e.variant | 0) : e.type === 'student' || e.type === 'qplayer' ? 'student_' + ((e.variant | 0) % STUDENT_LOOKS) : def.model];
+    const def = MOB_DEFS[e.type], model = MODELS[e.type === 'villager' ? 'villager_' + (e.prof || 'farmer') : e.type === 'ghast' && e.firing > 0 ? 'ghast_fire' : e.type === 'snork' ? 'snork_' + (e.variant | 0) : e.type === 'martian' || e.type === 'racer' ? 'martian_' + ((e.variant | 0) & 3) : e.type === 'student' || e.type === 'qplayer' ? 'student_' + ((e.variant | 0) % STUDENT_LOOKS) : def.model];
     gl.uniform1f(P.u.uBright, Math.max(def.glow ? 1 : def.swimmer || def.lakemon ? 0.6 : def.robot ? 0.4 : 0, brightAt(world, e.x, e.y + e.h * 0.7, e.z, s)));   // (snorks stay bright and colourful deep in the sea)
     let tint = e.hurt > 0 || e.dead ? [0.8, 0.1, 0.1, 0.45] : e.frozen > 0 ? (e.stun > 0 ? [1, 0.95, 0.5, 0.2] : [0.6, 0.85, 1, 0.5]) : [0, 0, 0, 0];
     let sc = model.scale;
@@ -753,6 +767,7 @@ function drawEntities(game, s, t, cam) {
     M4.rotY(_eb, _eb, e.bodyYaw + Math.PI);
     if (e.dead) M4.rotZ(_eb, _eb, Math.min(1, e.dead / 0.4) * Math.PI / 2);
     if (e.type === 'ghast') M4.translate(_eb, _eb, 0, -2.25, 0);   // its tentacles hang below it
+    if (e.type === 'racer') M4.translate(_eb, _eb, 0, 0.3, 0.15);   // (up on the buggy's seat)
     if (e.carry || (e.type === 'golem' && e.rose > 0)) held.push(e);
     if (def.spirit) { M4.scale(_eb, _eb, sc, sc, sc); PATRONUS_Q.push({ m: Float32Array.from(_eb), pose: mobPose(e, t), a: clamp((e.life === undefined ? 1 : e.life), 0, 1) * 0.75 }); continue; }   // (drawn later, glowing)
     if (e.type === 'magma') {
@@ -763,9 +778,11 @@ function drawEntities(game, s, t, cam) {
     if (def.fish && e.pitch) M4.rotX(_eb, _eb, e.pitch);
     drawModel(model, _eb, mobPose(e, t), e.color);
     if (e.type === 'qplayer') drawMobBroom(e, dx, dy, dz);
+    if (e.type === 'racer') drawRacerBuggy(e, dx, dy, dz);
     if (e.type === 'robot') drawModel(MODELS.robot_light, _eb, mobPose(e, t), ROBOT_LIGHT[Math.max(0, ROBOT_MODES.indexOf(e.mode))]);   // (its antenna light shows what it is doing)
   }
   drawTraps(cam);   // (a ghost trap, open under a ghost)
+  drawRace(cam, t);   // (the pickup boxes over a race track)
   if ((game.view > 0 || CAMS.pass) && game.player.alive) drawPlayerModel(game, s, t, cam);   // (and on a security camera's monitor)
   if (MP.remotes.size) drawRemotePlayers(game, s, t, cam);
   entityBegin(texTiles);

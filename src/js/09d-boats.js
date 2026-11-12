@@ -3,7 +3,7 @@
 // with it. On land a boat only shuffles along. A submarine goes where you look when you push forward (up, down,
 // anywhere), and left and right turn it. Inside a submarine you never run out of air, its lamps light up the
 // water, and a tap sends out a sonar ping. Sneak gets out of either.
-const RIDE_KIND = { car: 'car', minecart: 'cart', boat: 'boat', submarine: 'sub', flycar: 'car', broom: 'broom', rocket: 'rocket', plane: 'car', jet: 'car', airliner: 'car', tank: 'car', golfcart: 'car' };
+const RIDE_KIND = { car: 'car', minecart: 'cart', boat: 'boat', submarine: 'sub', flycar: 'car', broom: 'broom', rocket: 'rocket', plane: 'car', jet: 'car', airliner: 'car', tank: 'car', golfcart: 'car', buggy: 'car', saucer: 'car' };
 const rideKind = v => v ? (typeof v === 'string' ? v : RIDE_KIND[v.type] || 'cart') : null;
 const inSubmarine = pl => !!(pl.riding && pl.riding.type === 'submarine');
 
@@ -116,13 +116,13 @@ function boatPose(e) {
 /* a submarine's glass dome is see-through, so it is drawn last of all, after the water (drawQueuedGlass), with
    whatever is behind it showing through */
 const SUB_GLASS = [];
-function drawSubGlass(m, bright) { SUB_GLASS.push({ m: Float32Array.from(m), bright }); }
+function drawSubGlass(m, bright, model) { SUB_GLASS.push({ m: Float32Array.from(m), bright, model: model || MODELS.sub_glass }); }   // (a flying saucer's dome too)
 function drawQueuedGlass() {
   if (!SUB_GLASS.length) return;
   const P = PROG.entity;
   entityBegin(texSkins);
   gl.enable(gl.CULL_FACE);
-  for (const g of SUB_GLASS) { gl.uniform1f(P.u.uBright, g.bright); drawModel(MODELS.sub_glass, g.m, null); }
+  for (const g of SUB_GLASS) { gl.uniform1f(P.u.uBright, g.bright); drawModel(g.model, g.m, null); }
   gl.disable(gl.CULL_FACE);
   SUB_GLASS.length = 0;
 }

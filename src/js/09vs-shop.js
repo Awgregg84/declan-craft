@@ -17,7 +17,7 @@ const SHOP_BUY = [
 const SHOP_SELL = [
   [B.COBBLE, 16, 1], [B.DIRT, 32, 1], [B.OAK_LOG, 8, 2], [B.WOOL, 4, 2], [I.COAL, 8, 2], [I.IRON_INGOT, 1, 3], [I.GOLD_INGOT, 1, 5],
   [I.DIAMOND, 1, 20], [I.EMERALD, 1, 5], [I.ROTTEN_FLESH, 8, 1], [I.GUNPOWDER, 2, 2], [I.COD, 4, 2], [B.PUMPKIN, 2, 2], [B.SUGAR_CANE, 8, 1],
-  [I.FEATHER, 4, 1], [I.STRING, 4, 1], [I.LEATHER, 2, 2], [B.MOON_CHEESE, 1, 10],
+  [I.FEATHER, 4, 1], [I.STRING, 4, 1], [I.LEATHER, 2, 2], [B.MOON_CHEESE, 1, 10], [I.MARS_CRYSTAL, 1, 8],
 ];
 const moneyOf = pl => countItem(pl, I.COIN) + 10 * countItem(pl, I.BILL);
 const money$ = n => '$' + n;

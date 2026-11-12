@@ -44,7 +44,7 @@ function wxTick(game, dt) {
   }
   WX.kindT -= dt;
   if (WX.kindT <= 0) { WX.kindT = 1; WX.kind = WX.snowAll ? 2 : game.gen.climateAt(w.map, game.seed, pl.x, pl.z); }
-  const here = WX.on && game.dim === 'over', k = WX.snap ? 1 : Math.min(1, dt * 0.3);
+  const here = WX.on && game.dim === 'over' && game.mapId !== 'marsworld', k = WX.snap ? 1 : Math.min(1, dt * 0.3);
   WX.snap = false;
   WX.dark += ((here ? (WX.thunder ? 1 : 0.75) : 0) - WX.dark) * k;
   WX.amt += ((here && WX.kind ? 1 : 0) - WX.amt) * k;
