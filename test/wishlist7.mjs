@@ -195,9 +195,10 @@ const want = process.argv.slice(2), on = k => !want.length || want.includes(k);
     check('fly along, and the sheep comes too', carry.held && carry.moved > spot[0] + 8 && carry.under < 4, carry);
     await sleep(800);
     await E(() => T.tap());
-    await sleep(5000);
+    await sleep(1500);
+    await waitFor(nid => { const e = game.entities.find(q => q.nid === nid); return e && e.onGround; }, 20000, sheep.nid);   // (it may land on a rock, and hop off it)
     const down = await E(a => { const v = game.player.riding, e = game.entities.find(q => q.nid === a.nid); return { on: v.beamOn, free: !e.beamV && !v.beam, hp: e.hp, dead: !!e.dead, ground: e.onGround, y: e.y - a.y }; }, { nid: sheep.nid, y: spot[1] });
-    check('tap again: the beam goes off and the sheep floats down, not hurt at all', !down.on && down.free && down.hp === sheep.hp && !down.dead && down.ground && Math.abs(down.y) < 1.5, down);
+    check('tap again: the beam goes off and the sheep floats down, not hurt at all', !down.on && down.free && down.hp === sheep.hp && !down.dead && down.ground && Math.abs(down.y) < 3, down);
     const seat = await E(() => { const v = game.player.riding, s = saucerSeat(v, 1), d = seatOf(v); return { below: v.y - s[1], drv: d[1] - v.y }; });
     check('a friend rides hanging in the beam under the saucer', seat.below > 2 && seat.drv > 0, seat);
     // land and get out
