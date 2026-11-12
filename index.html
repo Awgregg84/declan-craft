@@ -953,7 +953,7 @@ const B = {
   COAL_BLOCK: 46, TORCH: 47, TALL_GRASS: 48, DANDELION: 49, POPPY: 50, CORNFLOWER: 51, DEAD_BUSH: 52,
   OAK_SAPLING: 53, BIRCH_SAPLING: 54, SPRUCE_SAPLING: 55, BED: 56,
   DOOR: 57, EMERALD_ORE: 58, EMERALD_BLOCK: 59, BIRCH_DOOR: 60, SPRUCE_DOOR: 61, IRON_DOOR: 62, GLASS_DOOR: 63,
-  AIRLOCK: 119, GARAGE_DOOR: 120, GARAGE_OPEN: 121, STATION: 122, MARS_DUST: 123, MARS_ROCK: 124, CLOUD: 125, URANUS_ICE: 126, TRACK: 127, BOOST: 128,
+  AIRLOCK: 119, GARAGE_DOOR: 120, GARAGE_OPEN: 121, STATION: 122, MARS_DUST: 123, MARS_ROCK: 124, CLOUD: 125, URANUS_ICE: 126, TRACK: 127, BOOST: 128, AIR_MAKER: 129, METEORITE: 130,
   WOOL: 64, // 64..79
   NETHERRACK: 80, SOUL_SAND: 81, NETHER_QUARTZ_ORE: 82, QUARTZ_BLOCK: 83, NETHER_BRICKS: 84, NETHER_PORTAL: 85,
   MEGA_TNT: 86, ICE_TNT: 87, DIG_TNT: 88, PARTY_TNT: 89, CLUSTER_TNT: 90, DISPENSER: 91, LEVER: 92, BUTTON: 93, RAIL: 94,
@@ -980,7 +980,7 @@ const I = {
   JOURNAL: 424, PINE_CAP: 425, SWEATER: 426, // 426..430 sweaters, in SWEATERS order
   FEZ: 431, GOLF_CART: 432, PIZZA: 433,
   TALE: 434, // 434..441 story books of old tales, in TALES order
-  LASER: 442, COIN: 443, BILL: 444, TRAIN: 445, PROTON_PACK: 446, GHOST_TRAP: 447, GHOST_DETECTOR: 448, BUGGY: 449, SAUCER: 450, MARS_CRYSTAL: 451,
+  LASER: 442, COIN: 443, BILL: 444, TRAIN: 445, PROTON_PACK: 446, GHOST_TRAP: 447, GHOST_DETECTOR: 448, BUGGY: 449, SAUCER: 450, MARS_CRYSTAL: 451, ALIEN_EGG: 452, SANDBOARD: 453,
   POTION: 370, // 370..381 potions, 390..401 splash potions, in POTIONS order
   SPLASH: 390,
   ARMOR: 350, // 350..365 = material*4 + slot
@@ -1186,6 +1186,7 @@ const camBox = d => d < 16 ? [0.3, 0, 0.3, 0.7, 0.75, 0.7] : [[0.3, 0.5, 0, 0.7,
 defBlock(B.CAMERA, 'Security Camera', { tex: 'camera_item', solid: false, opaque: false, render: R_NONE, hardness: 0.5, sound: 'metal', plant: 'sign', ao: false, boxFn: camBox });
 defBlock(B.MONITOR, 'Camera Monitor', { tex: { top: 'monitor_top', bottom: 'monitor_side', side: 'monitor_side', front: 'monitor_front', back: 'monitor_back' }, hardness: 1.5, sound: 'metal', facing: true });
 SPECIAL[B.CAMERA] = SPECIAL[B.MONITOR] = 1;
+SPECIAL[B.AIR_MAKER] = 1;   // (kept track of in each chunk, so the air bubbles round them are quick to find: see 12mb-mars2.js)
 // dungeons (see 02b-gen3.js and 09y-dungeons.js): monster spawners (a little monster turns inside: data 0 zombie, 1 magma cube), old cracked stone bricks and iron bars
 defBlock(B.SPAWNER, 'Monster Spawner', { tex: 'spawner', opaque: false, hardness: 5, tool: 'pickaxe', tier: 1, sound: 'metal', drop: null, xp: [15, 43] });
 defBlock(B.CRACKED_BRICKS, 'Cracked Stone Bricks', { tex: 'cracked_bricks', hardness: 1.5, tool: 'pickaxe', tier: 1 });
@@ -1426,6 +1427,8 @@ shapeless(I.PIZZA, 2, [I.BREAD, I.CHEESE]);
 shaped(I.TRAIN, 1, ['F  ', 'MMM'], { F: B.FURNACE, M: I.MINECART });   // (an engine with a furnace, and two carriages)
 shaped(B.STATION, 2, ['YYY', 'SSS'], { Y: B.WOOL + 4, S: B.STONE_BRICKS });   // (a platform with a yellow edge)
 shaped(I.LASER, 1, ['IIG', 'IL ', 'I  '], { I: I.IRON_INGOT, G: B.GLASS, L: B.GLOWSTONE });   // (an iron blaster with a glass tip and a glowing heart)
+shaped(B.AIR_MAKER, 1, ['IGI', 'GCG', 'IGI'], { I: I.IRON_INGOT, G: B.GLASS, C: I.MARS_CRYSTAL });   // (iron and glass round a Mars Crystal)
+shaped(I.SANDBOARD, 1, ['PCP'], { P: 'planks', C: I.MARS_CRYSTAL });
 shaped(I.BROOM, 1, ['  S', ' S ', 'F  '], { S: I.STICK, F: I.FEATHER });
 shaped(I.ROCKET, 1, [' I ', 'IGI', 'IFI'], { I: I.IRON_INGOT, G: B.GLASS, F: B.FURNACE });   // (the furnace is the engine)
 shapeless(I.WAND, 1, [I.STICK, I.FEATHER, I.GOLD_INGOT]);   // (a phoenix feather inside)
@@ -1530,15 +1533,15 @@ const CREATIVE_LIST = [
   B.COAL_ORE, B.IRON_ORE, B.GOLD_ORE, B.DIAMOND_ORE, B.EMERALD_ORE, B.LAPIS_ORE, B.COAL_BLOCK, B.IRON_BLOCK, B.GOLD_BLOCK, B.DIAMOND_BLOCK, B.EMERALD_BLOCK, B.LAPIS_BLOCK,
   B.NETHERRACK, B.SOUL_SAND, B.NETHER_QUARTZ_ORE, B.QUARTZ_BLOCK, B.NETHER_BRICKS,
   B.GLOWSTONE, B.TORCH, B.JACK_O_LANTERN, B.PUMPKIN, B.TNT, B.MEGA_TNT, B.ICE_TNT, B.DIG_TNT, B.PARTY_TNT, B.CLUSTER_TNT,
-  B.CRAFTING_TABLE, B.FURNACE, B.CHEST, B.BOOKSHELF, B.ENCH_TABLE, B.BREWING_STAND, B.SIGN, B.BOARD, B.TV, B.MONITOR, B.CAMERA, B.BED, I.DOOR, I.BIRCH_DOOR, I.SPRUCE_DOOR, I.GLASS_DOOR, I.IRON_DOOR, I.AIRLOCK, B.GARAGE_DOOR, B.DISPENSER, B.LEVER, B.BUTTON, B.RAIL, I.MINECART, I.TRAIN, B.STATION, I.CAR, I.FLYING_CAR, I.BROOM, I.ROCKET, I.PLANE, I.JET, I.AIRLINER, ...TANK_COLORS.map((c, i) => I.TANK + i), I.GOLF_CART, I.BUGGY, I.SAUCER, I.SPACE_HELMET, I.BOAT, I.SUBMARINE,
+  B.CRAFTING_TABLE, B.FURNACE, B.CHEST, B.BOOKSHELF, B.ENCH_TABLE, B.BREWING_STAND, B.SIGN, B.BOARD, B.TV, B.MONITOR, B.CAMERA, B.BED, I.DOOR, I.BIRCH_DOOR, I.SPRUCE_DOOR, I.GLASS_DOOR, I.IRON_DOOR, I.AIRLOCK, B.GARAGE_DOOR, B.DISPENSER, B.LEVER, B.BUTTON, B.RAIL, I.MINECART, I.TRAIN, B.STATION, I.CAR, I.FLYING_CAR, I.BROOM, I.ROCKET, I.PLANE, I.JET, I.AIRLINER, ...TANK_COLORS.map((c, i) => I.TANK + i), I.GOLF_CART, I.BUGGY, I.SAUCER, I.SANDBOARD, I.SPACE_HELMET, I.BOAT, I.SUBMARINE,
   B.CACTUS, B.SUGAR_CANE, B.TALL_GRASS, B.DANDELION, B.POPPY, B.CORNFLOWER, B.DEAD_BUSH, B.OAK_SAPLING, B.BIRCH_SAPLING, B.SPRUCE_SAPLING,
-  B.WATER, B.LAVA, B.CORAL_RED, B.CORAL_YELLOW, B.CORAL_BLUE, B.MOON_DUST, B.MOON_ROCK, B.MOON_CHEESE, B.MARS_DUST, B.MARS_ROCK, B.CLOUD, B.URANUS_ICE, B.TRACK, B.BOOST, B.FLAG, B.SLATE, B.STAINED_GLASS, B.CANDLE, B.SORTING_HAT,
+  B.WATER, B.LAVA, B.CORAL_RED, B.CORAL_YELLOW, B.CORAL_BLUE, B.MOON_DUST, B.MOON_ROCK, B.MOON_CHEESE, B.MARS_DUST, B.MARS_ROCK, B.CLOUD, B.URANUS_ICE, B.TRACK, B.BOOST, B.AIR_MAKER, B.METEORITE, B.FLAG, B.SLATE, B.STAINED_GLASS, B.CANDLE, B.SORTING_HAT,
   ...TAGS.wool,
   toolId(0, 0), toolId(0, 1), toolId(0, 2), toolId(0, 3), toolId(1, 0), toolId(1, 1), toolId(1, 2), toolId(1, 3),
   toolId(2, 0), toolId(2, 1), toolId(2, 2), toolId(2, 3), toolId(3, 0), toolId(3, 1), toolId(3, 2), toolId(3, 3), I.FLINT_AND_STEEL,
   I.BOW, I.CROSSBOW, I.ARROW, I.FIRE_CHARGE, I.ENDER_PEARL, I.SHIELD, I.FISHING_ROD, I.WAND, I.LASER, I.PROTON_PACK, I.GHOST_TRAP, I.GHOST_DETECTOR,
   ...[0, 1, 2, 3].flatMap(m => [0, 1, 2, 3].map(k => armorId(m, k))),
-  I.STICK, I.COAL, I.IRON_INGOT, I.GOLD_INGOT, I.DIAMOND, I.EMERALD, I.MARS_CRYSTAL, I.COIN, I.BILL, I.LAPIS, I.FLINT, I.QUARTZ, I.NETHER_BRICK, I.GUNPOWDER, I.FEATHER, I.LEATHER, I.STRING, I.GHAST_TEAR,
+  I.STICK, I.COAL, I.IRON_INGOT, I.GOLD_INGOT, I.DIAMOND, I.EMERALD, I.MARS_CRYSTAL, I.ALIEN_EGG, I.COIN, I.BILL, I.LAPIS, I.FLINT, I.QUARTZ, I.NETHER_BRICK, I.GUNPOWDER, I.FEATHER, I.LEATHER, I.STRING, I.GHAST_TEAR,
   I.PAPER, I.BOOK, I.WRITABLE_BOOK, ...[0, 1, 2, 3, 4, 5, 6, 7].map(k => I.TALE + k), I.PLAN_BOOK, I.ROBOT, I.SUGAR, I.XP_BOTTLE, I.MAGMA_CREAM, I.GLASS_BOTTLE,
   ...POTIONS.map((pt, k) => potionId(k, false)), ...POTIONS.map((pt, k) => potionId(k, true)),
   I.APPLE, I.BREAD, I.PORKCHOP, I.COOKED_PORKCHOP, I.BEEF, I.STEAK, I.CHICKEN, I.COOKED_CHICKEN, I.ROTTEN_FLESH,
@@ -2501,7 +2504,7 @@ function genModule(B, P) {
     const bio = map === 'valley' ? getGen(map, seed).column(Math.floor(x), Math.floor(z)) >> 8 : map === 'sky' ? getGen(map, seed).biomeAt(Math.floor(x), Math.floor(z)) : PLAINS;
     return bio === DESERT ? 0 : bio === SNOWY || bio === PEAKS || bio === FROZEN ? 2 : 1;
   }
-  return { generateChunk, spawnPoint, computeLight, makeNoise, mulberry32, hash3, villagesTouching, storesTouching, findStore, planetLanding: GEN3.planetLanding, nearestRover: GEN3.nearestRover, findVillage, dungeonsTouching, findDungeon, dungeonHere, dungeonsNear, climateAt, hogwarts: GEN3.HW, falls: GEN3.FF, ghost: GEN3.GB, marsw: GEN3.MW, marsTracks: GEN3.marsTracks, trackNear: GEN3.trackNear, marsGround: (seed, x, z) => getGen('marsworld', seed).column(Math.floor(x), Math.floor(z)), life: GEN3.LC, ghostGround: (seed, x, z) => getGen('ghost', seed).column(Math.floor(x), Math.floor(z)), fallsGround: (seed, x, z) => getGen('falls', seed).column(Math.floor(x), Math.floor(z)) };
+  return { generateChunk, spawnPoint, computeLight, makeNoise, mulberry32, hash3, villagesTouching, storesTouching, findStore, planetLanding: GEN3.planetLanding, nearestRover: GEN3.nearestRover, findVillage, dungeonsTouching, findDungeon, dungeonHere, dungeonsNear, climateAt, hogwarts: GEN3.HW, falls: GEN3.FF, ghost: GEN3.GB, marsw: GEN3.MW, marsTouching: (seed, chunks) => GEN3.marsTouching(chunks), nearestRuin: GEN3.nearestRuin, marsTracks: GEN3.marsTracks, trackNear: GEN3.trackNear, marsGround: (seed, x, z) => getGen('marsworld', seed).column(Math.floor(x), Math.floor(z)), life: GEN3.LC, ghostGround: (seed, x, z) => getGen('ghost', seed).column(Math.floor(x), Math.floor(z)), fallsGround: (seed, x, z) => getGen('falls', seed).column(Math.floor(x), Math.floor(z)) };
 }
 
 /* ---- 02b-gen3.js ---- */
@@ -2576,8 +2579,9 @@ function genModule3(B, H) {
       if (town) { const T = MW.town, d = Math.hypot(x - T.x, z - T.z); if (d < T.r + 18) { const k = d <= T.r ? 1 : 1 - (d - T.r) / 18; h += (T.y - h) * k * k * (3 - 2 * k); } }   // (level ground for the base and the village)
       return Math.round(clamp(h, 8, WH - 24));
     }
-    function generate(cx, cz) {
+    function generate(cx, cz, vb) {
       const blocks = new Uint8Array(CVOL), x0 = cx * 16, z0 = cz * 16, r = mulberry32(hash3(seed ^ 0x3a5, cx, cz));
+      let data = null;
       for (let lz = 0; lz < 16; lz++) for (let lx = 0; lx < 16; lx++) {
         const h = column(x0 + lx, z0 + lz);
         for (let y = 0; y <= h; y++) blocks[idx(lx, y, lz)] = y === 0 || (y < 3 && r() < 0.6) ? B.BEDROCK : y > h - 3 ? B.MARS_DUST : (y % 7 === 3 ? B.MARS_DUST : B.MARS_ROCK);   // (layers in the canyon walls)
@@ -2601,8 +2605,16 @@ function genModule3(B, H) {
         for (let a = -2; a <= 0; a++) for (const b of [-1, 0, 1]) P(a, b, h + 3, B.LAPIS_BLOCK);
         P(2, 0, h + 3, B.IRON_BARS); P(2, 0, h + 4, B.IRON_BARS); P(2, 0, h + 5, B.GLASS);
       }
-      if (town) { const P = painter(blocks, cx, cz); paintMarsTown(P); for (const tr of marsTracks()) paintTrack(blocks, cx, cz, tr, column); }
-      return { blocks, spawns: [] };
+      if (town) {
+        const P = painter(blocks, cx, cz), skip = id => !!(vb && vb.has(id));
+        const setD = (x, y, z, id, dv) => { const lx = x - x0, lz = z - z0; if (lx >= 0 && lx < 16 && lz >= 0 && lz < 16 && y >= 1 && y < WH) { blocks[idx(lx, y, lz)] = id; if (!data) data = new Uint8Array(CVOL); data[idx(lx, y, lz)] = dv; } };
+        paintMarsTown(P);
+        if (!skip(MW.base.id)) paintMarsBase(P, setD);
+        if (!skip(MW.field.id)) paintMarsField(P);
+        for (const ru of MW.ruins) if (!skip(ru.id)) paintRuin(P, setD, ru, column);
+        for (const tr of marsTracks()) if (!skip(tr.id)) { if (tr.id) paintGarage(P, tr); paintTrack(blocks, cx, cz, tr, column); }
+      }
+      return { blocks, spawns: [], data };
     }
     function spawn() { return town ? MW.spawn.slice() : [0.5, column(0, 0) + 1, 0.5]; }
     return { generate, spawn, column };
@@ -2621,8 +2633,33 @@ function genModule3(B, H) {
       { name: 'Crater Run', laps: 3, y: 58, garage: [-4, -38],
         way: [[-10, -52], [-44, -56], [-72, -76], [-76, -112], [-52, -138], [-60, -170], [-30, -190], [4, -176], [0, -140], [24, -120], [30, -86], [14, -60]],
         boost: [0.08, 0.5, 0.8], boxes: [0.2, 0.46, 0.72], ramps: [[0.3, 3], [0.9, 2]], dips: [[0.55, 0.12, 4]], tunnels: [[0.38, 0.05]] },
+      // (the second Mars update. Things with an id are kept out of a world from before wherever something was built: see marsTouching)
+      { id: 'mtrack2', name: 'Dune Dash', laps: 3, y: 58, garage: [-42, 4],
+        way: [[-54, 14], [-54, 42], [-66, 64], [-92, 74], [-118, 62], [-128, 34], [-118, 6], [-96, -8], [-72, -12], [-58, -6]],
+        boost: [0.1, 0.45, 0.75], boxes: [0.22, 0.5, 0.8], ramps: [[0.3, 3], [0.62, 2]], dips: [[0.86, 0.08, 3]], tunnels: [[0.52, 0.05]] },
     ],
+    base: { id: 'mbase', x: 20, z: 36, r: 6 },   // your own dome, with an Air Maker inside
+    field: { id: 'mfield', x: -12, z: 40, hx: 12, hz: 6 },   // the bounce-ball field: a goal at each end (x - hx and x + hx)
+    ruins: [{ id: 'mruin0', x: 140, z: -30 }, { id: 'mruin1', x: -10, z: 100 }, { id: 'mruin2', x: -120, z: -70 }, { id: 'mruin3', x: 80, z: -120 }, { id: 'mruin4', x: 70, z: 120 }],
   };
+  /* (for a Mars world from before the second update) the new things whose ground overlaps any of the given chunks */
+  function marsTouching(chunks) {
+    const out = new Set(), hit = (x1, z1, x2, z2, cx, cz) => x2 >= cx * 16 && x1 <= cx * 16 + 15 && z2 >= cz * 16 && z1 <= cz * 16 + 15;
+    for (const [cx, cz] of chunks) {
+      const b = MW.base, f = MW.field;
+      if (hit(b.x - b.r - 1, b.z - b.r - 1, b.x + b.r + 1, b.z + b.r + 1, cx, cz)) out.add(b.id);
+      if (hit(f.x - f.hx - 2, f.z - f.hz - 2, f.x + f.hx + 2, f.z + f.hz + 2, cx, cz)) out.add(f.id);
+      for (const ru of MW.ruins) if (hit(ru.x - 9, ru.z - 9, ru.x + 9, ru.z + 9, cx, cz)) out.add(ru.id);
+      for (const tr of marsTracks()) if (tr.id && !out.has(tr.id) && (tr.pts.some(q => q[0] > cx * 16 - 11 && q[0] < cx * 16 + 27 && q[1] > cz * 16 - 11 && q[1] < cz * 16 + 27) || hit(tr.garage[0] - 6, tr.garage[1] - 5, tr.garage[0] + 6, tr.garage[1] + 5, cx, cz))) out.add(tr.id);
+    }
+    return Array.from(out);
+  }
+  /* the nearest ruins that are there: { id, x, z, k } */
+  function nearestRuin(x, z, blocked) {
+    let best = null, bd = 1e18;
+    MW.ruins.forEach((ru, k) => { const d = (ru.x - x) * (ru.x - x) + (ru.z - z) * (ru.z - z); if (d < bd && !(blocked && blocked.includes(ru.id))) { bd = d; best = { id: ru.id, x: ru.x, z: ru.z, k }; } });
+    return best;
+  }
   /* a track: its waypoints joined by a smooth closed curve and walked one block at a time. pts: [x, z, y] for each step;
      boost and tunnel: flags for each step; boxes: the steps where pickup boxes float */
   let _tracks = null;
@@ -2653,7 +2690,7 @@ function genModule3(B, H) {
       for (let k = 10; k <= 22; k++) pit[N - k] = 1;   // (the way in from the garage, just before the start line)
       let x0 = 1e9, z0 = 1e9, x1 = -1e9, z1 = -1e9;
       for (const q of pts) { x0 = Math.min(x0, q[0]); z0 = Math.min(z0, q[1]); x1 = Math.max(x1, q[0]); z1 = Math.max(z1, q[1]); }
-      return { i: ti, name: tr.name, laps: tr.laps, y: tr.y, garage: tr.garage, pts, N, boost, tunnel, pit, boxes: tr.boxes.map(at), bbox: [x0 - 11, z0 - 11, x1 + 11, z1 + 11] };
+      return { i: ti, id: tr.id || null, name: tr.name, laps: tr.laps, y: tr.y, garage: tr.garage, pts, N, boost, tunnel, pit, boxes: tr.boxes.map(at), bbox: [x0 - 11, z0 - 11, x1 + 11, z1 + 11] };
     });
     return _tracks;
   }
@@ -2721,8 +2758,12 @@ function genModule3(B, H) {
       P.set(dx, T.y, dz, B.GLOWSTONE);
       P.set(dx - Math.sign(ox || 1) * 2, Y, dz - Math.sign(oz || 1) * 2, B.WOOL + ((col + 3) % 16));   // (a little table)
     }
-    // a garage at each track: a roof on four posts, where the buggies wait
-    for (const tr of MW.tracks) {
+    // a garage at each of the first two tracks: a roof on four posts, where the buggies wait (a later track brings its own)
+    for (const tr of MW.tracks) if (!tr.id) paintGarage(P, tr);
+  }
+  function paintGarage(P, tr) {
+    const T = MW.town, Y = T.y + 1;
+    {
       const [gx, gz] = tr.garage;
       P.box(gx - 5, Y, gz - 4, gx + 5, Y + 4, gz + 4, B.AIR);
       for (const [dx, dz] of [[-4, -3], [4, -3], [-4, 3], [4, 3]]) P.box(gx + dx, Y, gz + dz, gx + dx, Y + 3, gz + dz, B.IRON_BLOCK);
@@ -2730,6 +2771,68 @@ function genModule3(B, H) {
       P.box(gx - 4, T.y, gz - 3, gx + 4, T.y, gz + 3, B.STONE_BRICKS);
       P.set(gx, Y + 3, gz, B.GLOWSTONE);
     }
+  }
+  /* your own base (the second Mars update): a glass dome with an Air Maker in the middle, so you can take your helmet
+     off inside; a chest of things to start a garden with, a crafting table and a furnace */
+  function paintMarsBase(P, setD) {
+    const b = MW.base, T = MW.town, Y = T.y + 1, R = b.r;
+    if (!P.near(b.x - R - 2, b.z - R - 2, b.x + R + 2, b.z + R + 2)) return;
+    for (let x = -R - 1; x <= R + 1; x++) for (let z = -R - 1; z <= R + 1; z++) {
+      const r = Math.hypot(x, z);
+      if (r <= R + 0.4) { P.box(b.x + x, T.y - 3, b.z + z, b.x + x, T.y - 1, b.z + z, B.MARS_ROCK); P.set(b.x + x, T.y, b.z + z, r > R - 0.6 ? B.QUARTZ_BLOCK : (x + z) & 1 ? B.OAK_PLANKS : B.BIRCH_PLANKS); }
+      for (let y = 0; y <= R + 1; y++) { const rr = Math.hypot(x, y, z); if (rr > R - 0.5 && rr <= R + 0.5) P.set(b.x + x, Y + y, b.z + z, B.GLASS); else if (rr <= R - 0.5) P.set(b.x + x, Y + y, b.z + z, B.AIR); }
+    }
+    for (let k = R - 1; k <= R + 1; k++) P.box(b.x - k, Y, b.z, b.x - k, Y + 1, b.z, B.AIR);   // the doorway, towards the landing pads
+    P.set(b.x, Y, b.z, B.AIR_MAKER);
+    P.set(b.x + 3, Y, b.z - 3, B.CRAFTING_TABLE); P.set(b.x + 4, Y, b.z - 2, B.FURNACE);
+    setD(b.x + 4, Y, b.z + 1, B.CHEST, 1 | 8 | 64);   // (64: a Mars chest; filled when first opened)
+    for (const [dx, dz] of [[0, 4], [0, -4], [4, 0]]) P.set(b.x + dx, T.y, b.z + dz, B.GLOWSTONE);
+    for (const [ox, oz] of [[0, 0], [0, 1]]) P.line(MW.rocket[0] + 3, MW.rocket[1] + 3 + oz, b.x - R - 1, b.z + oz, T.y, T.y, B.MARS_ROCK);   // (a path from the rocket's pad)
+  }
+  /* the bounce-ball field: green, with white lines, a low wall round it and a goal at each end */
+  function paintMarsField(P) {
+    const f = MW.field, T = MW.town, Y = T.y + 1;
+    if (!P.near(f.x - f.hx - 3, f.z - f.hz - 3, f.x + f.hx + 3, f.z + f.hz + 3)) return;
+    for (let x = -f.hx - 2; x <= f.hx + 2; x++) for (let z = -f.hz - 1; z <= f.hz + 1; z++) {
+      const ax = Math.abs(x), az = Math.abs(z), inside = ax <= f.hx && az <= f.hz, goal = ax > f.hx && az <= 2;
+      P.box(f.x + x, T.y - 3, f.z + z, f.x + x, T.y - 1, f.z + z, B.MARS_ROCK);
+      P.box(f.x + x, Y, f.z + z, f.x + x, Y + 9, f.z + z, B.AIR);
+      const line = inside && (ax === f.hx || az === f.hz || x === 0 || (Math.abs(Math.hypot(x, z) - 3) < 0.5));
+      P.set(f.x + x, T.y, f.z + z, inside || goal ? B.WOOL + (line ? 0 : 5) : B.QUARTZ_BLOCK);
+      if (!inside && !goal && ax <= f.hx + 1) P.set(f.x + x, Y, f.z + z, B.QUARTZ_BLOCK);   // the low wall
+      if (ax === f.hx + 2 && az <= 2) P.box(f.x + x, Y, f.z + z, f.x + x, Y + 2, f.z + z, B.IRON_BARS);   // the back of the goal
+      if (ax > f.hx && az === 3) P.box(f.x + x, Y, f.z + z, f.x + x, Y + 2, f.z + z, B.WOOL + (x < 0 ? 14 : 11));   // its posts: red at one end, blue at the other
+      if (ax > f.hx && az <= 3) P.set(f.x + x, Y + 3, f.z + z, B.WOOL + (x < 0 ? 14 : 11));   // and its top
+    }
+  }
+  /* ancient ruins out in the wilderness: broken pillars round a stone floor, an arch, a statue of a Martian's head, and a chest of treasure */
+  function paintRuin(P, setD, ru, column) {
+    if (!P.near(ru.x - 9, ru.z - 9, ru.x + 9, ru.z + 9)) return;
+    const h = column(ru.x, ru.z), Y = h + 1, r = mulberry32(hash3(0x7a15, ru.x, ru.z));
+    for (let x = -8; x <= 8; x++) for (let z = -8; z <= 8; z++) {
+      const d = Math.hypot(x, z), k = r();
+      if (d > 8.3) continue;
+      P.box(ru.x + x, h - 5, ru.z + z, ru.x + x, h - 1, ru.z + z, B.MARS_ROCK);
+      P.box(ru.x + x, Y, ru.z + z, ru.x + x, Y + 10, ru.z + z, B.AIR);
+      P.set(ru.x + x, h, ru.z + z, d > 7.3 ? B.MARS_ROCK : k < 0.2 ? B.MOSSY_COBBLE : k < 0.45 ? B.COBBLE : k < 0.52 ? B.MARS_DUST : B.STONE_BRICKS);
+    }
+    for (let k = 0; k < 8; k++) {   // a ring of pillars, some of them broken off
+      const a = (k / 8) * Math.PI * 2 + 0.39, px = ru.x + Math.round(Math.cos(a) * 6), pz = ru.z + Math.round(Math.sin(a) * 6), tall = 2 + ((r() * 4) | 0);
+      P.box(px, Y, pz, px, Y + tall, pz, B.QUARTZ_BLOCK);
+      if (tall >= 5) P.set(px, Y + tall + 1, pz, B.STONE_BRICKS);
+    }
+    P.box(ru.x - 2, Y, ru.z + 7, ru.x - 2, Y + 4, ru.z + 7, B.STONE_BRICKS); P.box(ru.x + 2, Y, ru.z + 7, ru.x + 2, Y + 4, ru.z + 7, B.STONE_BRICKS);   // the arch
+    P.box(ru.x - 2, Y + 5, ru.z + 7, ru.x + 2, Y + 5, ru.z + 7, B.STONE_BRICKS);
+    // the statue: a Martian's head on a pillar, with two dark eyes and two antennae
+    P.box(ru.x, Y, ru.z - 4, ru.x, Y + 1, ru.z - 4, B.STONE_BRICKS);
+    P.box(ru.x - 1, Y + 2, ru.z - 5, ru.x + 1, Y + 4, ru.z - 3, B.WOOL + 5);
+    P.set(ru.x - 1, Y + 3, ru.z - 3, B.WOOL + 15); P.set(ru.x + 1, Y + 3, ru.z - 3, B.WOOL + 15);
+    P.box(ru.x - 1, Y + 5, ru.z - 4, ru.x - 1, Y + 6, ru.z - 4, B.IRON_BARS); P.box(ru.x + 1, Y + 5, ru.z - 4, ru.x + 1, Y + 6, ru.z - 4, B.IRON_BARS);
+    P.set(ru.x - 1, Y + 7, ru.z - 4, B.WOOL + 4); P.set(ru.x + 1, Y + 7, ru.z - 4, B.WOOL + 4);
+    // the treasure, on a little dais with a lamp at each side
+    P.box(ru.x - 1, Y, ru.z - 1, ru.x + 1, Y, ru.z + 1, B.QUARTZ_BLOCK);
+    setD(ru.x, Y + 1, ru.z, B.CHEST, 0 | 8 | 64 | 16);   // (64 + 16: a Mars ruin's treasure)
+    P.set(ru.x - 1, Y + 1, ru.z, B.GLOWSTONE); P.set(ru.x + 1, Y + 1, ru.z, B.GLOWSTONE);
   }
   /* Jupiter: nobody can stand on a gas giant, so: floating islands of cloud, one in each 44-block square, over nothing */
   function isleAt(seed, gx, gz) {
@@ -3696,7 +3799,7 @@ function genModule3(B, H) {
     return { generate, spawn, column };
   }
 
-  return { MW, marsTracks, trackNear, moonGen, marsGen, jupiterGen, uranusGen, planetLanding, nearestRover, hogwartsGen, HW, fallsGen, FF, ghostGen, GB, lifeGen, LC, dungeonPlanner };
+  return { MW, marsTracks, trackNear, marsTouching, nearestRuin, moonGen, marsGen, jupiterGen, uranusGen, planetLanding, nearestRover, hogwartsGen, HW, fallsGen, FF, ghostGen, GB, lifeGen, LC, dungeonPlanner };
 }
 
 /* ---- 03-textures.js ---- */
@@ -6765,7 +6868,7 @@ class World {
       this.tiles.set(k, t);
       // a village chest that has never been opened: fill it now (and remember it has been). lootData: the chest's data as it is broken
       const d = lootData !== undefined ? lootData : this.getBlock(x, y, z) === B.CHEST ? this.getData(x, y, z) : 0;
-      if (create === 'chest' && !this.remote && (d & 8)) { fillChestLoot(t, (d >> 4) & 3); if (lootData === undefined) this.setBlock(x, y, z, B.CHEST, d & 7); }   // (d >> 4: a dungeon's treasure)
+      if (create === 'chest' && !this.remote && (d & 8)) { fillChestLoot(t, (d >> 4) & 7); if (lootData === undefined) this.setBlock(x, y, z, B.CHEST, d & 7); }   // (d >> 4: a dungeon's treasure)
     }
     return t || null;
   }
@@ -8172,8 +8275,35 @@ function buildBlockTiles7() {
     const d = Math.abs(x - 7.5) + ((y + 2) % 8), v = 46 + p.r() * 10;
     return d > 6.2 && d < 8.4 ? [255, 214, 60] : d >= 8.4 && d < 9.6 ? [255, 130, 30] : [v, v * 0.9, v * 1.25];
   }));
+  // (the second Mars update) the Air Maker: a metal box with a grille and a blue light, and a fan on top; a meteorite: dark rock with glowing cracks
+  addTile('air_maker', p => p.fill((x, y) => {
+    if (x === 0 || x === 15 || y === 0 || y === 15) return [96, 100, 110];
+    if (y >= 3 && y <= 9 && x >= 3 && x <= 12) return (y % 2) ? [40, 44, 52] : [150, 156, 168];
+    if (y >= 11 && y <= 12 && x >= 6 && x <= 9) return [120, 230, 255];
+    const v = 176 + p.r() * 12; return [v, v + 4, v + 12];
+  }));
+  addTile('air_maker_top', p => p.fill((x, y) => {
+    const dx = x - 7.5, dy = y - 7.5, d = Math.hypot(dx, dy), a = Math.atan2(dy, dx);
+    if (d > 7) { const v = 170 + p.r() * 12; return [v, v + 4, v + 12]; }
+    if (d < 1.5) return [200, 204, 214];
+    if (d > 6) return [70, 74, 84];
+    return (Math.floor((a + Math.PI) / (Math.PI / 3) + d * 0.25) % 2) ? [120, 220, 245] : [34, 38, 46];
+  }));
+  addTile('meteorite', p => { const f = vfield(p.r, 4); p.fill((x, y) => { const v = f(x, y); return Math.abs(v) < 0.09 ? [255, 170 + p.r() * 60, 40] : [52 + v * 22 + p.r() * 8, 44 + v * 18, 48 + v * 18]; }); });
 }
 function buildItemTiles7() {
+  // (the second Mars update) a Blip's egg; the sandboard; a puff of dust and a little heart
+  addTile('alien_egg', p => {
+    shadeMask(p, mask((x, y) => Math.hypot((x - 8) / 4.6, (y - 8.5) / 5.8) < 1), [C('#f4ecd2'), C('#fffbe8'), C('#c8b88a'), C('#4a4028')], true);
+    for (const [x, y, c] of [[6, 5, '#7ae0d0'], [9, 7, '#c08aff'], [7, 10, '#ffb84a'], [10, 11, '#7ae0d0'], [5, 8, '#ff8aa8']]) { p.px(x, y, C(c)); p.px(x + 1, y, C(c)); }
+  });
+  addTile('sandboard', p => {
+    shadeMask(p, mask(capsule([[3, 12.5], [13, 3.5]], 2.3)), [C('#e8a23a'), C('#ffd27a'), C('#a8681a'), C('#3a2206')], true);
+    for (let i = 0; i < 5; i++) p.px(6 + i, 10 - i, C('#f4f4f4'));
+    p.px(5, 10, C('#d8282a')); p.px(10, 5, C('#d8282a'));
+  });
+  addTile('mars_dust_p', p => p.fill((x, y) => { const d = Math.hypot(x - 7.5, y - 7.5); return d < 6 ? [214 + p.r() * 20, 120 + p.r() * 20, 76] : null; }));
+  addTile('heart_p', p => { const H = ['.RR.RR.', 'RRRRRRR', 'RRRRRRR', '.RRRRR.', '..RRR..', '...R...']; for (let y = 0; y < 6; y++) for (let x = 0; x < 7; x++) if (H[y][x] === 'R') { p.rect(1 + x * 2, 2 + y * 2, 2, 2, C(y < 2 && x === 1 ? '#ffb0c0' : '#ff4a6a')); } });
   // a Mars crystal: a spiky pink-orange gem
   addTile('mars_crystal', p => {
     shadeMask(p, mask(poly([[5, 14], [3.5, 8], [6, 3], [8, 7], [10.5, 1.5], [13, 8], [11.5, 14]])), [C('#ff7a5a'), C('#ffd0b8'), C('#c8402a'), C('#5a1408')], true);
@@ -8252,6 +8382,32 @@ function buildSkins7() {
   addSkin('saucer_beam', S => {   // the tractor beam: pale green light, wider further down
     for (const [v, w] of [[0, 2], [8, 3], [16, 4]]) paintBox(S, 0, v, w, 4, w, (f, x, y) => f === 'top' || f === 'bottom' ? null : [140, 255, 200, (x + y) % 3 === 0 ? 110 : 60]);
   });
+  // (the second Mars update) the Blip: a round little creature with one big eye, two feet, an antenna and a stubby tail; and its egg
+  ['#7ae0d0', '#ffb84a', '#c08aff', '#ff8aa8'].forEach((hex, k) => addSkin('blip_' + k, S => {
+    const c = C(hex), cD = mulc(c, 0.62), cL = mixc(c, C('#ffffff'), 0.45);
+    paintBox(S, 0, 0, 6, 5, 6, (f, x, y, fw, fh) => {
+      if (f === 'front') {
+        if (y >= 0 && y <= 2 && x >= 1 && x <= 4) return (x >= 2 && x <= 3 && y >= 1) ? C('#10101c') : (x === 2 && y === 0) ? C('#ffffff') : C('#f4f4f8');
+        if (y === 3 && x >= 2 && x <= 3) return cD;
+      }
+      return f === 'bottom' ? cL : f === 'top' ? S.jit(cL, 5) : y === fh - 1 ? cD : (x + y * 2) % 7 === 0 ? cL : S.jit(c, 6);
+    });
+    paintBox(S, 0, 12, 2, 2, 3, () => S.jit(cD, 5));   // a foot
+    paintBox(S, 12, 12, 1, 3, 1, () => cD);   // the antenna, and its glowing tip
+    paintBox(S, 18, 12, 2, 2, 2, () => S.jit(C('#ffe04a'), 10));
+    paintBox(S, 28, 12, 2, 2, 3, (f, x, y) => S.jit(y ? cD : c, 5));   // the tail
+  }));
+  addSkin('alienegg', S => {
+    const sp = ['#7ae0d0', '#c08aff', '#ffb84a', '#ff8aa8'];
+    paintBox(S, 0, 0, 4, 5, 4, (f, x, y) => (x * 7 + y * 5 + f.length) % 6 === 0 ? C(sp[(x + y) % 4]) : S.jit(C('#f4ecd2'), 5));
+    paintBox(S, 0, 10, 2, 1, 2, () => S.jit(C('#f4ecd2'), 5));
+  });
+  // the bounce ball: red, white and blue panels; and the sandboard
+  addSkin('marsball', S => paintBox(S, 0, 0, 10, 10, 10, (f, x, y) => { const k = (Math.floor(x / 3.4) + Math.floor(y / 3.4) + (f === 'top' || f === 'left' ? 1 : 0)) % 3; return S.jit([C('#e8483a'), C('#f4f4f4'), C('#3a7ae0')][k], 4); }));
+  addSkin('sandboard', S => {
+    paintBox(S, 0, 0, 4, 1, 14, (f, x, y) => f === 'top' ? (y === 3 || y === 10 ? C('#2a2a2a') : (x === 1 || x === 2) && y > 4 && y < 9 ? C('#f4f4f4') : S.jit(C('#e8a23a'), 6)) : S.jit(C('#a8681a'), 6));
+    paintBox(S, 0, 16, 2, 1, 2, () => S.jit(C('#d8282a'), 6));
+  });
   // a pickup box: bright stripes with a star on each side
   addSkin('itembox', S => {
     paintBox(S, 0, 0, 10, 10, 10, (f, x, y) => {
@@ -8284,6 +8440,16 @@ function buildModels7() {
   ]);
   defModel('saucer_glass', 'saucer_glass', 4 / 16, [{ name: 'dome', box: [-3, 3, -3, 6, 5, 6], uv: [0, 0] }]);
   defModel('saucer_beam', 'saucer_beam', 4 / 16, [{ name: 'beam', boxes: [[-1, -4, -1, 2, 4, 2, 0, 0], [-1.5, -8, -1.5, 3, 4, 3, 0, 8], [-2, -12, -2, 4, 4, 4, 0, 16]] }]);
+  [0, 1, 2, 3].forEach(k => defModel('blip_' + k, 'blip_' + k, 1 / 16, [
+    { name: 'rleg', box: [-3, 0, -1, 2, 2, 3], uv: [0, 12], pivot: [-2, 2, 0] },
+    { name: 'lleg', box: [1, 0, -1, 2, 2, 3], uv: [0, 12], pivot: [2, 2, 0] },
+    { name: 'body', box: [-3, 2, -3, 6, 5, 6], uv: [0, 0] },
+    { name: 'head', boxes: [[-0.5, 7, -0.5, 1, 3, 1, 12, 12], [-1, 10, -1, 2, 2, 2, 18, 12]], pivot: [0, 7, 0] },
+    { name: 'tail', box: [-1, 3, -6, 2, 2, 3], uv: [28, 12], pivot: [0, 4, -3] },
+  ]));
+  defModel('alienegg', 'alienegg', 1 / 16, [{ name: 'body', boxes: [[-2, 0, -2, 4, 5, 4, 0, 0], [-1, 5, -1, 2, 1, 2, 0, 10]], pivot: [0, 0, 0] }]);
+  defModel('marsball', 'marsball', 1 / 16, [{ name: 'ball', box: [-5, 1, -5, 10, 10, 10], uv: [0, 0], pivot: [0, 6, 0] }]);
+  defModel('sandboard', 'sandboard', 2 / 16, [{ name: 'body', boxes: [[-2, 0, -7, 4, 1, 14, 0, 0], [-1, 1, 6, 2, 1, 2, 0, 16]] }]);
   defModel('itembox', 'itembox', 1 / 16, [{ name: 'box', box: [-5, -5, -5, 10, 10, 10], uv: [0, 0] }]);
 }
 
@@ -8672,6 +8838,9 @@ const MOB_DEFS = {
   // the Mars world (see 12m-mars.js): friendly Martians, and the alien racers in their buggies
   martian: { model: 'martian_0', w: 0.3, h: 1.3, hp: 20, speed: 1.6, martian: true, special: true, unhurt: true, xp: [0, 0], drops: [], sound: 'martian' },
   racer: { model: 'martian_0', w: 0.6, h: 1.4, hp: 20, speed: 0, racer: true, special: true, unhurt: true, xp: [0, 0], drops: [], sound: 'martian' },
+  // more Mars (see 12mb-mars2.js): the alien pet (an egg at first), and the bounce ball
+  blip: { model: 'blip_0', w: 0.3, h: 0.6, hp: 10, speed: 2.6, blip: true, special: true, unhurt: true, xp: [0, 0], drops: [], sound: 'blip' },
+  marsball: { model: 'marsball', w: 0.4, h: 0.8, hp: 10, speed: 0, marsball: true, special: true, unhurt: true, xp: [0, 0], drops: [], sound: 'ball' },
 };
 const MOB_TYPES = Object.keys(MOB_DEFS);
 let ENTITY_NID = 0;
@@ -8814,7 +8983,8 @@ function blockDrops(id, held, st) {
   if (d.tier > 0 && (!tool || tool.kind !== d.tool || tool.tier < d.tier)) return [];
   if (st && enchLvl(st, 'silk_touch') && id !== B.BEDROCK && !LIQUID[id] && d.creative !== false && d.hardness >= 0) return [[id, 1]];   // the block itself
   if (d.drop === null) return [];
-  if (id === B.GOLD_ORE) return [[id, 1], [I.COIN, randInt(1, 3)]];   // (a little money in it too)
+  if (id === B.GOLD_ORE) return [[id, 1], [I.COIN, randInt(1, 3)]];
+  if (id === B.METEORITE) return [[I.MARS_CRYSTAL, randInt(1, 2)], [Math.random() < 0.5 ? I.IRON_INGOT : I.GOLD_INGOT, randInt(1, 2)]];   // (a present from the stars)   // (a little money in it too)
   const fortune = st ? enchLvl(st, 'fortune') : 0, base = id === B.LAPIS_ORE ? randInt(4, 8) : 1;
   if (d.xp) return [[d.drop, base * Math.max(1, randInt(0, fortune + 1))]];   // ores: more with Fortune
   if (d.drop === 'leaves') {
@@ -8878,7 +9048,8 @@ function hurtMob(game, e, dmg, fx, fz, cause, by, o) {
   if (e.dead || e.removed) return;
   const d = MOB_DEFS[e.type];
   if (e.proxy) { MP.sendHit(e, dmg, fx, fz, o); e.hurt = d.unhurt ? 0 : 0.45; sfx(d.sound + 'Hurt', e.x, e.y + 0.5, e.z); return; }
-  if (d.robot) { if (cause === 'player') robotHit(game, e, by || myPid()); return; }   // (nothing hurts a robot: hit by its owner, it goes back in the bag)
+  if (d.robot) { if (cause === 'player') robotHit(game, e, by || myPid()); return; }
+  if (d.marsball) { ballKick(game, e, fx, fz, 11, 6.5); return; }   // (a punch sends the ball flying)   // (nothing hurts a robot: hit by its owner, it goes back in the bag)
   e.hurt = 0.45;
   let dx = e.x - fx, dz = e.z - fz;
   const l = Math.hypot(dx, dz) || 1, kb = 1 + ((o && o.kb) || 0);
@@ -9132,6 +9303,7 @@ function updateMob(game, e, dt) {
   if (d.wisp) { updateWisp(game, e, dt); return; }
   if (d.ghost) { updateGhost(game, e, dt); return; }
   if (d.racer) { updateRacer(game, e, dt); return; }
+  if (d.marsball) { updateBall(game, e, dt); return; }
   if (d.ender) { enderTick(game, e, dt); if (e.removed || e.dead) return; }
   if (d.fish) { updateFish(game, e, d, dt); return; }
   if (d.swimmer) { updateSnork(game, e, d, dt); return; }
@@ -9163,6 +9335,9 @@ function updateMob(game, e, dt) {
     mx = st[0]; mz = st[1]; speed *= st[2];
   } else if (d.gnome) {
     const st = gnomeSteer(game, e, dt);
+    mx = st[0]; mz = st[1]; speed *= st[2];
+  } else if (d.blip) {
+    const st = petSteer(game, e, dt);
     mx = st[0]; mz = st[1]; speed *= st[2];
   } else if (d.martian) {
     const st = martianSteer(game, e, dt);
@@ -9332,6 +9507,11 @@ function mobPose(e, t) {
     const wv = e.waveT > 0 ? Math.sin(t * 12) * 0.35 : 0, bob = Math.sin(t * 3 + e.nid) * 0.06;
     return { head: [head[0] + bob, head[1], bob], rleg: [a, 0, 0], lleg: [-a, 0, 0], rarm: e.marshal !== undefined ? [-2.9 + wv * 1.6, 0, 0.2] : e.waveT > 0 ? [-2.7 + wv, 0, 0.25] : [-a * 0.8, 0, 0], larm: [a * 0.8, 0, 0] };
   }
+  if (e.type === 'blip') {   // an egg wobbles; a Blip waddles, wags its tail and bounces when it is happy
+    if (!e.stage) return { body: [Math.sin(t * 9 + e.nid) * 0.12, 0, Math.sin(t * 7) * 0.12] };
+    return { head: [Math.sin(t * 4 + e.nid) * 0.25, 0, Math.sin(t * 3) * 0.2], rleg: [a, 0, 0], lleg: [-a, 0, 0], tail: [0, Math.sin(t * (e.happy > 0 ? 18 : 6)) * 0.5, 0] };
+  }
+  if (e.type === 'marsball') return { ball: [-e.walk, 0, 0] };   // (rolling)
   if (e.type === 'racer') return { head, rleg: [-1.4, 0.15, 0], lleg: [-1.4, -0.15, 0], rarm: [-1.1, 0.2, 0], larm: [-1.1, -0.2, 0] };   // sitting in its buggy
   if (e.type === 'gnome') return { head, rleg: [a, 0, 0], lleg: [-a, 0, 0], rarm: [-a * 0.9, 0, 0.1], larm: [a * 0.9, 0, -0.1] };
   if (e.type === 'lakemon') { const sw = Math.sin(t * 0.7) * 0.12; return { neck: [sw - 0.1, Math.sin(t * 0.4) * 0.25, 0], lfl: [0, 0, Math.sin(t * 2) * 0.4], rfl: [0, 0, -Math.sin(t * 2) * 0.4], tail: [0, Math.sin(t * 1.3) * 0.3, 0] }; }
@@ -9381,10 +9561,11 @@ function drawEntities(game, s, t, cam) {
     if (!boxInFrustum(R.planes, dx - bw, dy - low, dz - bw, dx + bw, dy + Math.max(2.2, e.h + 0.4), dz + bw)) continue;
     if (e.vehicle) { drawVehicle(game, e, dx, dy, dz, s); continue; }
     if (mobInvisible(e)) continue;
-    const def = MOB_DEFS[e.type], model = MODELS[e.type === 'villager' ? 'villager_' + (e.prof || 'farmer') : e.type === 'ghast' && e.firing > 0 ? 'ghast_fire' : e.type === 'snork' ? 'snork_' + (e.variant | 0) : e.type === 'martian' || e.type === 'racer' ? 'martian_' + ((e.variant | 0) & 3) : e.type === 'student' || e.type === 'qplayer' ? 'student_' + ((e.variant | 0) % STUDENT_LOOKS) : def.model];
+    const def = MOB_DEFS[e.type], model = MODELS[e.type === 'villager' ? 'villager_' + (e.prof || 'farmer') : e.type === 'ghast' && e.firing > 0 ? 'ghast_fire' : e.type === 'snork' ? 'snork_' + (e.variant | 0) : e.type === 'martian' || e.type === 'racer' ? 'martian_' + ((e.variant | 0) & 3) : e.type === 'blip' ? (e.stage ? 'blip_' + ((e.variant | 0) & 3) : 'alienegg') : e.type === 'student' || e.type === 'qplayer' ? 'student_' + ((e.variant | 0) % STUDENT_LOOKS) : def.model];
     gl.uniform1f(P.u.uBright, Math.max(def.glow ? 1 : def.swimmer || def.lakemon ? 0.6 : def.robot ? 0.4 : 0, brightAt(world, e.x, e.y + e.h * 0.7, e.z, s)));   // (snorks stay bright and colourful deep in the sea)
     let tint = e.hurt > 0 || e.dead ? [0.8, 0.1, 0.1, 0.45] : e.frozen > 0 ? (e.stun > 0 ? [1, 0.95, 0.5, 0.2] : [0.6, 0.85, 1, 0.5]) : [0, 0, 0, 0];
     let sc = model.scale;
+    if (e.type === 'blip' && e.stage === 1) sc *= 0.62;   // (a baby)
     if (e.type === 'creeper' && e.fuse > 0) {
       const f = e.fuse / 1.5;
       if (Math.floor(e.fuse * 8) % 2 === 0) tint = [1, 1, 1, 0.55 * f];
@@ -10001,6 +10182,7 @@ const VEHICLES = {
   train: { w: 1.1, h: 2.8, item: I.TRAIN, hits: 6, code: -18, wheel: 0.2 },   // (see 09ct-trains.js)
   buggy: { w: 0.8, h: 1.2, item: I.BUGGY, hits: 4, code: -19, wheel: 0.25 },   // (a rover buggy, for racing on Mars: see 12m-mars.js)
   saucer: { w: 1.1, h: 1.2, item: I.SAUCER, hits: 5, code: -20, wheel: 1 },   // (a flying saucer with a tractor beam)
+  sandboard: { w: 0.4, h: 0.3, item: I.SANDBOARD, hits: 2, code: -21, wheel: 1, wood: true },   // (see 12mb-mars2.js)
 };
 const VEHICLE_TYPES = Object.keys(VEHICLES);
 const isVehicleType = t => typeof t === 'string' && Object.prototype.hasOwnProperty.call(VEHICLES, t);   // (not "constructor" and the like)
@@ -10020,7 +10202,8 @@ function seatOf(v) {
   if (v.type === 'train') return trainSeat(v, 0);   // (in the engine's cab)
   if (v.type === 'tank') return [v.x, v.y + 0.2, v.z];   // (in the hatch on top, head and shoulders out)
   if (v.type === 'broom') return [v.x, v.y + 0.05, v.z];
-  if (v.type === 'saucer') return [v.x, v.y + 0.3, v.z];   // (under the glass dome)
+  if (v.type === 'saucer') return [v.x, v.y + 0.3, v.z];
+  if (v.type === 'sandboard') return [v.x, v.y + 0.13, v.z];   // (standing on it)   // (under the glass dome)
   if (v.type === 'buggy') return [v.x + Math.sin(v.yaw) * 0.1, v.y + 0.1, v.z + Math.cos(v.yaw) * 0.1];
   if (v.type === 'rocket') return [v.x, v.y + 0.6, v.z];   // (inside, looking out of the window)
   if (v.type === 'boat') return [v.x, v.y - 0.64, v.z];
@@ -10042,7 +10225,7 @@ function updateVehicle(game, e, dt) {
   if (e.boostT > 0) e.boostT -= dt;   // (a race's boost pad or turbo, and a dust cloud's slow-down: see 12m-mars.js)
   if (e.slowT > 0) e.slowT -= dt;
   const steps = Math.max(1, Math.ceil(Math.hypot(e.vx, e.vy, e.vz) * dt / 0.3));
-  const step = e.type === 'train' ? trainStep : e.type === 'car' || e.type === 'golfcart' || e.type === 'buggy' ? carStep : e.type === 'tank' ? tankStep : e.type === 'boat' ? boatStep : e.type === 'submarine' ? subStep : isFlyer(e) ? flyStep : isPlane(e) ? planeStep : e.type === 'rocket' ? rocketStep : cartStep;
+  const step = e.type === 'sandboard' ? boardStep : e.type === 'train' ? trainStep : e.type === 'car' || e.type === 'golfcart' || e.type === 'buggy' ? carStep : e.type === 'tank' ? tankStep : e.type === 'boat' ? boatStep : e.type === 'submarine' ? subStep : isFlyer(e) ? flyStep : isPlane(e) ? planeStep : e.type === 'rocket' ? rocketStep : cartStep;
   for (let i = 0; i < steps; i++) step(game, e, dt / steps);
   if (e.y < -40) { e.removed = true; return; }
   if (e.type === 'train') trainTrail(e);
@@ -10063,7 +10246,7 @@ function updateVehicle(game, e, dt) {
 function sitRider(pl, v) {
   const [x, y, z] = seatOf(v);
   pl.x = x; pl.y = y; pl.z = z; pl.vx = v.vx; pl.vz = v.vz; pl.vy = 0; pl.fallDist = 0; pl.onGround = true;
-  if (v.type === 'car' || v.type === 'golfcart' || v.type === 'buggy' || v.type === 'boat') {   // the view turns with the car or boat
+  if (v.type === 'car' || v.type === 'golfcart' || v.type === 'buggy' || v.type === 'sandboard' || v.type === 'boat') {   // the view turns with the car or boat
     const d = ((v.yaw - (v.lastYaw === undefined ? v.yaw : v.lastYaw) + Math.PI) % TAU + TAU) % TAU - Math.PI;
     pl.yaw += d;
     pl.bodyYaw = v.yaw;
@@ -10197,6 +10380,7 @@ const RIDE_TIPS = {
   train: 'Push forward to set off: the train keeps going by itself. Pull back to stop (and again to back up). Tap for the horn! It stops at stations. Press Sneak to get out.',
   buggy: 'Drive with the joystick (or W A S D). It is fast, and jumps high on Mars! Tap a race marshal to start a race. Press Sneak to get out.',
   saucer: 'Push forward to fly where you look! Jump goes up, Sneak goes down. Tap to switch the tractor beam on: it lifts the creature below you. Land, then Sneak to get out.',
+  sandboard: 'Push forward to kick off, then slide! Every drop down a dune makes you faster. Left and right steer, pull back to slow down. Press Sneak to get off.',
 };
 /* host: where a guest's vehicle has got to */
 function applyVehState(v, s) {
@@ -10296,7 +10480,7 @@ function drawVehicle(game, e, dx, dy, dz, s) {
   drawModel(model, _eb, e.type === 'car' || e.type === 'golfcart' || e.type === 'buggy' ? { wfl: [wr, st, 0], wfr: [wr, st, 0], wbl: [wr, 0, 0], wbr: [wr, 0, 0] }
     : e.type === 'flycar' ? { wfl: [wr, 0, 0], wfr: [wr, 0, 0], wbl: [wr, 0, 0], wbr: [wr, 0, 0], lwing: [0, 0, -fold], rwing: [0, 0, fold] }
     : isPlane(e) ? { prop: [0, 0, e.prop || 0] }
-    : e.type === 'minecart' || e.type === 'broom' || e.type === 'rocket' || e.type === 'saucer' ? null : boatPose(e));
+    : e.type === 'minecart' || e.type === 'broom' || e.type === 'rocket' || e.type === 'saucer' || e.type === 'sandboard' ? null : boatPose(e));
   if (e.type === 'saucer') { drawSubGlass(_eb, Math.max(bright, 0.7), MODELS.saucer_glass); if (e.beamOn) drawSubGlass(_eb, 1, MODELS.saucer_beam); }   // (its glass dome, and its tractor beam)
   if (e.type === 'submarine') drawSubGlass(_eb, bright);
 }
@@ -10475,7 +10659,7 @@ function drawTrain(game, e, dx, dy, dz, s) {
 // with it. On land a boat only shuffles along. A submarine goes where you look when you push forward (up, down,
 // anywhere), and left and right turn it. Inside a submarine you never run out of air, its lamps light up the
 // water, and a tap sends out a sonar ping. Sneak gets out of either.
-const RIDE_KIND = { car: 'car', minecart: 'cart', boat: 'boat', submarine: 'sub', flycar: 'car', broom: 'broom', rocket: 'rocket', plane: 'car', jet: 'car', airliner: 'car', tank: 'car', golfcart: 'car', buggy: 'car', saucer: 'car' };
+const RIDE_KIND = { car: 'car', minecart: 'cart', boat: 'boat', submarine: 'sub', flycar: 'car', broom: 'broom', rocket: 'rocket', plane: 'car', jet: 'car', airliner: 'car', tank: 'car', golfcart: 'car', buggy: 'car', saucer: 'car', sandboard: 'board' };
 const rideKind = v => v ? (typeof v === 'string' ? v : RIDE_KIND[v.type] || 'cart') : null;
 const inSubmarine = pl => !!(pl.riding && pl.riding.type === 'submarine');
 
@@ -11944,7 +12128,7 @@ const wearsSpaceHelmet = p => !!(p.inv && p.inv[ARMOR_INV] && p.inv[ARMOR_INV].i
 const inRocket = p => !!(p.riding && p.riding.type === 'rocket');
 /* can this player breathe where they are? (on the Moon: only in a space helmet, or inside the rocket) */
 const noAir = () => isSpace(game.dim) || (game.mapId === 'marsworld' && game.dim === 'over');   // (the Mars world is on Mars too)
-const canBreatheHere = p => !noAir() || wearsSpaceHelmet(p) || inRocket(p);
+const canBreatheHere = p => !noAir() || wearsSpaceHelmet(p) || inRocket(p) || inAirBubble(p);   // (an Air Maker's bubble, or a Martian's dome)
 
 /* tap inside a rocket: the countdown starts (and everyone playing together is told) */
 function rocketLaunch(game, pl, v) {
@@ -12061,6 +12245,8 @@ defBlock(B.URANUS_ICE, 'Uranus Ice', { tex: 'uranus_ice', hardness: 0.6, tool: '
 // the Mars world's race tracks, its vehicles and a present from a Martian (see 12m-mars.js)
 defBlock(B.TRACK, 'Race Track', { tex: 'track', hardness: 1.5, tool: 'pickaxe', tier: 1 });
 defBlock(B.BOOST, 'Boost Pad', { tex: { top: 'boost', bottom: 'track', side: 'track' }, hardness: 1.5, tool: 'pickaxe', tier: 1, emit: 10 });
+defBlock(B.AIR_MAKER, 'Air Maker', { tex: { top: 'air_maker_top', bottom: 'air_maker', side: 'air_maker' }, hardness: 2, tool: 'pickaxe', emit: 9, sound: 'metal' });   // (see 12mb-mars2.js)
+defBlock(B.METEORITE, 'Meteorite', { tex: 'meteorite', hardness: 1.5, tool: 'pickaxe', emit: 7 });
 defItem(I.MARS_CRYSTAL, 'Mars Crystal', { tex: 'mars_crystal' });
 defItem(I.BUGGY, 'Rover Buggy', { tex: 'buggy', stack: 1 });
 defItem(I.SAUCER, 'Flying Saucer', { tex: 'saucer', stack: 1 });
@@ -14844,7 +15030,7 @@ function showLaserColor(pl, say) {
 // a pickaxe to stop it. The chests are full of treasure, the best in the Treasure Vault.
 
 /* a chest that has never been opened is filled when it first is: a village's, or a dungeon's (tier 1-3: better and better) */
-function fillChestLoot(t, tier) { if (tier) fillDungeonChest(t, tier); else fillVillageChest(t); }
+function fillChestLoot(t, tier) { if (tier & 4) fillMarsChest(t, tier & 3); else if (tier) fillDungeonChest(t, tier); else fillVillageChest(t); }   // (4 and up: a chest on Mars)
 function fillDungeonChest(t, tier) {
   const put = (id, n, ex) => { if (n <= 0) return; const free = []; for (let i = 0; i < t.slots.length; i++) if (!t.slots[i]) free.push(i); if (!free.length) return; t.slots[free[randInt(0, free.length - 1)]] = Object.assign({ id, count: n }, ex || {}); };
   const chance = p => Math.random() < p;
@@ -15132,21 +15318,22 @@ function robotTake(game, e, it, own) {
 
 /* ---- keeping robots with the world, and taking them along to another world ---- */
 function saveRobots(game) {
-  return game.entities.filter(e => e.type === 'robot' && !e.removed && !e.proxy).map(e => ({ x: r2(e.x), y: r2(e.y), z: r2(e.z), yaw: r2(e.yaw), o: e.owner, c: e.variant | 0, m: e.mode }));
+  return game.entities.filter(e => (e.type === 'robot' || e.type === 'blip') && !e.removed && !e.proxy).map(e => e.type === 'blip' ? petSave(e) : ({ x: r2(e.x), y: r2(e.y), z: r2(e.z), yaw: r2(e.yaw), o: e.owner, c: e.variant | 0, m: e.mode }));   // (and alien pets: see 12mb-mars2.js)
 }
 function loadRobots(game, list) {
   if (!Array.isArray(list)) return;
-  for (const r of list.slice(0, 64)) if (r && [r.x, r.y, r.z].every(n => typeof n === 'number' && isFinite(n))) makeRobot(game, r.x, r.y, r.z, String(r.o || '').slice(0, 16), r.c, r.m, +r.yaw || 0);
+  for (const r of list.slice(0, 64)) if (r && [r.x, r.y, r.z].every(n => typeof n === 'number' && isFinite(n))) { if (r.k === 'pet') makePet(game, r.x, r.y, r.z, String(r.o || '').slice(0, 16), r); else makeRobot(game, r.x, r.y, r.z, String(r.o || '').slice(0, 16), r.c, r.m, +r.yaw || 0); }
 }
 /* the robots that come along when you go to another world (those following someone who is going) */
 function takeRobots(game) {
   const out = [];
   for (const e of game.entities) if (e.type === 'robot' && !e.removed && !e.proxy && e.mode !== 'stay' && robotOwner(game, e)) { out.push({ o: e.owner, c: e.variant | 0, m: e.mode }); e.removed = true; }
+  for (const e of game.entities) if (e.type === 'blip' && !e.removed && !e.proxy && e.stage > 0 && !e.sit && robotOwner(game, e)) { out.push(petSave(e)); e.removed = true; }
   return out;
 }
 function bringRobots(game, list) {
   const pl = game.player;
-  for (const r of list || []) { const a = Math.random() * TAU; makeRobot(game, pl.x + Math.cos(a) * 1.5, pl.y + 0.2, pl.z + Math.sin(a) * 1.5, r.o, r.c, r.m, pl.yaw + Math.PI); }
+  for (const r of list || []) { const a = Math.random() * TAU; if (r.k === 'pet') makePet(game, pl.x + Math.cos(a) * 1.5, pl.y + 0.2, pl.z + Math.sin(a) * 1.5, r.o, r); else makeRobot(game, pl.x + Math.cos(a) * 1.5, pl.y + 0.2, pl.z + Math.sin(a) * 1.5, r.o, r.c, r.m, pl.yaw + Math.PI); }
 }
 
 /* ---- 10-player.js ---- */
@@ -15481,6 +15668,12 @@ class Player {
       inp.use = false; inp.usePressed = false;
       return;
     }
+    // tap your alien pet: feed it, or tell it to sit or follow
+    if (inp.use && inp.usePressed && tEnt && tEnt.type === 'blip' && this.useCd <= 0 && !tEnt.dead) {
+      this.swing(); petTap(game, this, tEnt, hid, creative); this.useCd = 0.4;
+      inp.use = false; inp.usePressed = false;
+      return;
+    }
     // tap a Martian: a present for something from Earth (the race marshal starts a race)
     if (inp.use && inp.usePressed && tEnt && tEnt.type === 'martian' && this.useCd <= 0 && !tEnt.dead) {
       this.swing(); martianTap(game, this, tEnt, hid, creative); this.useCd = 0.4;
@@ -15711,6 +15904,14 @@ class Player {
       if (!creative) this.damageTool(1);
       return true;
     }
+    if (hid === I.ALIEN_EGG && t.face === 2) {   // set a Blip's egg down (on top of a block): it hatches after a little while
+      const rx = t.x + 0.5, ry = t.y + 1, rz = t.z + 0.5;
+      if (!boxFree(world, rx, ry, rz, 0.3, 0.6)) return false;
+      placeEgg(game, this, rx, ry, rz);
+      this.swing();
+      if (!creative) this.consumeHeld(1);
+      return true;
+    }
     if (hid === I.ROBOT && t.face === 2) {   // let your robot out (on top of a block)
       const rx = t.x + 0.5, ry = t.y + 1, rz = t.z + 0.5;
       if (!boxFree(world, rx, ry, rz, 0.3, 1.15)) return false;
@@ -15730,8 +15931,8 @@ class Player {
     }
     if (hid >= 256 && ITEMS[hid] && ITEMS[hid].door && t.face >= 0) return placeDoor(game, this, hid, t, creative);
     if (hid === B.GARAGE_DOOR && t.face >= 0) return placeGarage(game, this, t, creative);
-    if ((hid === I.MINECART || hid === I.TRAIN || hid === I.CAR || hid === I.BOAT || hid === I.SUBMARINE || hid === I.FLYING_CAR || hid === I.BROOM || hid === I.ROCKET || hid === I.PLANE || hid === I.JET || hid === I.AIRLINER || hid === I.GOLF_CART || hid === I.BUGGY || hid === I.SAUCER || isTankItem(hid)) && t.face >= 0) {
-      const type = hid === I.TRAIN ? 'train' : hid === I.CAR ? 'car' : hid === I.BOAT ? 'boat' : hid === I.SUBMARINE ? 'submarine' : hid === I.FLYING_CAR ? 'flycar' : hid === I.BROOM ? 'broom' : hid === I.ROCKET ? 'rocket' : hid === I.PLANE ? 'plane' : hid === I.JET ? 'jet' : hid === I.AIRLINER ? 'airliner' : hid === I.GOLF_CART ? 'golfcart' : hid === I.BUGGY ? 'buggy' : hid === I.SAUCER ? 'saucer' : isTankItem(hid) ? 'tank' : 'minecart';
+    if ((hid === I.MINECART || hid === I.TRAIN || hid === I.CAR || hid === I.BOAT || hid === I.SUBMARINE || hid === I.FLYING_CAR || hid === I.BROOM || hid === I.ROCKET || hid === I.PLANE || hid === I.JET || hid === I.AIRLINER || hid === I.GOLF_CART || hid === I.BUGGY || hid === I.SAUCER || hid === I.SANDBOARD || isTankItem(hid)) && t.face >= 0) {
+      const type = hid === I.TRAIN ? 'train' : hid === I.CAR ? 'car' : hid === I.BOAT ? 'boat' : hid === I.SUBMARINE ? 'submarine' : hid === I.FLYING_CAR ? 'flycar' : hid === I.BROOM ? 'broom' : hid === I.ROCKET ? 'rocket' : hid === I.PLANE ? 'plane' : hid === I.JET ? 'jet' : hid === I.AIRLINER ? 'airliner' : hid === I.GOLF_CART ? 'golfcart' : hid === I.BUGGY ? 'buggy' : hid === I.SAUCER ? 'saucer' : hid === I.SANDBOARD ? 'sandboard' : isTankItem(hid) ? 'tank' : 'minecart';
       let vx = t.x + 0.5, vy = t.y + 1, vz = t.z + 0.5;
       if (hid === I.MINECART || hid === I.TRAIN) {
         if (t.id !== B.RAIL) { if (!this.toldRails) { this.toldRails = true; toast((hid === I.TRAIN ? 'Trains' : 'Minecarts') + ' go on rails. Put some rails down first.', 3); } return false; }
@@ -15998,6 +16199,9 @@ const HELD_TIPS = {
   [I.BUGGY]: ['Tap the ground to put the rover buggy down, then tap it to get in. It is fast!', 'Right-click the ground to put the rover buggy down, then right-click it to get in. It is fast!'],
   [I.SAUCER]: ['Tap the ground to put the flying saucer down, then tap it to get in. In the air, tap for the tractor beam!', 'Right-click the ground to put the flying saucer down, then right-click it to get in. In the air, click for the tractor beam!'],
   [I.MARS_CRYSTAL]: ['A present from a Martian! A store will buy it for a good price.', 'A present from a Martian! A store will buy it for a good price.'],
+  [I.ALIEN_EGG]: ['Tap the ground to set the egg down. Wait a little while, and a baby Blip hatches!', 'Right-click the ground to set the egg down. Wait a little while, and a baby Blip hatches!'],
+  [I.SANDBOARD]: ['Tap the ground to put the sandboard down, then tap it to stand on it. Slide down the dunes!', 'Right-click the ground to put the sandboard down, then right-click it to stand on it. Slide down the dunes!'],
+  [B.AIR_MAKER]: ['Put it down: it makes a bubble of air you can breathe in, and slowly turns Mars dust green.', 'Put it down: it makes a bubble of air you can breathe in, and slowly turns Mars dust green.'],
   [B.STATION]: ['Put the Train Station right beside the track: it builds a platform with a sign, and trains stop there.', 'Put the Train Station right beside the track: it builds a platform with a sign, and trains stop there.'],
   [I.WAND]: ['Tap to cast a spell! The Spell button (at the top) picks a different one.', 'Right-click to cast a spell! Press F to pick a different one.'],
   [I.SHIELD]: ['Hold Place to hide behind the shield. Put it in the slot beside your armor to use it with a sword.', 'Hold the right mouse button to hide behind the shield. Put it in the slot beside your armor to use it with a sword.'],
@@ -16036,6 +16240,7 @@ function playerPose(pl, t) {
     pose.rleg = [-1.4, 0.15, 0]; pose.lleg = [-1.4, -0.15, 0];
     if (ride === 'car' || ride === 'sub') { pose.rarm = [-0.95, 0.25, 0]; pose.larm = [-0.95, -0.25, 0]; }
     else if (ride === 'boat') { const p = (pl.riding && pl.riding.wheel) || 0, sw = Math.sin(p) * 0.3; pose.rarm = [-1.05 + Math.cos(p) * 0.3, 0.25 + sw, 0]; pose.larm = [-1.05 + Math.cos(p) * 0.3, -0.25 - sw, 0]; }
+    else if (ride === 'board') { pose.rleg = [0, 0, 0.3]; pose.lleg = [0, 0, -0.3]; pose.rarm = [0, 0, 1.2]; pose.larm = [0, 0, -1.2]; }   // standing on a sandboard, arms out
     else if (ride === 'broom') { pose.rleg = [-0.55, 0.1, 0.12]; pose.lleg = [-0.55, -0.1, -0.12]; pose.rarm = [-1.2, -0.15, 0]; pose.larm = [-1.2, 0.15, 0]; }   // astride it, holding on in front
   }
   if (pl.drawT > 0 || pl.loadT > 0 || pl.aiming) { const up = -1.45 - pl.pitch; pose.rarm = [up, -0.1, 0]; pose.larm = [up, 0.5, 0]; }   // aiming a bow or crossbow
@@ -16531,6 +16736,20 @@ Object.assign(SFX, {
   beamOn: (v, p) => tone({ f: 260, fEnd: 880, dur: 0.5, type: 'sine', vol: 0.07 * v, vib: [12, 40], pan: p }),
   beamOff: (v, p) => tone({ f: 880, fEnd: 240, dur: 0.4, type: 'sine', vol: 0.06 * v, vib: [12, 40], pan: p }),
   beamCatch: (v, p) => { tone({ f: 520, fEnd: 1040, dur: 0.25, type: 'triangle', vol: 0.07 * v, pan: p }); tone({ f: 1560, dur: 0.2, type: 'sine', vol: 0.04 * v, when: 0.2, pan: p }); },
+});
+Object.assign(SFX, {
+  // (the second Mars update) a Blip's chirps, its happy trill, and its egg cracking open; the ball; the sandboard; the wind and a meteorite
+  blipSay: (v, p) => { [1320, 1760].forEach((f, i) => tone({ f, fEnd: f * 1.15, dur: 0.07, type: 'sine', vol: 0.04 * v, when: i * 0.08, pan: p })); },
+  blipHurt: (v, p) => tone({ f: 1500, fEnd: 2100, dur: 0.12, type: 'sine', vol: 0.04 * v, pan: p }),
+  blipHappy: (v, p) => { [1047, 1319, 1568, 2093].forEach((f, i) => tone({ f, dur: 0.1, type: 'sine', vol: 0.05 * v, when: i * 0.07, vib: [18, 40], pan: p })); },
+  blipHatch: (v, p) => { nz({ f: 2600, q: 3, dur: 0.07, vol: 0.14 * v, pan: p }); nz({ f: 1800, q: 3, dur: 0.07, vol: 0.12 * v, when: 0.12, pan: p }); tone({ f: 900, fEnd: 1800, dur: 0.3, type: 'sine', vol: 0.06 * v, when: 0.25, pan: p }); },
+  ballBoing: (v, p) => tone({ f: 180, fEnd: 420, dur: 0.22, type: 'sine', vol: 0.12 * v, pan: p }),
+  ballHurt: (v, p) => tone({ f: 200, fEnd: 480, dur: 0.2, type: 'sine', vol: 0.1 * v, pan: p }),
+  ballGoal: (v, p) => { [523, 659, 784, 1047].forEach((f, i) => tone({ f, dur: 0.18, type: 'triangle', vol: 0.07 * v, when: i * 0.1, pan: p })); },
+  boardSwish: (v, p) => nz({ f: 1400, fEnd: 500, q: 0.8, dur: 0.35, vol: 0.1 * v, pan: p }),
+  airHiss: (v, p) => nzLong({ f: 4200, type: 'highpass', dur: 0.7, vol: 0.05 * v, attack: 0.05, pan: p }),
+  dustWind: (v, p) => nzLong({ f: 380, type: 'lowpass', q: 0.6, dur: 2.6, vol: 0.09 * v, attack: 0.6, pan: p }),
+  meteorThump: (v, p) => { tone({ f: 90, fEnd: 40, dur: 0.5, type: 'sine', vol: 0.2 * v, pan: p }); nz({ f: 300, fEnd: 100, q: 0.7, dur: 0.6, vol: 0.16 * v, pan: p }); },
 });
 
 /* ---- 12-ui.js ---- */
@@ -18982,12 +19201,12 @@ const atMars = () => game.mapId === 'marsworld' && game.dim === 'over';
 const MARTIAN_COLORS = ['#58c84a', '#4a9ae0', '#e86ab8', '#f2cf3a'];   // green, blue and pink Martians; the marshal is yellow
 const MARTIAN_HI = ['Zorp! Hello, Earth friend %!', 'Bleep bloop! Nice helmet, %!', 'Welcome to Mars, %! Mind the canyons.', 'Greetings, %! Have you got any apples?', 'Wibble! Want to race, %?', 'Hello %! The red dust gets everywhere.'];
 const MARS_FOOD = () => [I.APPLE, I.BREAD, I.PIZZA, I.CHEESE, I.COOKED_PORKCHOP, I.STEAK, I.COOKED_CHICKEN, I.COOKED_COD, I.COOKED_SALMON, B.DANDELION, B.POPPY, B.CORNFLOWER, B.PUMPKIN, I.SUGAR];
-const MARS_GIFTS = () => [[I.MARS_CRYSTAL, 1, 2, 40], [I.COIN, 3, 9, 25], [B.GLOWSTONE, 2, 4, 15], [I.EMERALD, 1, 2, 10], [I.DIAMOND, 1, 1, 5], [I.ENDER_PEARL, 1, 1, 5]];   // [thing, at least, at most, how likely]
+const MARS_GIFTS = () => [[I.MARS_CRYSTAL, 1, 2, 40], [I.COIN, 3, 9, 25], [B.GLOWSTONE, 2, 4, 15], [I.EMERALD, 1, 2, 10], [I.DIAMOND, 1, 1, 5], [I.ENDER_PEARL, 1, 1, 5], [I.ALIEN_EGG, 1, 1, 8]];   // [thing, at least, at most, how likely]
 // (the track's blocks, the buggy, the saucer and the Mars Crystal are named in 09ma-planets.js)
 
 /* ---- arriving ---- */
 function marsWelcome(game) {
-  RACE = null;
+  RACE = null; BALL.score = [0, 0]; MARS2.dust = 0; MARS2.showerT = 0; MARS2.landT = 0; MARS2.nightDone = -1; MARS2.dustSaid = false;
   if (!game.stats.marsHi) { game.stats.marsHi = 1; chat('Welcome to Mars! Your rocket and a flying saucer are on the pads behind you, the Martians live in the glass domes, and the race tracks start at the edge of town. Give a Martian something from Earth!', '#ffb27a'); }
   spaceHelmet(game);
 }
@@ -19000,6 +19219,7 @@ function marsSpawnTick(game) {
   const garageYaw = tr => { const p = game.gen.marsTracks()[tr].pts, a = p[p.length - 16]; return Math.atan2(-(a[0] - M.tracks[tr].garage[0]), -(a[1] - M.tracks[tr].garage[1])); };   // (facing the way out to the track)
   const cars = game.entities.filter(e => e.vehicle && !e.removed);
   M.tracks.forEach((tr, i) => {
+    if (tr.id && game.overVB.includes(tr.id)) return;   // (a track this world does not have)
     const [gx, gz] = tr.garage;
     once(4 << i, gx, gz, () => { for (const dx of [-3, 0, 3]) cars.push(spawnVehicle(game, 'buggy', gx + dx + 0.5, Y, gz + 0.5, garageYaw(i))); });
     // a garage never stays empty: when its buggies have all been driven away, another one is wheeled out
@@ -19013,8 +19233,9 @@ function marsSpawnTick(game) {
     const e = spawnMob(game, 'martian', x + 0.5, Y, z + 1.5);
     e.homeK = k; e.home = [x + 0.5, z + 0.5]; e.variant = k % 3; e.aiT = 0;
   });
+  mars2SpawnTick(game);
   game.gen.marsTracks().forEach((tr, i) => {
-    if (mars.some(e => e.marshal === i)) return;
+    if (mars.some(e => e.marshal === i) || (tr.id && game.overVB.includes(tr.id))) return;
     const p = marshalSpot(tr);
     if (!loaded(p[0], p[2])) return;
     const e = spawnMob(game, 'martian', p[0], p[1], p[2]);
@@ -19039,7 +19260,8 @@ function martianSteer(game, e, dt) {
   }
   if (near && !(e.hiT > game.t)) {   // someone new: a wave and a hello
     e.hiT = game.t + 40; e.waveT = 2.5;
-    const [p] = near, name = p === game.player ? playerName() : p.name || 'friend', line = 'A Martian: "' + MARTIAN_HI[randInt(0, MARTIAN_HI.length - 1)].replace('%', name) + '"';
+    const [p] = near, name = p === game.player ? playerName() : p.name || 'friend', hint = Math.random() < 0.3 ? ruinHint(game, near[1], near[3]) : null;   // (now and then: where the nearest ruins are)
+    const line = 'A Martian: "' + (hint ? RUIN_HINTS[randInt(0, RUIN_HINTS.length - 1)].replace('#', hint.d).replace('@', hint.dir) : MARTIAN_HI[randInt(0, MARTIAN_HI.length - 1)]).replace('%', name) + '"';
     if (p === game.player) chat(line, MARTIAN_COLORS[e.variant % 3]); else if (p.link) p.link.send({ t: 'chat', m: line, c: MARTIAN_COLORS[e.variant % 3] });
     sfx('martianHi', e.x, e.y + 1, e.z); MP.sfx('martianHi', e.x, e.y + 1, e.z);
   }
@@ -19063,6 +19285,8 @@ function martianTap(game, pl, e, hid, creative) {
   const G = MARS_GIFTS();
   let r = Math.random() * G.reduce((a, g) => a + g[3], 0), g = G[0];
   for (const q of G) { if (r < q[3]) { g = q; break; } r -= q[3]; }
+  if (g[0] === I.ALIEN_EGG) game.stats.eggGift = 1;
+  else if (!game.stats.eggGift && (game.stats.martians | 0) >= 2) { g = G.find(q => q[0] === I.ALIEN_EGG); game.stats.eggGift = 1; }   // (your third present is always a Blip's egg, if you have not had one)
   const n = randInt(g[1], g[2]), left = pl.give(g[0], n);
   if (left > 0) dropItem(game, pl.x, pl.y + 1, pl.z, g[0], left);
   ui.dirty = true;
@@ -19405,7 +19629,12 @@ function drawRacerBuggy(e, dx, dy, dz) {
 /* every frame: the race, and every flying saucer's beam */
 function marsTick(game, dt) {
   raceTick(game, dt);
-  for (const e of game.entities) if (e.type === 'saucer' && !e.removed) saucerTick(game, e, dt);
+  mars2Tick(game, dt);   // (air bubbles; and on Mars the ruins, the meteors and the dust storms: see 12mb-mars2.js)
+  for (const e of game.entities) {
+    if (e.removed) continue;
+    if (e.type === 'saucer') saucerTick(game, e, dt);
+    else if (e.type === 'blip' && e.happy > 0 && Math.random() < dt * 7 && PARTICLES.length < 1400) PARTICLES.push({ x: e.x + randRange(-0.3, 0.3), y: e.y + 0.7, z: e.z + randRange(-0.3, 0.3), vx: 0, vy: 1.1, vz: 0, life: 0.8, tile: TILE.heart_p, u: 0, v: 0, us: 16, size: 0.09, grav: 0, bright: 1 });   // (a happy Blip: little hearts)
+  }
 }
 /* the picture on the world's card: red hills under an orange sky, glass domes, a saucer and a buggy */
 function drawMarsThumb(ctx, W, H) {
@@ -19426,6 +19655,374 @@ function drawMarsThumb(ctx, W, H) {
   ctx.fillStyle = 'rgba(140, 255, 200, 0.45)'; ctx.beginPath(); ctx.moveTo(98, 23); ctx.lineTo(106, 23); ctx.lineTo(112, 44); ctx.lineTo(92, 44); ctx.fill();   // (and its beam)
   ctx.fillStyle = '#f08a2a'; ctx.fillRect(124, 54, 18, 5); ctx.fillStyle = '#d8d8de'; ctx.fillRect(128, 49, 8, 1); ctx.fillRect(128, 49, 1, 5); ctx.fillRect(135, 49, 1, 5);   // a buggy
   ctx.fillStyle = '#1c1c1c'; ctx.fillRect(125, 58, 5, 5); ctx.fillRect(136, 58, 5, 5);
+}
+
+/* ---- 12mb-mars2.js ---- */
+/* ===================== More Mars (the second Mars update) ===================== */
+// An Air Maker makes a bubble of air ten blocks round it: inside, you can take your helmet off, and it slowly turns the
+// red dust green, with grass and flowers (it works on the Moon and the other planets too, but only Mars dust goes
+// green). Your base, a glass dome near the landing pads, has one, and the Martians' own domes have air as well.
+// A Martian's egg hatches into a little alien pet that follows you, grows up when it is fed, and digs up crystals.
+// Out in the wilderness are five ancient ruins with treasure; at night there are meteor showers, and a meteorite
+// lands not far away; now and then a dust storm blows through (it hurts nobody); there is a bounce-ball field with two
+// goals; and a sandboard to slide down the dunes on. A third track, Dune Dash, is in 12m-mars.js with the others.
+
+/* ---- air ---- */
+const AIR_R = 10;
+const AIRM = { t: -9, k: '', list: [], inside: false, checkT: 0, greenT: 0 };
+/* the Air Makers in the chunks round a spot (worked out again a few times a second) */
+function airMakersNear(w, x, z) {
+  const cx0 = Math.floor(x) >> 4, cz0 = Math.floor(z) >> 4, k = w.map + ':' + cx0 + ',' + cz0;
+  if (AIRM.k === k && game.t - AIRM.t < 0.4 && game.t >= AIRM.t) return AIRM.list;
+  const list = [];
+  for (let cx = cx0 - 1; cx <= cx0 + 1; cx++) for (let cz = cz0 - 1; cz <= cz0 + 1; cz++) {
+    const c = w.getChunk(cx, cz);
+    if (!c || !c.specials || !c.specials.size) continue;
+    for (const i of c.specials) if (c.blocks[i] === B.AIR_MAKER) list.push({ x: cx * 16 + (i & 15), y: i >> 8, z: cz * 16 + ((i >> 4) & 15) });
+  }
+  AIRM.k = k; AIRM.t = game.t; AIRM.list = list;
+  return list;
+}
+const inMartianDome = (x, y, z) => { if (!atMars()) return false; const M = game.gen.marsw; return y >= M.town.y && y < M.town.y + 7 && M.domes.some(d => Math.hypot(x - d[0] - 0.5, z - d[1] - 0.5) < 4.7); };
+/* is there air to breathe here without a helmet? (an Air Maker's bubble, or a Martian's dome) */
+function inAirBubble(p) {
+  const w = game.world;
+  if (!w || !p) return false;
+  if (inMartianDome(p.x, p.y, p.z)) return true;
+  return airMakersNear(w, p.x, p.z).some(m => Math.hypot(m.x + 0.5 - p.x, m.y + 0.5 - (p.y + 1), m.z + 0.5 - p.z) <= AIR_R);
+}
+function airTick(game, dt) {
+  const pl = game.player, w = game.world;
+  if (!w || game.state !== 'playing') return;
+  if (!noAir()) { AIRM.inside = false; }
+  else if ((AIRM.checkT -= dt) <= 0) {   // into a bubble, or out of it
+    AIRM.checkT = 0.4;
+    const now = inAirBubble(pl);
+    if (now !== AIRM.inside && pl.alive) {
+      AIRM.inside = now;
+      if (now) { if (!game.stats.airHi) toast('There is air here! Inside the bubble you can take your helmet off.', 4); game.stats.airHi = 1; sfx('airHiss', pl.x, pl.y + 1, pl.z); }   // (said the first time)
+      else if (!wearsSpaceHelmet(pl)) toast('Out of the air bubble: put your helmet on!', 3.5);
+    }
+  }
+  const makers = airMakersNear(w, pl.x, pl.z);
+  for (const m of makers) {   // a shimmer on the edge of each bubble, and a puff from the machine now and then
+    if (Math.random() < dt * 14 && PARTICLES.length < 1400) {
+      const a = Math.random() * TAU, up = Math.random() * 0.9, c = Math.cos(up * 1.5), s = Math.sin(up * 1.5);
+      PARTICLES.push({ x: m.x + 0.5 + Math.cos(a) * c * AIR_R, y: m.y + 0.5 + s * AIR_R, z: m.z + 0.5 + Math.sin(a) * c * AIR_R, vx: 0, vy: 0.3, vz: 0, life: 0.8, tile: TILE.bubble_p, u: 0, v: 0, us: 16, size: 0.07, grav: 0, bright: 1 });
+    }
+    if (Math.random() < dt * 3 && PARTICLES.length < 1400) PARTICLES.push({ x: m.x + 0.5 + randRange(-0.3, 0.3), y: m.y + 1.05, z: m.z + 0.5 + randRange(-0.3, 0.3), vx: 0, vy: 0.9, vz: 0, life: 0.9, tile: TILE.bubble_p, u: 0, v: 0, us: 16, size: 0.05, grav: 0, bright: 1 });
+  }
+  if (MP.role === 'guest' || (AIRM.greenT -= dt) > 0) return;
+  AIRM.greenT = 1;   // (the host, every second) the ground in each bubble near a player goes a little greener
+  const seen = new Set();
+  for (const p of livePlayers(game)) {
+    const [px, , pz] = playerPos(p);
+    AIRM.t = -9;
+    for (const m of airMakersNear(w, px, pz)) {
+      const key = m.x + ',' + m.y + ',' + m.z;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      for (let n = 0; n < 4; n++) {
+        const a = Math.random() * TAU, d = Math.sqrt(Math.random()) * (AIR_R - 1), x = Math.floor(m.x + 0.5 + Math.cos(a) * d), z = Math.floor(m.z + 0.5 + Math.sin(a) * d);
+        for (let y = m.y + 5; y >= m.y - 6; y--) {
+          const b = w.getBlock(x, y, z);
+          if (b === B.AIR) continue;
+          const above = w.getBlock(x, y + 1, z);
+          if (b === B.MARS_DUST && above === B.AIR) w.setBlock(x, y, z, B.GRASS, 0);
+          else if (b === B.GRASS && above === B.AIR && Math.random() < 0.06) w.setBlock(x, y + 1, z, [B.TALL_GRASS, B.TALL_GRASS, B.DANDELION, B.POPPY, B.CORNFLOWER][randInt(0, 4)], 0);
+          break;
+        }
+      }
+    }
+  }
+  AIRM.t = -9;
+}
+
+/* ---- what is in a Mars chest the first time it is opened (kind 0: your base's supplies; 1: a ruin's treasure) ---- */
+const TABLETS = [
+  ['The First Tablet', ['Long, long ago, Mars had rivers and seas.', 'We built our cities beside them, under two little moons.', 'Then the air grew thin and the water went away.', 'So we made domes of glass, and machines to make air.', 'If you find one, look after it. Things grow where there is air.']],
+  ['The Racing Tablet', ['When the seas were gone, the old sea beds were smooth and wide.', 'The young ones raced across them, round and round.', 'They still do. They are very fast.', 'A good racer is kind: the dust cloud is only a joke.']],
+  ['The Egg Tablet', ['A Blip comes from a speckled egg.', 'Set the egg down somewhere quiet and wait.', 'Feed your Blip things from far away and it will grow.', 'A grown Blip can smell crystals under the dust.', 'A Blip never forgets a friend.']],
+  ['The Sky Tablet', ['On clear nights the sky throws stones.', 'They fall far from the domes and glow where they land.', 'Inside each one is a present from the stars.', 'Do not be afraid. Nobody has ever been hit. We counted.']],
+];
+function fillMarsChest(t, kind) {
+  const put = (id, n, ex) => { if (n <= 0) return; const free = []; for (let i = 0; i < t.slots.length; i++) if (!t.slots[i]) free.push(i); if (!free.length) return; t.slots[free[randInt(0, free.length - 1)]] = Object.assign({ id, count: n }, ex || {}); };
+  if (kind === 1) {
+    const tb = TABLETS[randInt(0, TABLETS.length - 1)];
+    put(I.WRITTEN_BOOK, 1, { tag: { book: { title: tb[0], author: 'The Old Martians', pages: tb[1].slice() } } });
+    put(I.MARS_CRYSTAL, randInt(3, 6)); put(I.COIN, randInt(10, 25)); put(I.BILL, randInt(0, 2)); put(I.GOLD_INGOT, randInt(2, 5)); put(I.EMERALD, randInt(1, 3)); put(I.DIAMOND, randInt(0, 2));
+    if (Math.random() < 0.7) put(I.ALIEN_EGG, 1);
+    if (Math.random() < 0.4) put(B.AIR_MAKER, 1);
+    return;
+  }
+  put(B.AIR_MAKER, 2); put(I.ALIEN_EGG, 1); put(I.SANDBOARD, 2);
+  put(B.OAK_SAPLING, 4); put(B.BIRCH_SAPLING, 2); put(B.DANDELION, 3); put(B.POPPY, 3);
+  put(I.APPLE, 8); put(I.BREAD, 6); put(B.TORCH, 16); put(B.GLASS, 32); put(B.BED, 1); put(toolId(1, 0), 1);
+}
+
+/* ===================== The alien pet: a Blip ===================== */
+// It starts as an egg on the ground, hatches into a baby that follows whoever put the egg down, and grows up after
+// three meals. Tap it with food to feed it; tap it with anything else and it sits and waits, or follows again. A
+// grown Blip digs up a Mars Crystal now and then. Nothing hurts it. It is kept with the world like a robot.
+const BLIP_COLORS = ['#7ae0d0', '#ffb84a', '#c08aff', '#ff8aa8'];
+defItem(I.ALIEN_EGG, 'Blip Egg', { tex: 'alien_egg', stack: 16 });
+function makePet(game, x, y, z, owner, o) {
+  const e = spawnMob(game, 'blip', x, y, z);
+  if (!e) return null;
+  o = o || {};
+  e.owner = owner; e.variant = clamp(o.c === undefined ? randInt(0, BLIP_COLORS.length - 1) : o.c | 0, 0, BLIP_COLORS.length - 1);
+  e.stage = clamp(o.s | 0, 0, 2); e.fed = clamp(o.f | 0, 0, 3); e.sit = !!o.sit; e.hatchT = e.stage ? 0 : 14; e.digT = randRange(120, 200);
+  e.yaw = e.bodyYaw = e.headYaw = +o.yaw || 0;
+  return e;
+}
+const petSave = e => ({ k: 'pet', x: r2(e.x), y: r2(e.y), z: r2(e.z), yaw: r2(e.yaw), o: e.owner, c: e.variant | 0, s: e.stage | 0, f: e.fed | 0, sit: e.sit ? 1 : 0 });
+/* tap the ground holding an egg */
+function placeEgg(game, pl, x, y, z) {
+  if (MP.role === 'guest') MP.send({ t: 'pet+', x: r2(x), y: r2(y), z: r2(z) });
+  else makePet(game, x, y, z, myPid());
+  sfx('pop', x, y, z);
+  toast('A Blip egg! Wait a little while and it will hatch.', 4);
+}
+function petTell(game, e, text) {
+  const own = robotOwner(game, e);
+  if (own === game.player) toast(text, 3.5);
+  else if (own && own.link) own.link.send({ t: 'chat', m: text, c: '#7ae0d0' });
+}
+/* (the host, or one player) a pet is fed, or told to sit or follow */
+function petDo(game, e, what) {
+  if (what === 'feed' && e.stage > 0) {
+    e.happy = 2.5; e.fed = Math.min(3, (e.fed | 0) + 1);
+    sfx('blipHappy', e.x, e.y + 0.5, e.z); MP.sfx('blipHappy', e.x, e.y + 0.5, e.z);
+    if (e.stage === 1 && e.fed >= 3) { e.stage = 2; petTell(game, e, 'Your Blip grew up! Now it can sniff out crystals.'); sfx('levelUp', e.x, e.y, e.z); }
+  } else if (what === 'sit' && e.stage > 0) { e.sit = !e.sit; sfx('blipSay', e.x, e.y + 0.5, e.z); MP.sfx('blipSay', e.x, e.y + 0.5, e.z); }
+}
+/* tap a pet: feed it, or sit/follow (only its owner's taps count) */
+function petTap(game, pl, e, hid, creative) {
+  if (!e.stage) { toast('The egg is wobbling... it will hatch soon!', 2); return; }
+  if (!robotMine(e)) { toast("That's someone else's Blip.", 2); sfx('blipSay', e.x, e.y + 0.5, e.z); return; }
+  const food = MARS_FOOD().includes(hid);
+  if (food && !creative) pl.consumeHeld(1);
+  if (e.proxy) MP.send({ t: 'pet', e: e.nid, a: food ? 'feed' : 'sit' });
+  else petDo(game, e, food ? 'feed' : 'sit');
+  if (food) toast(e.stage === 1 ? 'Yum! Your Blip is growing (' + Math.min(3, (e.fed | 0) + (e.proxy ? 1 : 0)) + ' of 3 meals).' : 'Yum! Your Blip is happy.', 2.5);
+  else toast((e.proxy ? !e.sit : e.sit) ? 'Your Blip sits down to wait.' : 'Your Blip follows you again!', 2);
+  ui.dirty = true;
+}
+function petSteer(game, e, dt) {
+  if (e.happy > 0) e.happy -= dt;
+  if (!e.stage) {   // an egg: it wobbles, and then...
+    e.hatchT -= dt;
+    if (e.hatchT <= 0) {
+      e.stage = 1; e.happy = 2;
+      sfx('blipHatch', e.x, e.y + 0.3, e.z); MP.sfx('blipHatch', e.x, e.y + 0.3, e.z);
+      blockParticles(e.x - 0.5, e.y, e.z - 0.5, B.QUARTZ_BLOCK, 8, true);
+      petTell(game, e, 'Your egg hatched: it is a baby Blip! Feed it things from Earth (apples, bread, flowers) to help it grow.');
+    }
+    return [0, 0, 0];
+  }
+  if (e.sayT === undefined) e.sayT = randRange(5, 12);
+  if ((e.sayT -= dt) <= 0) { e.sayT = randRange(7, 16); sfx('blipSay', e.x, e.y + 0.5, e.z, 0.6); }
+  const own = robotOwner(game, e);
+  if (!own || e.sit) return [0, 0, 0];
+  const ox = own.x - e.x, oz = own.z - e.z, od = Math.hypot(ox, oz) || 0.01;
+  if (od > 26 || Math.abs(own.y - e.y) > 12) { robotHop(game, e, own); return [0, 0, 0]; }   // (left far behind: it pops up beside you)
+  if (e.stage === 2 && (e.digT -= dt) <= 0) {   // a grown Blip digs up a crystal now and then
+    e.digT = randRange(150, 260); e.happy = 2;
+    dropItem(game, e.x, e.y + 0.4, e.z, I.MARS_CRYSTAL, 1);
+    blockParticles(e.x - 0.5, e.y - 0.5, e.z - 0.5, B.MARS_DUST, 8, true);
+    sfx('blipHappy', e.x, e.y + 0.5, e.z); MP.sfx('blipHappy', e.x, e.y + 0.5, e.z);
+    petTell(game, e, 'Your Blip dug up a Mars Crystal!');
+  }
+  e.yaw = Math.atan2(-ox, -oz);
+  if (od > 2.6) return [ox / od, oz / od, od > 7 ? 1.5 : 1];
+  return [0, 0, 0];
+}
+
+/* ===================== Ancient ruins ===================== */
+const RUIN_HINTS = ['Psst, %! There are old ruins about # blocks to the @. Nobody knows who built them!', 'My grandma says there is treasure in the ruins, # blocks to the @.', 'Have you seen the big stone head, %? It is # blocks to the @.'];
+function ruinHint(game, x, z) {
+  const ru = atMars() ? game.gen.nearestRuin(x, z, game.overVB.concat(MARS2.found.map(k => 'mruin' + k))) : null;
+  return ru ? { d: Math.round(Math.hypot(ru.x - x, ru.z - z)), dir: compass(ru.x - x, ru.z - z) || 'side' } : null;
+}
+const MARS2 = { found: [], ruinT: 0, meteorT: 0, showerT: 0, landT: 0, nightDone: -1, dust: 0, dustSaid: false, windT: 0 };
+function ruinsTick(game, dt) {
+  const pl = game.player;
+  if ((MARS2.ruinT -= dt) > 0) return;
+  MARS2.ruinT = 0.6;
+  MARS2.found = [0, 1, 2, 3, 4].filter(k => (game.stats.ruins | 0) & (1 << k));
+  const ru = game.gen.nearestRuin(pl.x, pl.z, game.overVB);
+  if (!ru || Math.hypot(ru.x - pl.x, ru.z - pl.z) > 9 || ((game.stats.ruins | 0) & (1 << ru.k))) return;
+  game.stats.ruins = (game.stats.ruins | 0) | (1 << ru.k);
+  const n = [0, 1, 2, 3, 4].filter(k => game.stats.ruins & (1 << k)).length;
+  chat('You found ancient Martian ruins! (' + n + ' of 5.) Who built them, long ago? There is something in the chest...', '#ffd24a');
+  bigText('Ruins found!', 2); sfx('mystery');
+  if (MP.role === 'guest') MP.sendSave();
+}
+
+/* ===================== Meteor showers and dust storms ===================== */
+/* a streak across the night sky, somewhere above you */
+function meteorStreak(game) {
+  const pl = game.player, a = Math.random() * TAU, d = randRange(20, 60), x = pl.x + Math.cos(a) * d, z = pl.z + Math.sin(a) * d, y = pl.y + randRange(30, 55), b = Math.random() * TAU, sp = randRange(28, 44);
+  for (let i = 0; i < 7 && PARTICLES.length < 1500; i++) PARTICLES.push({ x: x - Math.cos(b) * i * 0.7, y: y + i * 0.35, z: z - Math.sin(b) * i * 0.7, vx: Math.cos(b) * sp, vy: -sp * 0.5, vz: Math.sin(b) * sp, life: 0.9 - i * 0.08, tile: TILE.laser_5, u: 0, v: 0, us: 16, size: 0.5 - i * 0.05, grav: 0, bright: 1 });
+}
+/* a meteorite comes down at a spot: a trail, a thump, and a glowing rock (the host puts the rock there) */
+function meteorLand(game, x, y, z) {
+  for (let i = 0; i < 40 && PARTICLES.length < 1500; i++) PARTICLES.push({ x: x + 0.5 + i * 0.35, y: y + 1 + i * 0.9, z: z + 0.5 + i * 0.2, vx: -0.4, vy: -1, vz: -0.2, life: 0.5 + i * 0.03, tile: i % 3 ? TILE.flame : TILE.laser_5, u: 0, v: 0, us: 16, size: 0.35, grav: 0, bright: 1 });
+  smokeParticles(x + 0.5, y + 1.2, z + 0.5, 16, 1.4, true);
+  sfx('meteorThump', x + 0.5, y + 1, z + 0.5);
+}
+function meteorMsg(game, m) {
+  if (m.a === 'shower') { MARS2.showerT = 22; chat('A meteor shower! Look up at the sky!', '#ffd24a'); }
+  else if (m.a === 'land' && okXYZ([m.x, m.y, m.z])) {
+    meteorLand(game, m.x, m.y, m.z);
+    const pl = game.player;
+    chat('A meteorite landed about ' + Math.round(Math.hypot(m.x - pl.x, m.z - pl.z)) + ' blocks to the ' + (compass(m.x - pl.x, m.z - pl.z) || 'side') + '! It glows: go and dig it up.', '#ffd24a');
+  }
+}
+function skyTick(game, dt) {
+  const w = game.world, pl = game.player, host = MP.role !== 'guest', night = w.time > 0.56 && w.time < 0.94;
+  // meteor shower: once on most nights, the host starts one; a little later a meteorite lands
+  if (MARS2.showerT > 0) { MARS2.showerT -= dt; if (Math.random() < dt * 3.5) meteorStreak(game); }
+  if (host) {
+    if (night && MARS2.nightDone !== game.day && w.time > 0.62 && !MARS2.dust) {
+      MARS2.nightDone = game.day;
+      if (Math.random() < 0.7) { MARS2.landT = 12; const m = { t: 'meteor', a: 'shower', we: MP.we }; MP.broadcast(m); meteorMsg(game, m); }
+    }
+    if (MARS2.landT > 0 && (MARS2.landT -= dt) <= 0) {
+      const ps = livePlayers(game);
+      for (let k = 0; k < 12 && ps.length; k++) {
+        const [px, , pz] = playerPos(ps[randInt(0, ps.length - 1)]), a = Math.random() * TAU, d = randRange(24, 44), x = Math.floor(px + Math.cos(a) * d), z = Math.floor(pz + Math.sin(a) * d);
+        if (ps.some(p => { const q = playerPos(p); return Math.hypot(q[0] - x, q[2] - z) < 16; })) continue;   // (never near anybody)
+        let y = -1;
+        for (let yy = WH - 2; yy > 1; yy--) { const b = w.getBlock(x, yy, z); if (b === B.UNLOADED) break; if (b !== B.AIR) { y = b === B.MARS_DUST || b === B.MARS_ROCK ? yy : -1; break; } }   // (only out on open ground)
+        if (y < 0) continue;
+        w.setBlock(x, y, z, B.METEORITE, 0);
+        const m = { t: 'meteor', a: 'land', x, y, z, we: MP.we };
+        MP.broadcast(m); meteorMsg(game, m);
+        break;
+      }
+    }
+  }
+  // dust storm: Mars's weather. The sky closes in and dust blows past; it hurts nobody
+  const storm = WX.on ? 1 : 0;
+  MARS2.dust += (storm - MARS2.dust) * Math.min(1, dt * 0.35);
+  if (MARS2.dust < 0.003) MARS2.dust = 0;
+  if (storm && !MARS2.dustSaid) { MARS2.dustSaid = true; chat('A dust storm is blowing in! It cannot hurt you, but it is hard to see far.', '#ffb27a'); }
+  if (!storm && MARS2.dustSaid && MARS2.dust < 0.1) { MARS2.dustSaid = false; chat('The dust storm has blown over.', '#ffb27a'); }
+  if (MARS2.dust > 0.05) {
+    for (let n = MARS2.dust * dt * 70; n > 0 && PARTICLES.length < 1300; n--) {
+      if (n < 1 && Math.random() > n) break;
+      PARTICLES.push({ x: pl.x + randRange(-14, 6), y: pl.y + randRange(-1, 6), z: pl.z + randRange(-10, 10), vx: randRange(9, 15), vy: randRange(-0.5, 0.5), vz: randRange(-2, 2), life: randRange(0.6, 1.3), tile: TILE.mars_dust_p, u: 0, v: 0, us: 16, size: randRange(0.04, 0.09), grav: 0, bright: 0 });
+    }
+    if ((MARS2.windT -= dt) <= 0) { MARS2.windT = 2.2; sfx('dustWind', undefined, undefined, undefined, MARS2.dust * (inAirBubble(pl) ? 0.35 : 1)); }
+  }
+}
+/* how far you can see in a dust storm (called where the fog is set) */
+function marsFog() { if (MARS2.dust > 0 && atMars()) { const k = 1 - 0.55 * MARS2.dust; R.fogEnd *= k; R.fogStart = Math.min(R.fogStart, R.fogEnd * 0.15); } }
+
+/* ===================== Bounce ball ===================== */
+// A big ball on the field by the landing pads. Walk, drive or fly into it and it bounces away, high in Mars's low
+// gravity; a punch sends it further. Into the goal at the red end is a point for Blue, and the other way round.
+const BALL = { score: [0, 0], idleT: 0 };
+function ballKick(game, e, fx, fz, power, up) {
+  if (e.proxy) return;
+  let dx = e.x - fx, dz = e.z - fz; const l = Math.hypot(dx, dz) || 1;
+  dx /= l; dz /= l;
+  e.vx = dx * power; e.vz = dz * power; e.vy = Math.max(e.vy, up);
+  e.kickT = 0.25; e.onGround = false;
+  sfx('ballBoing', e.x, e.y + 0.3, e.z); MP.sfx('ballBoing', e.x, e.y + 0.3, e.z);
+}
+function ballReset(game, e) {
+  const M = game.gen.marsw, f = M.field;
+  smokeParticles(e.x, e.y + 0.4, e.z, 6, 0.4, false);
+  Object.assign(e, { x: f.x + 0.5, y: M.town.y + 3, z: f.z + 0.5, vx: 0, vy: 0, vz: 0 });
+}
+function updateBall(game, e, dt) {
+  const w = game.world;
+  if (game.mapId !== 'marsworld' || w.getBlock(Math.floor(e.x), Math.floor(e.y + 0.2), Math.floor(e.z)) === B.UNLOADED) return;
+  if (e.kickT > 0) e.kickT -= dt;
+  e.vy -= 24 * gravOf(w.map) * dt;
+  const steps = Math.max(1, Math.ceil(Math.hypot(e.vx, e.vy, e.vz) * dt / 0.3)), h = dt / steps;
+  for (let i = 0; i < steps; i++) {
+    const vx = e.vx, vy = e.vy, vz = e.vz, x0 = e.x, y0 = e.y, z0 = e.z;
+    moveEntity(w, e, vx * h, vy * h, vz * h);
+    if (vy > 0 && e.y - y0 < vy * h * 0.5) e.vy = -vy * 0.5;   // off a ceiling
+    if (e.onGround && vy < 0) { e.vy = vy < -2.2 ? -vy * 0.74 : 0; if (vy < -3) sfx('ballBoing', e.x, e.y, e.z, 0.5); }
+    if (Math.abs(vx * h) > 1e-5 && Math.abs(e.x - x0) < Math.abs(vx * h) * 0.5) e.vx = -vx * 0.72;   // off a wall
+    if (Math.abs(vz * h) > 1e-5 && Math.abs(e.z - z0) < Math.abs(vz * h) * 0.5) e.vz = -vz * 0.72;
+  }
+  if (e.onGround) { const f = Math.pow(0.45, dt); e.vx *= f; e.vz *= f; }
+  e.walk += Math.hypot(e.vx, e.vz) * dt * 2.2; e.walkAmt = 1;
+  if (Math.hypot(e.vx, e.vz) > 0.3) e.bodyYaw = e.headYaw = e.yaw = Math.atan2(-e.vx, -e.vz);
+  // whoever bumps into it knocks it on
+  if (!(e.kickT > 0)) {
+    for (const p of livePlayers(game)) {
+      const [px, py, pz] = playerPos(p), d = Math.hypot(px - e.x, pz - e.z);
+      if (d < 0.95 && py < e.y + e.h + 0.3 && py + 1.8 > e.y) { ballKick(game, e, px, pz, 7 + Math.min(8, Math.hypot(p.vx || 0, p.vz || 0)), 4.2); break; }
+    }
+    if (!(e.kickT > 0)) for (const v of game.entities) {
+      if (!v.vehicle || v.removed || !v.rider) continue;
+      if (Math.abs(v.x - e.x) < v.w + e.w + 0.2 && Math.abs(v.z - e.z) < v.w + e.w + 0.2 && v.y < e.y + e.h && v.y + v.h > e.y) { ballKick(game, e, v.x, v.z, 6 + Math.min(14, Math.hypot(v.vx, v.vz) * 1.2), 5); break; }
+    }
+  }
+  // a goal? out of bounds?
+  const M = game.gen.marsw, f = M.field, Y = M.town.y + 1, ax = e.x - (f.x + 0.5), az = e.z - (f.z + 0.5);
+  if (Math.abs(ax) > f.hx + 0.9 && Math.abs(ax) < f.hx + 2.6 && Math.abs(az) < 2.6 && e.y < Y + 3 && e.y > Y - 1) {
+    const k = ax < 0 ? 1 : 0;   // (into the red goal, at the west end: a point for Blue)
+    BALL.score[k]++; BALL.idleT = 0;
+    const line = 'GOAL! ' + (k ? 'Blue' : 'Red') + ' scores. Red ' + BALL.score[0] + ' - ' + BALL.score[1] + ' Blue';
+    chat(line, k ? '#6aa8ff' : '#ff6a5a'); bigText('GOAL!', 1.6); sfx('levelUp');
+    MP.broadcast({ t: 'chat', m: line, c: k ? '#6aa8ff' : '#ff6a5a' }); MP.sfx('ballGoal', e.x, e.y, e.z);
+    partyEffect(e.x, e.y + 1, e.z);
+    ballReset(game, e);
+  } else if (Math.hypot(ax, az) > 60 || e.y < 20) ballReset(game, e);
+  else if (Math.abs(ax) > f.hx + 4 || Math.abs(az) > f.hz + 3) {   // over the wall: if nobody goes after it, it rolls back to the middle
+    e.outT = closePlayer(game, e, 7) ? 0 : (e.outT || 0) + dt;
+    if (e.outT > 6) { e.outT = 0; ballReset(game, e); }
+  } else e.outT = 0;
+  if (!closePlayer(game, { x: f.x, y: Y, z: f.z }, 40)) { BALL.idleT += dt; if (BALL.idleT > 90 && (BALL.score[0] || BALL.score[1])) BALL.score = [0, 0]; } else BALL.idleT = 0;
+}
+
+/* ===================== The sandboard ===================== */
+// Stand on it and slide: a push forward kicks you along slowly, and every block you drop down a dune makes you
+// faster. It slides best on dust and sand. Left and right steer; Sneak gets off.
+defItem(I.SANDBOARD, 'Sandboard', { tex: 'sandboard', stack: 1, fuel: 5 });
+function boardStep(game, e, dt) {
+  const w = game.world, driven = !!e.rider, throttle = driven ? e.ctrlZ || 0 : 0, steer = driven ? e.ctrlX || 0 : 0;
+  let fx = -Math.sin(e.yaw), fz = -Math.cos(e.yaw), v = e.vx * fx + e.vz * fz;
+  const under = w.getBlock(Math.floor(e.x), Math.floor(e.y - 0.5), Math.floor(e.z)), slick = under === B.MARS_DUST || under === B.SAND || under === B.SNOW || under === B.MOON_DUST || under === B.ICE || under === B.URANUS_ICE;
+  if (throttle > 0.1 && v < 5.5) v += throttle * 7 * dt;   // a push with your foot
+  else if (throttle < -0.1) v -= Math.sign(v) * Math.min(Math.abs(v), 14 * dt);   // dragging a foot: slow down
+  if (e.onGround) {
+    if (e.groundY !== undefined && e.y < e.groundY - 0.4) { v += Math.min(3, e.groundY - e.y) * 3.2; if (driven && v > 8) sfx('boardSwish', e.x, e.y, e.z, 0.7); }   // down a step of the dune: faster!
+    e.groundY = e.y;
+    v *= Math.pow(slick ? 0.86 : 0.5, dt);
+  }
+  v = clamp(v, -2, 19);
+  e.yaw -= steer * clamp(Math.abs(v) / 3, 0.25, 1) * 2.2 * dt;
+  fx = -Math.sin(e.yaw); fz = -Math.cos(e.yaw);
+  e.vx = fx * v; e.vz = fz * v;
+  const before = e.onGround;
+  physicsStep(w, e, dt, 24);
+  if (e.collidedH && before && v > 3.5 && boxFree(w, e.x + fx * 0.35, e.y + 1.05, e.z + fz * 0.35, e.w, e.h)) {   // a one-block bump: over it, a bit slower
+    e.vy = 7.2 * Math.sqrt(gravOf(w.map)); const sp = Math.max(2.5, v - 2.5); e.vx = fx * sp; e.vz = fz * sp;
+  }
+  e.fallDist = 0;
+  e.bank = lerp(e.bank || 0, steer * 0.35 * clamp(v / 6, 0, 1), Math.min(1, dt * 6));
+  if (driven && e.onGround && v > 5 && Math.random() < dt * 20 && PARTICLES.length < 1400) PARTICLES.push({ x: e.x - fx * 0.7 + randRange(-0.2, 0.2), y: e.y + 0.1, z: e.z - fz * 0.7 + randRange(-0.2, 0.2), vx: -fx, vy: 1.2, vz: -fz, life: 0.5, tile: TILE.mars_dust_p, u: 0, v: 0, us: 16, size: 0.07, grav: 6, bright: 0 });
+}
+
+/* ---- every frame ---- */
+function mars2Tick(game, dt) {
+  airTick(game, dt);
+  if (!atMars() || game.state !== 'playing') { MARS2.dust = 0; MARS2.showerT = 0; return; }
+  ruinsTick(game, dt);
+  skyTick(game, dt);
+}
+/* (the host, every second, with the Martians) the ball on its field, and the third track's buggies and marshal */
+function mars2SpawnTick(game) {
+  const M = game.gen.marsw, w = game.world, f = M.field;
+  if (!game.overVB.includes(f.id) && w.getBlock(f.x, M.town.y, f.z) !== B.UNLOADED && !game.entities.some(e => e.type === 'marsball' && !e.removed)) spawnMob(game, 'marsball', f.x + 0.5, M.town.y + 2, f.z + 0.5);
 }
 
 /* ---- 12n-net.js ---- */
@@ -19812,12 +20409,13 @@ class Link {
    The host's iPad runs the world: creatures, falling sand, water, furnaces, time of day.
    Guests build the same terrain from the seed, send their own moves and block changes,
    and show the host's creatures. A guest's things are saved inside the host's world. */
-const MP_PROTO = 8;   // 2: bows, new TNT, endermen, ghasts, dispensers, minecarts and cars; 3: armor, enchanting, books, signs, potions, fish, boats, made characters, TVs, boards, Hardcore;
+const MP_PROTO = 9;   // 2: bows, new TNT, endermen, ghasts, dispensers, minecarts and cars; 3: armor, enchanting, books, signs, potions, fish, boats, made characters, TVs, boards, Hardcore;
                       // 4: weather, golems, Snorks, the flying car and broom, the rocket and the Moon, wands, Hogwarts, plans, cameras, dungeons, robots;
                       // 5: more doors (iron, glass, airlock, garage), planes with passenger seats, parachutes
                       // 6: tanks, Hogwarts students and Quidditch teams, Declan Falls;
                       // 7: lasers, money and stores, trains, planets, the Ghostbusters and Life Cycle worlds
                       // 8: the Mars world: Martians, the rover buggy and the flying saucer, races
+                      // 9: more Mars: Air Makers, alien pets, ruins, meteors, the bounce ball, the sandboard
 const MP_MAX_GUESTS = 3;
 const r2 = v => Math.round(v * 100) / 100;
 const okXYZ = a => Array.isArray(a) && a.length === 3 && a.every(v => typeof v === 'number' && isFinite(v));
@@ -19851,7 +20449,7 @@ function encodeState(p) {
   const rd = p.riding, aim = p.drawT > 0 || p.loadT > 0 || p.heldId() === I.CROSSBOW_LOADED, sh = shieldHand(p);
   const f = (p.sneaking ? 1 : 0) | (p.flying ? 2 : 0) | (p.alive ? 4 : 0) | (game.mode === 'creative' ? 8 : 0) | (game.sleeping > 0 ? 16 : 0) |
     (rd ? 32 : 0) | (rd && (rd.type === 'car' || rd.type === 'flycar' || rd.type === 'tank' || rd.type === 'golfcart' || rd.type === 'buggy' || rd.type === 'saucer' || isPlane(rd)) ? 64 : 0) | (aim ? 128 : 0) | (sh === 'off' ? 256 : 0) | (p.blocking ? 512 : 0) |
-    (rd && rd.type === 'boat' ? 1024 : 0) | (rd && rd.type === 'submarine' ? 2048 : 0) | (rd && rd.type === 'broom' ? 4096 : 0) | (rd && rd.type === 'rocket' ? 8192 : 0) | (p.chute ? 16384 : 0) | ((p.seat & 7) << 15) | (rd && hasSeats(rd) ? 1 << 18 : 0);   // (in a plane, and which seat: 1-5 behind the pilot)
+    (rd && rd.type === 'boat' ? 1024 : 0) | (rd && rd.type === 'submarine' ? 2048 : 0) | (rd && rd.type === 'broom' ? 4096 : 0) | (rd && rd.type === 'rocket' ? 8192 : 0) | (p.chute ? 16384 : 0) | ((p.seat & 7) << 15) | (rd && hasSeats(rd) ? 1 << 18 : 0) | (rd && rd.type === 'sandboard' ? 1 << 19 : 0);   // (in a plane, and which seat: 1-5 behind the pilot)
   const b = p.bobber && !p.bobber.removed ? [r2(p.bobber.x), r2(p.bobber.y), r2(p.bobber.z)] : 0;
   return [r2(p.x), r2(p.y), r2(p.z), r2(p.yaw), r2(p.pitch), r2(p.bodyYaw), f, p.heldId(), p.swings || 0, wornArmor(p), wornGlint(p), effectBits(p), b, fallsChar(), lifeStageNum()];
 }
@@ -19863,7 +20461,7 @@ function applyState(r, a) {
   const was = r.alive;
   r.sneaking = !!(f & 1); r.flying = !!(f & 2); r.alive = !!(f & 4); r.mode = (f & 8) ? 'creative' : 'survival';
   if (was && !r.alive) markOut(r);
-  r.riding = (f & 32) ? ((f & 64) ? 'car' : (f & 1024) ? 'boat' : (f & 2048) ? 'sub' : (f & 4096) ? 'broom' : (f & 8192) ? 'rocket' : 'cart') : null; r.aiming = !!(f & 128); r.chute = !(f & 32) && !!(f & 16384); r.seat = (f >> 15) & 7; r.inPlane = !!(f & (1 << 18));
+  r.riding = (f & 32) ? ((f & (1 << 19)) ? 'board' : (f & 64) ? 'car' : (f & 1024) ? 'boat' : (f & 2048) ? 'sub' : (f & 4096) ? 'broom' : (f & 8192) ? 'rocket' : 'cart') : null; r.aiming = !!(f & 128); r.chute = !(f & 32) && !!(f & 16384); r.seat = (f >> 15) & 7; r.inPlane = !!(f & (1 << 18));
   const held = a[7] | 0;
   r.held = held > 0 && itemDef(held) ? held : 0;
   r.shield = r.held === I.SHIELD ? 'main' : (f & 256) ? 'off' : null; r.blocking = !!(f & 512) && !!r.shield;
@@ -19906,9 +20504,10 @@ function encodeEnt(e) {
       : e.type === 'robot' ? (e.variant | 0) | (Math.max(0, ROBOT_MODES.indexOf(e.mode)) << 3)
       : e.type === 'student' ? (e.variant | 0) | (e.waveT > 0 ? 8 : 0) : e.type === 'qplayer' ? (e.variant | 0) | (game.qm && game.qm.ball.holder === e.nid ? 8 : 0) | ((e.team | 0) << 4)
       : e.type === 'quaffle' ? qEncode(e) : e.type === 'wisp' ? (e.variant | 0)
-      : e.type === 'martian' ? ((e.variant | 0) & 3) | (e.waveT > 0 ? 8 : 0) | (e.marshal !== undefined ? 16 | ((e.marshal & 3) << 5) : 0) : e.type === 'racer' ? (e.variant | 0) & 3 : 0;
+      : e.type === 'martian' ? ((e.variant | 0) & 3) | (e.waveT > 0 ? 8 : 0) | (e.marshal !== undefined ? 16 | ((e.marshal & 3) << 5) : 0) : e.type === 'racer' ? (e.variant | 0) & 3
+      : e.type === 'blip' ? ((e.variant | 0) & 3) | (((e.stage | 0) & 3) << 2) | (e.sit ? 16 : 0) | (e.happy > 0 ? 32 : 0) | (((e.fed | 0) & 3) << 6) : 0;
     const a = [e.nid, MOB_TYPES.indexOf(e.type), r2(e.x), r2(e.y), r2(e.z), r2(e.bodyYaw), r2(e.headYaw), r2(e.pitch), r2(e.walkAmt), flags, r2(e.fuse || 0), extra];
-    if (e.type === 'robot') a.push(e.owner || '');   // (who it belongs to)
+    if (e.type === 'robot' || e.type === 'blip') a.push(e.owner || '');   // (who it belongs to)
     if (e.type === 'quaffle') a.push(typeof e.holder === 'string' ? e.holder : '');   // (the player who has it)
     return a;
   }
@@ -19919,7 +20518,7 @@ function encodeEnt(e) {
   if (e.type === 'xp') return [e.nid, -7, r2(e.x), r2(e.y), r2(e.z), e.value];
   return null;
 }
-const ENT_CODE = { '-1': 'tnt', '-2': 'falling', '-3': 'proj', '-5': 'minecart', '-6': 'car', '-7': 'xp', '-8': 'boat', '-9': 'submarine', '-10': 'flycar', '-11': 'broom', '-12': 'rocket', '-13': 'plane', '-14': 'jet', '-15': 'airliner', '-16': 'tank', '-17': 'golfcart', '-18': 'train', '-19': 'buggy', '-20': 'saucer' };
+const ENT_CODE = { '-1': 'tnt', '-2': 'falling', '-3': 'proj', '-5': 'minecart', '-6': 'car', '-7': 'xp', '-8': 'boat', '-9': 'submarine', '-10': 'flycar', '-11': 'broom', '-12': 'rocket', '-13': 'plane', '-14': 'jet', '-15': 'airliner', '-16': 'tank', '-17': 'golfcart', '-18': 'train', '-19': 'buggy', '-20': 'saucer', '-21': 'sandboard' };
 /* guest: creatures from the host glide to their latest positions */
 function updateProxy(e, dt) {
   e.age += dt;
@@ -19972,7 +20571,7 @@ function cleanGuestSave(d) {
     mode: d.mode === 'creative' ? 'creative' : 'survival', flying: !!d.flying, dim: okDim(d.dim),
     xp: num(d.xp, 0, 1e7, 0), enchSeed: num(d.enchSeed, 0, 2147483647, 0) | 0, kit: d.kit ? 1 : 0,
     fc: num(d.fc | 0, 0, FALLS_CHARS.length, 0), myst: num(d.myst | 0, 0, 63, 0), seen: num(d.seen | 0, 0, 255, 0),   // (Declan Falls: who they are, the mysteries and creatures they have found)
-    gh: num(d.gh | 0, 0, 1e6, 0), gk: d.gk ? 1 : 0, lb: num(d.lb | 0, 0, 1e7, 0), ls: num(d.ls | 0, 0, 99, 0), rb: Array.isArray(d.rb) ? d.rb.slice(0, 8).map(v => num(v, 0, 9999, 0)) : [],   // (Life Cycle: the day they were born, and the last birthday they were told about)   // (Ghostbusters: how many ghosts they have caught, and whether they have had their equipment)
+    gh: num(d.gh | 0, 0, 1e6, 0), gk: d.gk ? 1 : 0, lb: num(d.lb | 0, 0, 1e7, 0), ls: num(d.ls | 0, 0, 99, 0), rb: Array.isArray(d.rb) ? d.rb.slice(0, 8).map(v => num(v, 0, 9999, 0)) : [], ru: num(d.ru | 0, 0, 31, 0),   // (Life Cycle: the day they were born, and the last birthday they were told about)   // (Ghostbusters: how many ghosts they have caught, and whether they have had their equipment)
     effects: d.effects && typeof d.effects === 'object' ? Object.fromEntries(EFFECTS.filter(k => +d.effects[k] > 0).map(k => [k, Math.min(600, +d.effects[k])])) : {},
   };
 }
@@ -19998,10 +20597,10 @@ function cleanDataTiles(td) {
   return out;
 }
 const FX_KINDS = ['break', 'place', 'door', 'boom', 'sfx', 'party', 'ice', 'tele', 'smoke', 'xpb', 'splash', 'spell', 'zap', 'paint', 'laser', 'proton', 'trap', 'slime'];
-const SFX_NET = ['leverClick', 'buttonClick', 'honk', 'bowShoot', 'crossbowShoot', 'pearlThrow', 'dispense', 'dispenseFail', 'ghastShoot', 'endermanPortal', 'sonar', 'tvOn', 'tvOff', 'golemBuilt', 'snorkHappy', 'snorkToot', 'spellCast', 'patronus', 'camSwitch', 'airlockDrain', 'airlockHiss', 'planeTakeoff', 'chuteOpen', 'tankFire', 'studentHi', 'whistle', 'quaffleCatch', 'quaffleThrow', 'gnomeGiggle', 'lakemonSay', 'mystery', 'trainHorn', 'trainBell', 'ghostWoo', 'ghostBoo', 'ghostLaugh', 'slimeSplat', 'martianHi', 'martianHappy', 'beamOn', 'beamOff', 'beamCatch'];
+const SFX_NET = ['leverClick', 'buttonClick', 'honk', 'bowShoot', 'crossbowShoot', 'pearlThrow', 'dispense', 'dispenseFail', 'ghastShoot', 'endermanPortal', 'sonar', 'tvOn', 'tvOff', 'golemBuilt', 'snorkHappy', 'snorkToot', 'spellCast', 'patronus', 'camSwitch', 'airlockDrain', 'airlockHiss', 'planeTakeoff', 'chuteOpen', 'tankFire', 'studentHi', 'whistle', 'quaffleCatch', 'quaffleThrow', 'gnomeGiggle', 'lakemonSay', 'mystery', 'trainHorn', 'trainBell', 'ghostWoo', 'ghostBoo', 'ghostLaugh', 'slimeSplat', 'martianHi', 'martianHappy', 'beamOn', 'beamOff', 'beamCatch', 'blipSay', 'blipHappy', 'blipHatch', 'ballBoing', 'ballGoal'];
 const GUEST_SFX = new Set(['leverClick', 'buttonClick', 'honk', 'sonar', 'tvOn', 'tvOff', 'snorkHappy', 'snorkToot', 'camSwitch', 'planeTakeoff', 'chuteOpen', 'trainHorn', 'martianHappy']);   // the sounds a guest can send
 const LINK_FAIL = "Found the game, but the two iPads couldn't connect to each other. Put both on the same Wi-Fi, then try again.";
-const STALE_T = new Set(['st', 'set', 'open', 'tile', 'close', 'tnt', 'egg', 'portal', 'shoot', 'mount', 'veh', 'dismount', 'veh+', 'sign', 'board', 'rocket', 'launch', 'snitch', 'robot+', 'robot', 'quaffle', 'laser', 'shop', 'proton', 'trap']);
+const STALE_T = new Set(['st', 'set', 'open', 'tile', 'close', 'tnt', 'egg', 'portal', 'shoot', 'mount', 'veh', 'dismount', 'veh+', 'sign', 'board', 'rocket', 'launch', 'snitch', 'robot+', 'robot', 'pet+', 'pet', 'quaffle', 'laser', 'shop', 'proton', 'trap']);
 
 const MP = {
   role: null, code: '', token: '', sig: null, roomOpen: false, hostLink: null, hostName: '', we: 0,
@@ -20136,6 +20735,17 @@ const MP = {
       case 'laser': laserMsg(game, r, m); break;   // a guest fired a laser
       case 'shop': shopMsg(game, r, m); break;   // a guest wants to buy or sell at a store
       case 'race': raceHostMsg(game, r, m); break;   // a race on Mars: a guest starts one, or says how far round they are
+      case 'pet+': {   // a guest set a Blip's egg down
+        const x = +m.x, y = +m.y, z = +m.z;
+        if (![x, y, z].every(isFinite) || Math.hypot(x - r.tx, z - r.tz) > 8 || Math.abs(y - r.ty) > 8 || game.entities.filter(e => e.type === 'blip' && !e.removed).length >= 32) break;
+        makePet(game, x, y, z, r.id);
+        break;
+      }
+      case 'pet': {   // a guest fed their Blip, or told it to sit or follow
+        const e = game.entities.find(q => q.nid === m.e && q.type === 'blip' && !q.removed);
+        if (e && e.owner === r.id && Math.hypot(e.x - r.tx, e.z - r.tz) < 10) petDo(game, e, m.a === 'feed' ? 'feed' : 'sit');
+        break;
+      }
       case 'beam': {   // a guest flying a saucer switched its tractor beam
         const v = game.entities.find(q => q.nid === m.e && q.type === 'saucer' && q.rider === r.id);
         if (v) { v.beamOn = !!m.on; const s = v.beamOn ? 'beamOn' : 'beamOff'; sfx(s, v.x, v.y, v.z); this.sfx(s, v.x, v.y, v.z, r.id); }
@@ -20504,7 +21114,7 @@ const MP = {
   sendSave() {
     if (this.role !== 'guest' || !this.welcomed) return;
     const pl = game.player, at = pl.alive ? restPos(pl) : game.spawnPos();
-    this.send({ t: 'save', d: { x: r2(at[0]), y: r2(at[1]), z: r2(at[2]), yaw: r2(pl.yaw), pitch: r2(pl.pitch), health: pl.alive ? pl.health : 20, food: pl.alive ? pl.food : 20, air: pl.air, inv: pl.inv, sel: pl.sel, spawn: pl.spawn, mode: game.mode, flying: pl.flying, dim: game.dim, xp: pl.xp, enchSeed: pl.enchSeed, effects: pl.alive ? saveEffects(pl) : {}, kit: game.stats.hogKit ? 1 : 0, fc: game.stats.fc | 0, myst: game.stats.myst | 0, seen: game.stats.seen | 0, gh: game.stats.ghosts | 0, gk: game.stats.ghKit ? 1 : 0, lb: game.stats.born | 0, ls: game.stats.lifeSeen | 0, rb: raceBests() } });
+    this.send({ t: 'save', d: { x: r2(at[0]), y: r2(at[1]), z: r2(at[2]), yaw: r2(pl.yaw), pitch: r2(pl.pitch), health: pl.alive ? pl.health : 20, food: pl.alive ? pl.food : 20, air: pl.air, inv: pl.inv, sel: pl.sel, spawn: pl.spawn, mode: game.mode, flying: pl.flying, dim: game.dim, xp: pl.xp, enchSeed: pl.enchSeed, effects: pl.alive ? saveEffects(pl) : {}, kit: game.stats.hogKit ? 1 : 0, fc: game.stats.fc | 0, myst: game.stats.myst | 0, seen: game.stats.seen | 0, gh: game.stats.ghosts | 0, gk: game.stats.ghKit ? 1 : 0, lb: game.stats.born | 0, ls: game.stats.lifeSeen | 0, rb: raceBests(), ru: game.stats.ruins | 0 } });
   },
   guestMsg(m) {
     if (this.role !== 'guest') return;
@@ -20607,7 +21217,8 @@ const MP = {
         break;
       }
       case 'chat': chat(String(m.m || '').slice(0, 160), typeof m.c === 'string' ? m.c : undefined); break;
-      case 'race': if ((m.we | 0) === this.we) raceGuestMsg(game, m); break;   // a race on Mars: the start, the places, a dust cloud, the end
+      case 'race': if ((m.we | 0) === this.we) raceGuestMsg(game, m); break;
+      case 'meteor': if ((m.we | 0) === this.we && atMars()) meteorMsg(game, m); break;   // a meteor shower, or a meteorite landing   // a race on Mars: the start, the places, a dust cloud, the end
       case 'closing': {
         const who = this.hostName || 'The host', l = this.hostLink;
         if (ui.inv && ui.inv.tile && ui.inv.tile.remote) this.closeTile(ui.inv.tile);
@@ -20711,6 +21322,7 @@ const MP = {
         if (e.type === 'student') { e.variant = x & 7; e.waveT = (x & 8) ? 0.4 : 0; }
         if (e.type === 'martian') { e.variant = x & 3; e.waveT = (x & 8) ? 0.4 : 0; e.marshal = (x & 16) ? (x >> 5) & 3 : undefined; }
         if (e.type === 'racer') e.variant = x & 3;
+        if (e.type === 'blip') { e.variant = x & 3; e.stage = (x >> 2) & 3; e.sit = !!(x & 16); e.happy = (x & 32) ? 0.3 : 0; e.fed = (x >> 6) & 3; e.owner = String(a[12] || ''); }
         if (e.type === 'qplayer') { e.variant = x & 7; e.hold = !!(x & 8); e.team = (x >> 4) & 1; }
         if (e.type === 'wisp' && e.variant !== x) { e.variant = clamp(x, 0, WISP_COLORS.length - 1); e.color = hexRGB(WISP_COLORS[e.variant]).map(v => v / 255); }
         if (e.type === 'quaffle') { e.qx = x; e.holder = String(a[12] || '').slice(0, 40); }
@@ -21354,6 +21966,7 @@ const game = {
     this.overVB = !data ? [] : data.villages && Array.isArray(data.villages.blocked) ? data.villages.blocked.slice() : this.gen.villagesTouching(mapId, this.seed, built);
     if (data && !data.dungeons) this.overVB = this.overVB.concat(this.gen.dungeonsTouching(mapId, this.seed, built));   // (worlds from before there were dungeons: none where anything was built)
     if (data && !data.stores) this.overVB = this.overVB.concat(this.gen.storesTouching(mapId, this.seed, built));   // (and none of the stores)
+    if (data && mapId === 'marsworld' && !data.mars2) this.overVB = this.overVB.concat(this.gen.marsTouching(this.seed, built));   // (a Mars world from before the base, the ruins, the ball field and Dune Dash: none where anything was built)
     this.makeWorld();
     wxLoad(data && data.weather);
     const pd = data && data.plan;   // (a plan you were building)
@@ -21550,7 +22163,7 @@ const game = {
     const pl = this.player = new Player();
     this.stats = {}; this.day = m.day; this.hostAfterLoad = false;
     if (m.you && m.you.kit) this.stats.hogKit = 1;   // (already given a wand and a broom at Hogwarts here)
-    if (m.you) { this.stats.fc = m.you.fc | 0; this.stats.myst = m.you.myst | 0; this.stats.seen = m.you.seen | 0; this.stats.ghosts = m.you.gh | 0; this.stats.ghKit = m.you.gk | 0; if (m.you.lb) { this.stats.born = m.you.lb; this.stats.lifeSeen = m.you.ls | 0; } if (Array.isArray(m.you.rb)) { this.stats.raceBest = {}; m.you.rb.forEach((v, i) => { if (v > 0) this.stats.raceBest[i] = v; }); } }   // (in Declan Falls: who you are, and what you have found)
+    if (m.you) { this.stats.fc = m.you.fc | 0; this.stats.myst = m.you.myst | 0; this.stats.seen = m.you.seen | 0; this.stats.ghosts = m.you.gh | 0; this.stats.ghKit = m.you.gk | 0; if (m.you.lb) { this.stats.born = m.you.lb; this.stats.lifeSeen = m.you.ls | 0; } this.stats.ruins = m.you.ru | 0; if (Array.isArray(m.you.rb)) { this.stats.raceBest = {}; m.you.rb.forEach((v, i) => { if (v > 0) this.stats.raceBest[i] = v; }); } }   // (in Declan Falls: who you are, and what you have found)
     this.worldSpawn = m.spawn && m.spawn.length === 3 ? m.spawn.slice() : this.gen.spawnPoint(this.mapId, this.seed);
     const you = m.you;
     this.setMode(you ? you.mode : m.mode);
@@ -21691,7 +22304,7 @@ const game = {
       v: 1, map: this.mapId, seed: this.seed, mode: this.mode, time: this.world.time, day: this.day, clock: this.world.clock,
       worldSpawn: this.worldSpawn, stats: this.stats,
       player: { x: at[0], y: at[1], z: at[2], yaw: pl.yaw, pitch: pl.pitch, health: pl.alive ? pl.health : 20, food: pl.alive ? pl.food : 20, air: pl.air, inv: pl.inv, sel: pl.sel, spawn: pl.spawn, flying: pl.flying, xp: pl.xp || 0, enchSeed: pl.enchSeed, effects: pl.alive ? saveEffects(pl) : {} },
-      villages: { v: 1, blocked: this.overVB }, dungeons: 1, stores: 1, players: MP.guestSaves,
+      villages: { v: 1, blocked: this.overVB }, dungeons: 1, stores: 1, mars2: 1, players: MP.guestSaves,
       dim: this.dim, portals: this.portals, netherSpawn: this.netherSpawn, weather: wxSave(), moonSpawn: this.moonSpawn, planetSpawn: this.pSpawn, rocketPad: this.rocketPad, plan: PLAN.cur,
     };
     if (this.hardcore) { data.hardcore = true; data.out = this.hcOut; }
@@ -21860,6 +22473,12 @@ const game = {
           const dx = d.x - pl.x, dz = d.z - pl.z, dist = Math.round(Math.hypot(dx, dz));
           const dir = (dz < -Math.abs(dx) * 0.4 ? 'north' : dz > Math.abs(dx) * 0.4 ? 'south' : '') + (dx > Math.abs(dz) * 0.4 ? 'east' : dx < -Math.abs(dz) * 0.4 ? 'west' : '');
           say('The nearest dungeon (a ' + d.name + ') is ' + dist + ' blocks ' + (dir || 'away') + ', at x ' + d.x + ', z ' + d.z + '. Look for a little stone tower with stairs inside.');
+          break;
+        }
+        if (what === 'ruins' || what === 'ruin') {
+          const ru = atMars() ? this.gen.nearestRuin(pl.x, pl.z, this.overVB) : null;
+          if (!ru) { say('Ancient ruins are only in the Mars world.'); break; }
+          say('The nearest ruins are ' + Math.round(Math.hypot(ru.x - pl.x, ru.z - pl.z)) + ' blocks ' + (compass(ru.x - pl.x, ru.z - pl.z) || 'away') + ', at x ' + ru.x + ', z ' + ru.z + '.');
           break;
         }
         if (what === 'store' || what === 'shop') {
@@ -22098,7 +22717,7 @@ function renderWorld(cam, dt, withEntities, camPass) {   // (camPass: what a sec
   if (under === 'water') { R.fogStart = 0; R.fogEnd = clearWater ? 56 : 22; }
   else if (under === 'lava') { R.fogStart = 0; R.fogEnd = 3; }
   else if (s.nether) { R.fogEnd = Math.min(rd * 16 - 6, 84); R.fogStart = R.fogEnd * 0.2; }
-  else { R.fogEnd = rd * 16 - 6; R.fogStart = R.fogEnd * 0.55; wxFog(); }
+  else { R.fogEnd = rd * 16 - 6; R.fogStart = R.fogEnd * 0.55; wxFog(); marsFog(); }
   gl.viewport(0, 0, R.width, R.height);
   gl.clearColor(s.fog[0], s.fog[1], s.fog[2], 1);
   gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
