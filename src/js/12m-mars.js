@@ -22,7 +22,7 @@ const MARS_GIFTS = () => [[I.MARS_CRYSTAL, 1, 2, 40], [I.COIN, 3, 9, 25], [B.GLO
 
 /* ---- arriving ---- */
 function marsWelcome(game) {
-  RACE = null;
+  RACE = null; BALL.score = [0, 0]; MARS2.dust = 0; MARS2.showerT = 0; MARS2.landT = 0; MARS2.nightDone = -1; MARS2.dustSaid = false;
   if (!game.stats.marsHi) { game.stats.marsHi = 1; chat('Welcome to Mars! Your rocket and a flying saucer are on the pads behind you, the Martians live in the glass domes, and the race tracks start at the edge of town. Give a Martian something from Earth!', '#ffb27a'); }
   spaceHelmet(game);
 }

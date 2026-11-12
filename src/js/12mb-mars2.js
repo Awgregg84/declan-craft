@@ -258,7 +258,7 @@ function skyTick(game, dt) {
   }
 }
 /* how far you can see in a dust storm (called where the fog is set) */
-function marsFog() { if (MARS2.dust > 0 && atMars()) { const k = 1 - 0.68 * MARS2.dust; R.fogEnd *= k; R.fogStart = Math.min(R.fogStart, R.fogEnd * 0.15); } }
+function marsFog() { if (MARS2.dust > 0 && atMars()) { const k = 1 - 0.55 * MARS2.dust; R.fogEnd *= k; R.fogStart = Math.min(R.fogStart, R.fogEnd * 0.15); } }
 
 /* ===================== Bounce ball ===================== */
 // A big ball on the field by the landing pads. Walk, drive or fly into it and it bounces away, high in Mars's low
