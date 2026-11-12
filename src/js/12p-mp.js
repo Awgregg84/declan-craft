@@ -2,12 +2,13 @@
    The host's iPad runs the world: creatures, falling sand, water, furnaces, time of day.
    Guests build the same terrain from the seed, send their own moves and block changes,
    and show the host's creatures. A guest's things are saved inside the host's world. */
-const MP_PROTO = 8;   // 2: bows, new TNT, endermen, ghasts, dispensers, minecarts and cars; 3: armor, enchanting, books, signs, potions, fish, boats, made characters, TVs, boards, Hardcore;
+const MP_PROTO = 9;   // 2: bows, new TNT, endermen, ghasts, dispensers, minecarts and cars; 3: armor, enchanting, books, signs, potions, fish, boats, made characters, TVs, boards, Hardcore;
                       // 4: weather, golems, Snorks, the flying car and broom, the rocket and the Moon, wands, Hogwarts, plans, cameras, dungeons, robots;
                       // 5: more doors (iron, glass, airlock, garage), planes with passenger seats, parachutes
                       // 6: tanks, Hogwarts students and Quidditch teams, Declan Falls;
                       // 7: lasers, money and stores, trains, planets, the Ghostbusters and Life Cycle worlds
                       // 8: the Mars world: Martians, the rover buggy and the flying saucer, races
+                      // 9: more Mars: Air Makers, alien pets, ruins, meteors, the bounce ball, the sandboard
 const MP_MAX_GUESTS = 3;
 const r2 = v => Math.round(v * 100) / 100;
 const okXYZ = a => Array.isArray(a) && a.length === 3 && a.every(v => typeof v === 'number' && isFinite(v));
@@ -41,7 +42,7 @@ function encodeState(p) {
   const rd = p.riding, aim = p.drawT > 0 || p.loadT > 0 || p.heldId() === I.CROSSBOW_LOADED, sh = shieldHand(p);
   const f = (p.sneaking ? 1 : 0) | (p.flying ? 2 : 0) | (p.alive ? 4 : 0) | (game.mode === 'creative' ? 8 : 0) | (game.sleeping > 0 ? 16 : 0) |
     (rd ? 32 : 0) | (rd && (rd.type === 'car' || rd.type === 'flycar' || rd.type === 'tank' || rd.type === 'golfcart' || rd.type === 'buggy' || rd.type === 'saucer' || isPlane(rd)) ? 64 : 0) | (aim ? 128 : 0) | (sh === 'off' ? 256 : 0) | (p.blocking ? 512 : 0) |
-    (rd && rd.type === 'boat' ? 1024 : 0) | (rd && rd.type === 'submarine' ? 2048 : 0) | (rd && rd.type === 'broom' ? 4096 : 0) | (rd && rd.type === 'rocket' ? 8192 : 0) | (p.chute ? 16384 : 0) | ((p.seat & 7) << 15) | (rd && hasSeats(rd) ? 1 << 18 : 0);   // (in a plane, and which seat: 1-5 behind the pilot)
+    (rd && rd.type === 'boat' ? 1024 : 0) | (rd && rd.type === 'submarine' ? 2048 : 0) | (rd && rd.type === 'broom' ? 4096 : 0) | (rd && rd.type === 'rocket' ? 8192 : 0) | (p.chute ? 16384 : 0) | ((p.seat & 7) << 15) | (rd && hasSeats(rd) ? 1 << 18 : 0) | (rd && rd.type === 'sandboard' ? 1 << 19 : 0);   // (in a plane, and which seat: 1-5 behind the pilot)
   const b = p.bobber && !p.bobber.removed ? [r2(p.bobber.x), r2(p.bobber.y), r2(p.bobber.z)] : 0;
   return [r2(p.x), r2(p.y), r2(p.z), r2(p.yaw), r2(p.pitch), r2(p.bodyYaw), f, p.heldId(), p.swings || 0, wornArmor(p), wornGlint(p), effectBits(p), b, fallsChar(), lifeStageNum()];
 }
@@ -53,7 +54,7 @@ function applyState(r, a) {
   const was = r.alive;
   r.sneaking = !!(f & 1); r.flying = !!(f & 2); r.alive = !!(f & 4); r.mode = (f & 8) ? 'creative' : 'survival';
   if (was && !r.alive) markOut(r);
-  r.riding = (f & 32) ? ((f & 64) ? 'car' : (f & 1024) ? 'boat' : (f & 2048) ? 'sub' : (f & 4096) ? 'broom' : (f & 8192) ? 'rocket' : 'cart') : null; r.aiming = !!(f & 128); r.chute = !(f & 32) && !!(f & 16384); r.seat = (f >> 15) & 7; r.inPlane = !!(f & (1 << 18));
+  r.riding = (f & 32) ? ((f & (1 << 19)) ? 'board' : (f & 64) ? 'car' : (f & 1024) ? 'boat' : (f & 2048) ? 'sub' : (f & 4096) ? 'broom' : (f & 8192) ? 'rocket' : 'cart') : null; r.aiming = !!(f & 128); r.chute = !(f & 32) && !!(f & 16384); r.seat = (f >> 15) & 7; r.inPlane = !!(f & (1 << 18));
   const held = a[7] | 0;
   r.held = held > 0 && itemDef(held) ? held : 0;
   r.shield = r.held === I.SHIELD ? 'main' : (f & 256) ? 'off' : null; r.blocking = !!(f & 512) && !!r.shield;
@@ -96,9 +97,10 @@ function encodeEnt(e) {
       : e.type === 'robot' ? (e.variant | 0) | (Math.max(0, ROBOT_MODES.indexOf(e.mode)) << 3)
       : e.type === 'student' ? (e.variant | 0) | (e.waveT > 0 ? 8 : 0) : e.type === 'qplayer' ? (e.variant | 0) | (game.qm && game.qm.ball.holder === e.nid ? 8 : 0) | ((e.team | 0) << 4)
       : e.type === 'quaffle' ? qEncode(e) : e.type === 'wisp' ? (e.variant | 0)
-      : e.type === 'martian' ? ((e.variant | 0) & 3) | (e.waveT > 0 ? 8 : 0) | (e.marshal !== undefined ? 16 | ((e.marshal & 3) << 5) : 0) : e.type === 'racer' ? (e.variant | 0) & 3 : 0;
+      : e.type === 'martian' ? ((e.variant | 0) & 3) | (e.waveT > 0 ? 8 : 0) | (e.marshal !== undefined ? 16 | ((e.marshal & 3) << 5) : 0) : e.type === 'racer' ? (e.variant | 0) & 3
+      : e.type === 'blip' ? ((e.variant | 0) & 3) | (((e.stage | 0) & 3) << 2) | (e.sit ? 16 : 0) | (e.happy > 0 ? 32 : 0) | (((e.fed | 0) & 3) << 6) : 0;
     const a = [e.nid, MOB_TYPES.indexOf(e.type), r2(e.x), r2(e.y), r2(e.z), r2(e.bodyYaw), r2(e.headYaw), r2(e.pitch), r2(e.walkAmt), flags, r2(e.fuse || 0), extra];
-    if (e.type === 'robot') a.push(e.owner || '');   // (who it belongs to)
+    if (e.type === 'robot' || e.type === 'blip') a.push(e.owner || '');   // (who it belongs to)
     if (e.type === 'quaffle') a.push(typeof e.holder === 'string' ? e.holder : '');   // (the player who has it)
     return a;
   }
@@ -109,7 +111,7 @@ function encodeEnt(e) {
   if (e.type === 'xp') return [e.nid, -7, r2(e.x), r2(e.y), r2(e.z), e.value];
   return null;
 }
-const ENT_CODE = { '-1': 'tnt', '-2': 'falling', '-3': 'proj', '-5': 'minecart', '-6': 'car', '-7': 'xp', '-8': 'boat', '-9': 'submarine', '-10': 'flycar', '-11': 'broom', '-12': 'rocket', '-13': 'plane', '-14': 'jet', '-15': 'airliner', '-16': 'tank', '-17': 'golfcart', '-18': 'train', '-19': 'buggy', '-20': 'saucer' };
+const ENT_CODE = { '-1': 'tnt', '-2': 'falling', '-3': 'proj', '-5': 'minecart', '-6': 'car', '-7': 'xp', '-8': 'boat', '-9': 'submarine', '-10': 'flycar', '-11': 'broom', '-12': 'rocket', '-13': 'plane', '-14': 'jet', '-15': 'airliner', '-16': 'tank', '-17': 'golfcart', '-18': 'train', '-19': 'buggy', '-20': 'saucer', '-21': 'sandboard' };
 /* guest: creatures from the host glide to their latest positions */
 function updateProxy(e, dt) {
   e.age += dt;
@@ -162,7 +164,7 @@ function cleanGuestSave(d) {
     mode: d.mode === 'creative' ? 'creative' : 'survival', flying: !!d.flying, dim: okDim(d.dim),
     xp: num(d.xp, 0, 1e7, 0), enchSeed: num(d.enchSeed, 0, 2147483647, 0) | 0, kit: d.kit ? 1 : 0,
     fc: num(d.fc | 0, 0, FALLS_CHARS.length, 0), myst: num(d.myst | 0, 0, 63, 0), seen: num(d.seen | 0, 0, 255, 0),   // (Declan Falls: who they are, the mysteries and creatures they have found)
-    gh: num(d.gh | 0, 0, 1e6, 0), gk: d.gk ? 1 : 0, lb: num(d.lb | 0, 0, 1e7, 0), ls: num(d.ls | 0, 0, 99, 0), rb: Array.isArray(d.rb) ? d.rb.slice(0, 8).map(v => num(v, 0, 9999, 0)) : [],   // (Life Cycle: the day they were born, and the last birthday they were told about)   // (Ghostbusters: how many ghosts they have caught, and whether they have had their equipment)
+    gh: num(d.gh | 0, 0, 1e6, 0), gk: d.gk ? 1 : 0, lb: num(d.lb | 0, 0, 1e7, 0), ls: num(d.ls | 0, 0, 99, 0), rb: Array.isArray(d.rb) ? d.rb.slice(0, 8).map(v => num(v, 0, 9999, 0)) : [], ru: num(d.ru | 0, 0, 31, 0),   // (Life Cycle: the day they were born, and the last birthday they were told about)   // (Ghostbusters: how many ghosts they have caught, and whether they have had their equipment)
     effects: d.effects && typeof d.effects === 'object' ? Object.fromEntries(EFFECTS.filter(k => +d.effects[k] > 0).map(k => [k, Math.min(600, +d.effects[k])])) : {},
   };
 }
@@ -188,10 +190,10 @@ function cleanDataTiles(td) {
   return out;
 }
 const FX_KINDS = ['break', 'place', 'door', 'boom', 'sfx', 'party', 'ice', 'tele', 'smoke', 'xpb', 'splash', 'spell', 'zap', 'paint', 'laser', 'proton', 'trap', 'slime'];
-const SFX_NET = ['leverClick', 'buttonClick', 'honk', 'bowShoot', 'crossbowShoot', 'pearlThrow', 'dispense', 'dispenseFail', 'ghastShoot', 'endermanPortal', 'sonar', 'tvOn', 'tvOff', 'golemBuilt', 'snorkHappy', 'snorkToot', 'spellCast', 'patronus', 'camSwitch', 'airlockDrain', 'airlockHiss', 'planeTakeoff', 'chuteOpen', 'tankFire', 'studentHi', 'whistle', 'quaffleCatch', 'quaffleThrow', 'gnomeGiggle', 'lakemonSay', 'mystery', 'trainHorn', 'trainBell', 'ghostWoo', 'ghostBoo', 'ghostLaugh', 'slimeSplat', 'martianHi', 'martianHappy', 'beamOn', 'beamOff', 'beamCatch'];
+const SFX_NET = ['leverClick', 'buttonClick', 'honk', 'bowShoot', 'crossbowShoot', 'pearlThrow', 'dispense', 'dispenseFail', 'ghastShoot', 'endermanPortal', 'sonar', 'tvOn', 'tvOff', 'golemBuilt', 'snorkHappy', 'snorkToot', 'spellCast', 'patronus', 'camSwitch', 'airlockDrain', 'airlockHiss', 'planeTakeoff', 'chuteOpen', 'tankFire', 'studentHi', 'whistle', 'quaffleCatch', 'quaffleThrow', 'gnomeGiggle', 'lakemonSay', 'mystery', 'trainHorn', 'trainBell', 'ghostWoo', 'ghostBoo', 'ghostLaugh', 'slimeSplat', 'martianHi', 'martianHappy', 'beamOn', 'beamOff', 'beamCatch', 'blipSay', 'blipHappy', 'blipHatch', 'ballBoing', 'ballGoal'];
 const GUEST_SFX = new Set(['leverClick', 'buttonClick', 'honk', 'sonar', 'tvOn', 'tvOff', 'snorkHappy', 'snorkToot', 'camSwitch', 'planeTakeoff', 'chuteOpen', 'trainHorn', 'martianHappy']);   // the sounds a guest can send
 const LINK_FAIL = "Found the game, but the two iPads couldn't connect to each other. Put both on the same Wi-Fi, then try again.";
-const STALE_T = new Set(['st', 'set', 'open', 'tile', 'close', 'tnt', 'egg', 'portal', 'shoot', 'mount', 'veh', 'dismount', 'veh+', 'sign', 'board', 'rocket', 'launch', 'snitch', 'robot+', 'robot', 'quaffle', 'laser', 'shop', 'proton', 'trap']);
+const STALE_T = new Set(['st', 'set', 'open', 'tile', 'close', 'tnt', 'egg', 'portal', 'shoot', 'mount', 'veh', 'dismount', 'veh+', 'sign', 'board', 'rocket', 'launch', 'snitch', 'robot+', 'robot', 'pet+', 'pet', 'quaffle', 'laser', 'shop', 'proton', 'trap']);
 
 const MP = {
   role: null, code: '', token: '', sig: null, roomOpen: false, hostLink: null, hostName: '', we: 0,
@@ -326,6 +328,17 @@ const MP = {
       case 'laser': laserMsg(game, r, m); break;   // a guest fired a laser
       case 'shop': shopMsg(game, r, m); break;   // a guest wants to buy or sell at a store
       case 'race': raceHostMsg(game, r, m); break;   // a race on Mars: a guest starts one, or says how far round they are
+      case 'pet+': {   // a guest set a Blip's egg down
+        const x = +m.x, y = +m.y, z = +m.z;
+        if (![x, y, z].every(isFinite) || Math.hypot(x - r.tx, z - r.tz) > 8 || Math.abs(y - r.ty) > 8 || game.entities.filter(e => e.type === 'blip' && !e.removed).length >= 32) break;
+        makePet(game, x, y, z, r.id);
+        break;
+      }
+      case 'pet': {   // a guest fed their Blip, or told it to sit or follow
+        const e = game.entities.find(q => q.nid === m.e && q.type === 'blip' && !q.removed);
+        if (e && e.owner === r.id && Math.hypot(e.x - r.tx, e.z - r.tz) < 10) petDo(game, e, m.a === 'feed' ? 'feed' : 'sit');
+        break;
+      }
       case 'beam': {   // a guest flying a saucer switched its tractor beam
         const v = game.entities.find(q => q.nid === m.e && q.type === 'saucer' && q.rider === r.id);
         if (v) { v.beamOn = !!m.on; const s = v.beamOn ? 'beamOn' : 'beamOff'; sfx(s, v.x, v.y, v.z); this.sfx(s, v.x, v.y, v.z, r.id); }
@@ -694,7 +707,7 @@ const MP = {
   sendSave() {
     if (this.role !== 'guest' || !this.welcomed) return;
     const pl = game.player, at = pl.alive ? restPos(pl) : game.spawnPos();
-    this.send({ t: 'save', d: { x: r2(at[0]), y: r2(at[1]), z: r2(at[2]), yaw: r2(pl.yaw), pitch: r2(pl.pitch), health: pl.alive ? pl.health : 20, food: pl.alive ? pl.food : 20, air: pl.air, inv: pl.inv, sel: pl.sel, spawn: pl.spawn, mode: game.mode, flying: pl.flying, dim: game.dim, xp: pl.xp, enchSeed: pl.enchSeed, effects: pl.alive ? saveEffects(pl) : {}, kit: game.stats.hogKit ? 1 : 0, fc: game.stats.fc | 0, myst: game.stats.myst | 0, seen: game.stats.seen | 0, gh: game.stats.ghosts | 0, gk: game.stats.ghKit ? 1 : 0, lb: game.stats.born | 0, ls: game.stats.lifeSeen | 0, rb: raceBests() } });
+    this.send({ t: 'save', d: { x: r2(at[0]), y: r2(at[1]), z: r2(at[2]), yaw: r2(pl.yaw), pitch: r2(pl.pitch), health: pl.alive ? pl.health : 20, food: pl.alive ? pl.food : 20, air: pl.air, inv: pl.inv, sel: pl.sel, spawn: pl.spawn, mode: game.mode, flying: pl.flying, dim: game.dim, xp: pl.xp, enchSeed: pl.enchSeed, effects: pl.alive ? saveEffects(pl) : {}, kit: game.stats.hogKit ? 1 : 0, fc: game.stats.fc | 0, myst: game.stats.myst | 0, seen: game.stats.seen | 0, gh: game.stats.ghosts | 0, gk: game.stats.ghKit ? 1 : 0, lb: game.stats.born | 0, ls: game.stats.lifeSeen | 0, rb: raceBests(), ru: game.stats.ruins | 0 } });
   },
   guestMsg(m) {
     if (this.role !== 'guest') return;
@@ -797,7 +810,8 @@ const MP = {
         break;
       }
       case 'chat': chat(String(m.m || '').slice(0, 160), typeof m.c === 'string' ? m.c : undefined); break;
-      case 'race': if ((m.we | 0) === this.we) raceGuestMsg(game, m); break;   // a race on Mars: the start, the places, a dust cloud, the end
+      case 'race': if ((m.we | 0) === this.we) raceGuestMsg(game, m); break;
+      case 'meteor': if ((m.we | 0) === this.we && atMars()) meteorMsg(game, m); break;   // a meteor shower, or a meteorite landing   // a race on Mars: the start, the places, a dust cloud, the end
       case 'closing': {
         const who = this.hostName || 'The host', l = this.hostLink;
         if (ui.inv && ui.inv.tile && ui.inv.tile.remote) this.closeTile(ui.inv.tile);
@@ -901,6 +915,7 @@ const MP = {
         if (e.type === 'student') { e.variant = x & 7; e.waveT = (x & 8) ? 0.4 : 0; }
         if (e.type === 'martian') { e.variant = x & 3; e.waveT = (x & 8) ? 0.4 : 0; e.marshal = (x & 16) ? (x >> 5) & 3 : undefined; }
         if (e.type === 'racer') e.variant = x & 3;
+        if (e.type === 'blip') { e.variant = x & 3; e.stage = (x >> 2) & 3; e.sit = !!(x & 16); e.happy = (x & 32) ? 0.3 : 0; e.fed = (x >> 6) & 3; e.owner = String(a[12] || ''); }
         if (e.type === 'qplayer') { e.variant = x & 7; e.hold = !!(x & 8); e.team = (x >> 4) & 1; }
         if (e.type === 'wisp' && e.variant !== x) { e.variant = clamp(x, 0, WISP_COLORS.length - 1); e.color = hexRGB(WISP_COLORS[e.variant]).map(v => v / 255); }
         if (e.type === 'quaffle') { e.qx = x; e.holder = String(a[12] || '').slice(0, 40); }

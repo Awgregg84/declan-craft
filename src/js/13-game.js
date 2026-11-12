@@ -186,6 +186,7 @@ const game = {
     this.overVB = !data ? [] : data.villages && Array.isArray(data.villages.blocked) ? data.villages.blocked.slice() : this.gen.villagesTouching(mapId, this.seed, built);
     if (data && !data.dungeons) this.overVB = this.overVB.concat(this.gen.dungeonsTouching(mapId, this.seed, built));   // (worlds from before there were dungeons: none where anything was built)
     if (data && !data.stores) this.overVB = this.overVB.concat(this.gen.storesTouching(mapId, this.seed, built));   // (and none of the stores)
+    if (data && mapId === 'marsworld' && !data.mars2) this.overVB = this.overVB.concat(this.gen.marsTouching(this.seed, built));   // (a Mars world from before the base, the ruins, the ball field and Dune Dash: none where anything was built)
     this.makeWorld();
     wxLoad(data && data.weather);
     const pd = data && data.plan;   // (a plan you were building)
@@ -382,7 +383,7 @@ const game = {
     const pl = this.player = new Player();
     this.stats = {}; this.day = m.day; this.hostAfterLoad = false;
     if (m.you && m.you.kit) this.stats.hogKit = 1;   // (already given a wand and a broom at Hogwarts here)
-    if (m.you) { this.stats.fc = m.you.fc | 0; this.stats.myst = m.you.myst | 0; this.stats.seen = m.you.seen | 0; this.stats.ghosts = m.you.gh | 0; this.stats.ghKit = m.you.gk | 0; if (m.you.lb) { this.stats.born = m.you.lb; this.stats.lifeSeen = m.you.ls | 0; } if (Array.isArray(m.you.rb)) { this.stats.raceBest = {}; m.you.rb.forEach((v, i) => { if (v > 0) this.stats.raceBest[i] = v; }); } }   // (in Declan Falls: who you are, and what you have found)
+    if (m.you) { this.stats.fc = m.you.fc | 0; this.stats.myst = m.you.myst | 0; this.stats.seen = m.you.seen | 0; this.stats.ghosts = m.you.gh | 0; this.stats.ghKit = m.you.gk | 0; if (m.you.lb) { this.stats.born = m.you.lb; this.stats.lifeSeen = m.you.ls | 0; } this.stats.ruins = m.you.ru | 0; if (Array.isArray(m.you.rb)) { this.stats.raceBest = {}; m.you.rb.forEach((v, i) => { if (v > 0) this.stats.raceBest[i] = v; }); } }   // (in Declan Falls: who you are, and what you have found)
     this.worldSpawn = m.spawn && m.spawn.length === 3 ? m.spawn.slice() : this.gen.spawnPoint(this.mapId, this.seed);
     const you = m.you;
     this.setMode(you ? you.mode : m.mode);
@@ -523,7 +524,7 @@ const game = {
       v: 1, map: this.mapId, seed: this.seed, mode: this.mode, time: this.world.time, day: this.day, clock: this.world.clock,
       worldSpawn: this.worldSpawn, stats: this.stats,
       player: { x: at[0], y: at[1], z: at[2], yaw: pl.yaw, pitch: pl.pitch, health: pl.alive ? pl.health : 20, food: pl.alive ? pl.food : 20, air: pl.air, inv: pl.inv, sel: pl.sel, spawn: pl.spawn, flying: pl.flying, xp: pl.xp || 0, enchSeed: pl.enchSeed, effects: pl.alive ? saveEffects(pl) : {} },
-      villages: { v: 1, blocked: this.overVB }, dungeons: 1, stores: 1, players: MP.guestSaves,
+      villages: { v: 1, blocked: this.overVB }, dungeons: 1, stores: 1, mars2: 1, players: MP.guestSaves,
       dim: this.dim, portals: this.portals, netherSpawn: this.netherSpawn, weather: wxSave(), moonSpawn: this.moonSpawn, planetSpawn: this.pSpawn, rocketPad: this.rocketPad, plan: PLAN.cur,
     };
     if (this.hardcore) { data.hardcore = true; data.out = this.hcOut; }
@@ -692,6 +693,12 @@ const game = {
           const dx = d.x - pl.x, dz = d.z - pl.z, dist = Math.round(Math.hypot(dx, dz));
           const dir = (dz < -Math.abs(dx) * 0.4 ? 'north' : dz > Math.abs(dx) * 0.4 ? 'south' : '') + (dx > Math.abs(dz) * 0.4 ? 'east' : dx < -Math.abs(dz) * 0.4 ? 'west' : '');
           say('The nearest dungeon (a ' + d.name + ') is ' + dist + ' blocks ' + (dir || 'away') + ', at x ' + d.x + ', z ' + d.z + '. Look for a little stone tower with stairs inside.');
+          break;
+        }
+        if (what === 'ruins' || what === 'ruin') {
+          const ru = atMars() ? this.gen.nearestRuin(pl.x, pl.z, this.overVB) : null;
+          if (!ru) { say('Ancient ruins are only in the Mars world.'); break; }
+          say('The nearest ruins are ' + Math.round(Math.hypot(ru.x - pl.x, ru.z - pl.z)) + ' blocks ' + (compass(ru.x - pl.x, ru.z - pl.z) || 'away') + ', at x ' + ru.x + ', z ' + ru.z + '.');
           break;
         }
         if (what === 'store' || what === 'shop') {
@@ -930,7 +937,7 @@ function renderWorld(cam, dt, withEntities, camPass) {   // (camPass: what a sec
   if (under === 'water') { R.fogStart = 0; R.fogEnd = clearWater ? 56 : 22; }
   else if (under === 'lava') { R.fogStart = 0; R.fogEnd = 3; }
   else if (s.nether) { R.fogEnd = Math.min(rd * 16 - 6, 84); R.fogStart = R.fogEnd * 0.2; }
-  else { R.fogEnd = rd * 16 - 6; R.fogStart = R.fogEnd * 0.55; wxFog(); }
+  else { R.fogEnd = rd * 16 - 6; R.fogStart = R.fogEnd * 0.55; wxFog(); marsFog(); }
   gl.viewport(0, 0, R.width, R.height);
   gl.clearColor(s.fog[0], s.fog[1], s.fog[2], 1);
   gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);

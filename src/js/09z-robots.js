@@ -175,19 +175,20 @@ function robotTake(game, e, it, own) {
 
 /* ---- keeping robots with the world, and taking them along to another world ---- */
 function saveRobots(game) {
-  return game.entities.filter(e => e.type === 'robot' && !e.removed && !e.proxy).map(e => ({ x: r2(e.x), y: r2(e.y), z: r2(e.z), yaw: r2(e.yaw), o: e.owner, c: e.variant | 0, m: e.mode }));
+  return game.entities.filter(e => (e.type === 'robot' || e.type === 'blip') && !e.removed && !e.proxy).map(e => e.type === 'blip' ? petSave(e) : ({ x: r2(e.x), y: r2(e.y), z: r2(e.z), yaw: r2(e.yaw), o: e.owner, c: e.variant | 0, m: e.mode }));   // (and alien pets: see 12mb-mars2.js)
 }
 function loadRobots(game, list) {
   if (!Array.isArray(list)) return;
-  for (const r of list.slice(0, 64)) if (r && [r.x, r.y, r.z].every(n => typeof n === 'number' && isFinite(n))) makeRobot(game, r.x, r.y, r.z, String(r.o || '').slice(0, 16), r.c, r.m, +r.yaw || 0);
+  for (const r of list.slice(0, 64)) if (r && [r.x, r.y, r.z].every(n => typeof n === 'number' && isFinite(n))) { if (r.k === 'pet') makePet(game, r.x, r.y, r.z, String(r.o || '').slice(0, 16), r); else makeRobot(game, r.x, r.y, r.z, String(r.o || '').slice(0, 16), r.c, r.m, +r.yaw || 0); }
 }
 /* the robots that come along when you go to another world (those following someone who is going) */
 function takeRobots(game) {
   const out = [];
   for (const e of game.entities) if (e.type === 'robot' && !e.removed && !e.proxy && e.mode !== 'stay' && robotOwner(game, e)) { out.push({ o: e.owner, c: e.variant | 0, m: e.mode }); e.removed = true; }
+  for (const e of game.entities) if (e.type === 'blip' && !e.removed && !e.proxy && e.stage > 0 && !e.sit && robotOwner(game, e)) { out.push(petSave(e)); e.removed = true; }
   return out;
 }
 function bringRobots(game, list) {
   const pl = game.player;
-  for (const r of list || []) { const a = Math.random() * TAU; makeRobot(game, pl.x + Math.cos(a) * 1.5, pl.y + 0.2, pl.z + Math.sin(a) * 1.5, r.o, r.c, r.m, pl.yaw + Math.PI); }
+  for (const r of list || []) { const a = Math.random() * TAU; if (r.k === 'pet') makePet(game, pl.x + Math.cos(a) * 1.5, pl.y + 0.2, pl.z + Math.sin(a) * 1.5, r.o, r); else makeRobot(game, pl.x + Math.cos(a) * 1.5, pl.y + 0.2, pl.z + Math.sin(a) * 1.5, r.o, r.c, r.m, pl.yaw + Math.PI); }
 }

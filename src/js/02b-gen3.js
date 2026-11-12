@@ -69,8 +69,9 @@ function genModule3(B, H) {
       if (town) { const T = MW.town, d = Math.hypot(x - T.x, z - T.z); if (d < T.r + 18) { const k = d <= T.r ? 1 : 1 - (d - T.r) / 18; h += (T.y - h) * k * k * (3 - 2 * k); } }   // (level ground for the base and the village)
       return Math.round(clamp(h, 8, WH - 24));
     }
-    function generate(cx, cz) {
+    function generate(cx, cz, vb) {
       const blocks = new Uint8Array(CVOL), x0 = cx * 16, z0 = cz * 16, r = mulberry32(hash3(seed ^ 0x3a5, cx, cz));
+      let data = null;
       for (let lz = 0; lz < 16; lz++) for (let lx = 0; lx < 16; lx++) {
         const h = column(x0 + lx, z0 + lz);
         for (let y = 0; y <= h; y++) blocks[idx(lx, y, lz)] = y === 0 || (y < 3 && r() < 0.6) ? B.BEDROCK : y > h - 3 ? B.MARS_DUST : (y % 7 === 3 ? B.MARS_DUST : B.MARS_ROCK);   // (layers in the canyon walls)
@@ -94,8 +95,16 @@ function genModule3(B, H) {
         for (let a = -2; a <= 0; a++) for (const b of [-1, 0, 1]) P(a, b, h + 3, B.LAPIS_BLOCK);
         P(2, 0, h + 3, B.IRON_BARS); P(2, 0, h + 4, B.IRON_BARS); P(2, 0, h + 5, B.GLASS);
       }
-      if (town) { const P = painter(blocks, cx, cz); paintMarsTown(P); for (const tr of marsTracks()) paintTrack(blocks, cx, cz, tr, column); }
-      return { blocks, spawns: [] };
+      if (town) {
+        const P = painter(blocks, cx, cz), skip = id => !!(vb && vb.has(id));
+        const setD = (x, y, z, id, dv) => { const lx = x - x0, lz = z - z0; if (lx >= 0 && lx < 16 && lz >= 0 && lz < 16 && y >= 1 && y < WH) { blocks[idx(lx, y, lz)] = id; if (!data) data = new Uint8Array(CVOL); data[idx(lx, y, lz)] = dv; } };
+        paintMarsTown(P);
+        if (!skip(MW.base.id)) paintMarsBase(P, setD);
+        if (!skip(MW.field.id)) paintMarsField(P);
+        for (const ru of MW.ruins) if (!skip(ru.id)) paintRuin(P, setD, ru, column);
+        for (const tr of marsTracks()) if (!skip(tr.id)) { if (tr.id) paintGarage(P, tr); paintTrack(blocks, cx, cz, tr, column); }
+      }
+      return { blocks, spawns: [], data };
     }
     function spawn() { return town ? MW.spawn.slice() : [0.5, column(0, 0) + 1, 0.5]; }
     return { generate, spawn, column };
@@ -114,8 +123,33 @@ function genModule3(B, H) {
       { name: 'Crater Run', laps: 3, y: 58, garage: [-4, -38],
         way: [[-10, -52], [-44, -56], [-72, -76], [-76, -112], [-52, -138], [-60, -170], [-30, -190], [4, -176], [0, -140], [24, -120], [30, -86], [14, -60]],
         boost: [0.08, 0.5, 0.8], boxes: [0.2, 0.46, 0.72], ramps: [[0.3, 3], [0.9, 2]], dips: [[0.55, 0.12, 4]], tunnels: [[0.38, 0.05]] },
+      // (the second Mars update. Things with an id are kept out of a world from before wherever something was built: see marsTouching)
+      { id: 'mtrack2', name: 'Dune Dash', laps: 3, y: 58, garage: [-42, 4],
+        way: [[-54, 14], [-54, 42], [-66, 64], [-92, 74], [-118, 62], [-128, 34], [-118, 6], [-96, -8], [-72, -12], [-58, -6]],
+        boost: [0.1, 0.45, 0.75], boxes: [0.22, 0.5, 0.8], ramps: [[0.3, 3], [0.62, 2]], dips: [[0.86, 0.08, 3]], tunnels: [[0.52, 0.05]] },
     ],
+    base: { id: 'mbase', x: 20, z: 36, r: 6 },   // your own dome, with an Air Maker inside
+    field: { id: 'mfield', x: -12, z: 40, hx: 12, hz: 6 },   // the bounce-ball field: a goal at each end (x - hx and x + hx)
+    ruins: [{ id: 'mruin0', x: 140, z: -30 }, { id: 'mruin1', x: -10, z: 100 }, { id: 'mruin2', x: -120, z: -70 }, { id: 'mruin3', x: 80, z: -120 }, { id: 'mruin4', x: 70, z: 120 }],
   };
+  /* (for a Mars world from before the second update) the new things whose ground overlaps any of the given chunks */
+  function marsTouching(chunks) {
+    const out = new Set(), hit = (x1, z1, x2, z2, cx, cz) => x2 >= cx * 16 && x1 <= cx * 16 + 15 && z2 >= cz * 16 && z1 <= cz * 16 + 15;
+    for (const [cx, cz] of chunks) {
+      const b = MW.base, f = MW.field;
+      if (hit(b.x - b.r - 1, b.z - b.r - 1, b.x + b.r + 1, b.z + b.r + 1, cx, cz)) out.add(b.id);
+      if (hit(f.x - f.hx - 2, f.z - f.hz - 2, f.x + f.hx + 2, f.z + f.hz + 2, cx, cz)) out.add(f.id);
+      for (const ru of MW.ruins) if (hit(ru.x - 9, ru.z - 9, ru.x + 9, ru.z + 9, cx, cz)) out.add(ru.id);
+      for (const tr of marsTracks()) if (tr.id && !out.has(tr.id) && (tr.pts.some(q => q[0] > cx * 16 - 11 && q[0] < cx * 16 + 27 && q[1] > cz * 16 - 11 && q[1] < cz * 16 + 27) || hit(tr.garage[0] - 6, tr.garage[1] - 5, tr.garage[0] + 6, tr.garage[1] + 5, cx, cz))) out.add(tr.id);
+    }
+    return Array.from(out);
+  }
+  /* the nearest ruins that are there: { id, x, z, k } */
+  function nearestRuin(x, z, blocked) {
+    let best = null, bd = 1e18;
+    MW.ruins.forEach((ru, k) => { const d = (ru.x - x) * (ru.x - x) + (ru.z - z) * (ru.z - z); if (d < bd && !(blocked && blocked.includes(ru.id))) { bd = d; best = { id: ru.id, x: ru.x, z: ru.z, k }; } });
+    return best;
+  }
   /* a track: its waypoints joined by a smooth closed curve and walked one block at a time. pts: [x, z, y] for each step;
      boost and tunnel: flags for each step; boxes: the steps where pickup boxes float */
   let _tracks = null;
@@ -146,7 +180,7 @@ function genModule3(B, H) {
       for (let k = 10; k <= 22; k++) pit[N - k] = 1;   // (the way in from the garage, just before the start line)
       let x0 = 1e9, z0 = 1e9, x1 = -1e9, z1 = -1e9;
       for (const q of pts) { x0 = Math.min(x0, q[0]); z0 = Math.min(z0, q[1]); x1 = Math.max(x1, q[0]); z1 = Math.max(z1, q[1]); }
-      return { i: ti, name: tr.name, laps: tr.laps, y: tr.y, garage: tr.garage, pts, N, boost, tunnel, pit, boxes: tr.boxes.map(at), bbox: [x0 - 11, z0 - 11, x1 + 11, z1 + 11] };
+      return { i: ti, id: tr.id || null, name: tr.name, laps: tr.laps, y: tr.y, garage: tr.garage, pts, N, boost, tunnel, pit, boxes: tr.boxes.map(at), bbox: [x0 - 11, z0 - 11, x1 + 11, z1 + 11] };
     });
     return _tracks;
   }
@@ -214,8 +248,12 @@ function genModule3(B, H) {
       P.set(dx, T.y, dz, B.GLOWSTONE);
       P.set(dx - Math.sign(ox || 1) * 2, Y, dz - Math.sign(oz || 1) * 2, B.WOOL + ((col + 3) % 16));   // (a little table)
     }
-    // a garage at each track: a roof on four posts, where the buggies wait
-    for (const tr of MW.tracks) {
+    // a garage at each of the first two tracks: a roof on four posts, where the buggies wait (a later track brings its own)
+    for (const tr of MW.tracks) if (!tr.id) paintGarage(P, tr);
+  }
+  function paintGarage(P, tr) {
+    const T = MW.town, Y = T.y + 1;
+    {
       const [gx, gz] = tr.garage;
       P.box(gx - 5, Y, gz - 4, gx + 5, Y + 4, gz + 4, B.AIR);
       for (const [dx, dz] of [[-4, -3], [4, -3], [-4, 3], [4, 3]]) P.box(gx + dx, Y, gz + dz, gx + dx, Y + 3, gz + dz, B.IRON_BLOCK);
@@ -223,6 +261,68 @@ function genModule3(B, H) {
       P.box(gx - 4, T.y, gz - 3, gx + 4, T.y, gz + 3, B.STONE_BRICKS);
       P.set(gx, Y + 3, gz, B.GLOWSTONE);
     }
+  }
+  /* your own base (the second Mars update): a glass dome with an Air Maker in the middle, so you can take your helmet
+     off inside; a chest of things to start a garden with, a crafting table and a furnace */
+  function paintMarsBase(P, setD) {
+    const b = MW.base, T = MW.town, Y = T.y + 1, R = b.r;
+    if (!P.near(b.x - R - 2, b.z - R - 2, b.x + R + 2, b.z + R + 2)) return;
+    for (let x = -R - 1; x <= R + 1; x++) for (let z = -R - 1; z <= R + 1; z++) {
+      const r = Math.hypot(x, z);
+      if (r <= R + 0.4) { P.box(b.x + x, T.y - 3, b.z + z, b.x + x, T.y - 1, b.z + z, B.MARS_ROCK); P.set(b.x + x, T.y, b.z + z, r > R - 0.6 ? B.QUARTZ_BLOCK : (x + z) & 1 ? B.OAK_PLANKS : B.BIRCH_PLANKS); }
+      for (let y = 0; y <= R + 1; y++) { const rr = Math.hypot(x, y, z); if (rr > R - 0.5 && rr <= R + 0.5) P.set(b.x + x, Y + y, b.z + z, B.GLASS); else if (rr <= R - 0.5) P.set(b.x + x, Y + y, b.z + z, B.AIR); }
+    }
+    for (let k = R - 1; k <= R + 1; k++) P.box(b.x - k, Y, b.z, b.x - k, Y + 1, b.z, B.AIR);   // the doorway, towards the landing pads
+    P.set(b.x, Y, b.z, B.AIR_MAKER);
+    P.set(b.x + 3, Y, b.z - 3, B.CRAFTING_TABLE); P.set(b.x + 4, Y, b.z - 2, B.FURNACE);
+    setD(b.x + 4, Y, b.z + 1, B.CHEST, 1 | 8 | 64);   // (64: a Mars chest; filled when first opened)
+    for (const [dx, dz] of [[0, 4], [0, -4], [4, 0]]) P.set(b.x + dx, T.y, b.z + dz, B.GLOWSTONE);
+    for (const [ox, oz] of [[0, 0], [0, 1]]) P.line(MW.rocket[0] + 3, MW.rocket[1] + 3 + oz, b.x - R - 1, b.z + oz, T.y, T.y, B.MARS_ROCK);   // (a path from the rocket's pad)
+  }
+  /* the bounce-ball field: green, with white lines, a low wall round it and a goal at each end */
+  function paintMarsField(P) {
+    const f = MW.field, T = MW.town, Y = T.y + 1;
+    if (!P.near(f.x - f.hx - 3, f.z - f.hz - 3, f.x + f.hx + 3, f.z + f.hz + 3)) return;
+    for (let x = -f.hx - 2; x <= f.hx + 2; x++) for (let z = -f.hz - 1; z <= f.hz + 1; z++) {
+      const ax = Math.abs(x), az = Math.abs(z), inside = ax <= f.hx && az <= f.hz, goal = ax > f.hx && az <= 2;
+      P.box(f.x + x, T.y - 3, f.z + z, f.x + x, T.y - 1, f.z + z, B.MARS_ROCK);
+      P.box(f.x + x, Y, f.z + z, f.x + x, Y + 9, f.z + z, B.AIR);
+      const line = inside && (ax === f.hx || az === f.hz || x === 0 || (Math.abs(Math.hypot(x, z) - 3) < 0.5));
+      P.set(f.x + x, T.y, f.z + z, inside || goal ? B.WOOL + (line ? 0 : 5) : B.QUARTZ_BLOCK);
+      if (!inside && !goal && ax <= f.hx + 1) P.set(f.x + x, Y, f.z + z, B.QUARTZ_BLOCK);   // the low wall
+      if (ax === f.hx + 2 && az <= 2) P.box(f.x + x, Y, f.z + z, f.x + x, Y + 2, f.z + z, B.IRON_BARS);   // the back of the goal
+      if (ax > f.hx && az === 3) P.box(f.x + x, Y, f.z + z, f.x + x, Y + 2, f.z + z, B.WOOL + (x < 0 ? 14 : 11));   // its posts: red at one end, blue at the other
+      if (ax > f.hx && az <= 3) P.set(f.x + x, Y + 3, f.z + z, B.WOOL + (x < 0 ? 14 : 11));   // and its top
+    }
+  }
+  /* ancient ruins out in the wilderness: broken pillars round a stone floor, an arch, a statue of a Martian's head, and a chest of treasure */
+  function paintRuin(P, setD, ru, column) {
+    if (!P.near(ru.x - 9, ru.z - 9, ru.x + 9, ru.z + 9)) return;
+    const h = column(ru.x, ru.z), Y = h + 1, r = mulberry32(hash3(0x7a15, ru.x, ru.z));
+    for (let x = -8; x <= 8; x++) for (let z = -8; z <= 8; z++) {
+      const d = Math.hypot(x, z), k = r();
+      if (d > 8.3) continue;
+      P.box(ru.x + x, h - 5, ru.z + z, ru.x + x, h - 1, ru.z + z, B.MARS_ROCK);
+      P.box(ru.x + x, Y, ru.z + z, ru.x + x, Y + 10, ru.z + z, B.AIR);
+      P.set(ru.x + x, h, ru.z + z, d > 7.3 ? B.MARS_ROCK : k < 0.2 ? B.MOSSY_COBBLE : k < 0.45 ? B.COBBLE : k < 0.52 ? B.MARS_DUST : B.STONE_BRICKS);
+    }
+    for (let k = 0; k < 8; k++) {   // a ring of pillars, some of them broken off
+      const a = (k / 8) * Math.PI * 2 + 0.39, px = ru.x + Math.round(Math.cos(a) * 6), pz = ru.z + Math.round(Math.sin(a) * 6), tall = 2 + ((r() * 4) | 0);
+      P.box(px, Y, pz, px, Y + tall, pz, B.QUARTZ_BLOCK);
+      if (tall >= 5) P.set(px, Y + tall + 1, pz, B.STONE_BRICKS);
+    }
+    P.box(ru.x - 2, Y, ru.z + 7, ru.x - 2, Y + 4, ru.z + 7, B.STONE_BRICKS); P.box(ru.x + 2, Y, ru.z + 7, ru.x + 2, Y + 4, ru.z + 7, B.STONE_BRICKS);   // the arch
+    P.box(ru.x - 2, Y + 5, ru.z + 7, ru.x + 2, Y + 5, ru.z + 7, B.STONE_BRICKS);
+    // the statue: a Martian's head on a pillar, with two dark eyes and two antennae
+    P.box(ru.x, Y, ru.z - 4, ru.x, Y + 1, ru.z - 4, B.STONE_BRICKS);
+    P.box(ru.x - 1, Y + 2, ru.z - 5, ru.x + 1, Y + 4, ru.z - 3, B.WOOL + 5);
+    P.set(ru.x - 1, Y + 3, ru.z - 3, B.WOOL + 15); P.set(ru.x + 1, Y + 3, ru.z - 3, B.WOOL + 15);
+    P.box(ru.x - 1, Y + 5, ru.z - 4, ru.x - 1, Y + 6, ru.z - 4, B.IRON_BARS); P.box(ru.x + 1, Y + 5, ru.z - 4, ru.x + 1, Y + 6, ru.z - 4, B.IRON_BARS);
+    P.set(ru.x - 1, Y + 7, ru.z - 4, B.WOOL + 4); P.set(ru.x + 1, Y + 7, ru.z - 4, B.WOOL + 4);
+    // the treasure, on a little dais with a lamp at each side
+    P.box(ru.x - 1, Y, ru.z - 1, ru.x + 1, Y, ru.z + 1, B.QUARTZ_BLOCK);
+    setD(ru.x, Y + 1, ru.z, B.CHEST, 0 | 8 | 64 | 16);   // (64 + 16: a Mars ruin's treasure)
+    P.set(ru.x - 1, Y + 1, ru.z, B.GLOWSTONE); P.set(ru.x + 1, Y + 1, ru.z, B.GLOWSTONE);
   }
   /* Jupiter: nobody can stand on a gas giant, so: floating islands of cloud, one in each 44-block square, over nothing */
   function isleAt(seed, gx, gz) {
@@ -1189,5 +1289,5 @@ function genModule3(B, H) {
     return { generate, spawn, column };
   }
 
-  return { MW, marsTracks, trackNear, moonGen, marsGen, jupiterGen, uranusGen, planetLanding, nearestRover, hogwartsGen, HW, fallsGen, FF, ghostGen, GB, lifeGen, LC, dungeonPlanner };
+  return { MW, marsTracks, trackNear, marsTouching, nearestRuin, moonGen, marsGen, jupiterGen, uranusGen, planetLanding, nearestRover, hogwartsGen, HW, fallsGen, FF, ghostGen, GB, lifeGen, LC, dungeonPlanner };
 }

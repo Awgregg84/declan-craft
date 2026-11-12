@@ -6,8 +6,35 @@ function buildBlockTiles7() {
     const d = Math.abs(x - 7.5) + ((y + 2) % 8), v = 46 + p.r() * 10;
     return d > 6.2 && d < 8.4 ? [255, 214, 60] : d >= 8.4 && d < 9.6 ? [255, 130, 30] : [v, v * 0.9, v * 1.25];
   }));
+  // (the second Mars update) the Air Maker: a metal box with a grille and a blue light, and a fan on top; a meteorite: dark rock with glowing cracks
+  addTile('air_maker', p => p.fill((x, y) => {
+    if (x === 0 || x === 15 || y === 0 || y === 15) return [96, 100, 110];
+    if (y >= 3 && y <= 9 && x >= 3 && x <= 12) return (y % 2) ? [40, 44, 52] : [150, 156, 168];
+    if (y >= 11 && y <= 12 && x >= 6 && x <= 9) return [120, 230, 255];
+    const v = 176 + p.r() * 12; return [v, v + 4, v + 12];
+  }));
+  addTile('air_maker_top', p => p.fill((x, y) => {
+    const dx = x - 7.5, dy = y - 7.5, d = Math.hypot(dx, dy), a = Math.atan2(dy, dx);
+    if (d > 7) { const v = 170 + p.r() * 12; return [v, v + 4, v + 12]; }
+    if (d < 1.5) return [200, 204, 214];
+    if (d > 6) return [70, 74, 84];
+    return (Math.floor((a + Math.PI) / (Math.PI / 3) + d * 0.25) % 2) ? [120, 220, 245] : [34, 38, 46];
+  }));
+  addTile('meteorite', p => { const f = vfield(p.r, 4); p.fill((x, y) => { const v = f(x, y); return Math.abs(v) < 0.09 ? [255, 170 + p.r() * 60, 40] : [52 + v * 22 + p.r() * 8, 44 + v * 18, 48 + v * 18]; }); });
 }
 function buildItemTiles7() {
+  // (the second Mars update) a Blip's egg; the sandboard; a puff of dust and a little heart
+  addTile('alien_egg', p => {
+    shadeMask(p, mask((x, y) => Math.hypot((x - 8) / 4.6, (y - 8.5) / 5.8) < 1), [C('#f4ecd2'), C('#fffbe8'), C('#c8b88a'), C('#4a4028')], true);
+    for (const [x, y, c] of [[6, 5, '#7ae0d0'], [9, 7, '#c08aff'], [7, 10, '#ffb84a'], [10, 11, '#7ae0d0'], [5, 8, '#ff8aa8']]) { p.px(x, y, C(c)); p.px(x + 1, y, C(c)); }
+  });
+  addTile('sandboard', p => {
+    shadeMask(p, mask(capsule([[3, 12.5], [13, 3.5]], 2.3)), [C('#e8a23a'), C('#ffd27a'), C('#a8681a'), C('#3a2206')], true);
+    for (let i = 0; i < 5; i++) p.px(6 + i, 10 - i, C('#f4f4f4'));
+    p.px(5, 10, C('#d8282a')); p.px(10, 5, C('#d8282a'));
+  });
+  addTile('mars_dust_p', p => p.fill((x, y) => { const d = Math.hypot(x - 7.5, y - 7.5); return d < 6 ? [214 + p.r() * 20, 120 + p.r() * 20, 76] : null; }));
+  addTile('heart_p', p => { const H = ['.RR.RR.', 'RRRRRRR', 'RRRRRRR', '.RRRRR.', '..RRR..', '...R...']; for (let y = 0; y < 6; y++) for (let x = 0; x < 7; x++) if (H[y][x] === 'R') { p.rect(1 + x * 2, 2 + y * 2, 2, 2, C(y < 2 && x === 1 ? '#ffb0c0' : '#ff4a6a')); } });
   // a Mars crystal: a spiky pink-orange gem
   addTile('mars_crystal', p => {
     shadeMask(p, mask(poly([[5, 14], [3.5, 8], [6, 3], [8, 7], [10.5, 1.5], [13, 8], [11.5, 14]])), [C('#ff7a5a'), C('#ffd0b8'), C('#c8402a'), C('#5a1408')], true);
@@ -86,6 +113,32 @@ function buildSkins7() {
   addSkin('saucer_beam', S => {   // the tractor beam: pale green light, wider further down
     for (const [v, w] of [[0, 2], [8, 3], [16, 4]]) paintBox(S, 0, v, w, 4, w, (f, x, y) => f === 'top' || f === 'bottom' ? null : [140, 255, 200, (x + y) % 3 === 0 ? 110 : 60]);
   });
+  // (the second Mars update) the Blip: a round little creature with one big eye, two feet, an antenna and a stubby tail; and its egg
+  ['#7ae0d0', '#ffb84a', '#c08aff', '#ff8aa8'].forEach((hex, k) => addSkin('blip_' + k, S => {
+    const c = C(hex), cD = mulc(c, 0.62), cL = mixc(c, C('#ffffff'), 0.45);
+    paintBox(S, 0, 0, 6, 5, 6, (f, x, y, fw, fh) => {
+      if (f === 'front') {
+        if (y >= 0 && y <= 2 && x >= 1 && x <= 4) return (x >= 2 && x <= 3 && y >= 1) ? C('#10101c') : (x === 2 && y === 0) ? C('#ffffff') : C('#f4f4f8');
+        if (y === 3 && x >= 2 && x <= 3) return cD;
+      }
+      return f === 'bottom' ? cL : f === 'top' ? S.jit(cL, 5) : y === fh - 1 ? cD : (x + y * 2) % 7 === 0 ? cL : S.jit(c, 6);
+    });
+    paintBox(S, 0, 12, 2, 2, 3, () => S.jit(cD, 5));   // a foot
+    paintBox(S, 12, 12, 1, 3, 1, () => cD);   // the antenna, and its glowing tip
+    paintBox(S, 18, 12, 2, 2, 2, () => S.jit(C('#ffe04a'), 10));
+    paintBox(S, 28, 12, 2, 2, 3, (f, x, y) => S.jit(y ? cD : c, 5));   // the tail
+  }));
+  addSkin('alienegg', S => {
+    const sp = ['#7ae0d0', '#c08aff', '#ffb84a', '#ff8aa8'];
+    paintBox(S, 0, 0, 4, 5, 4, (f, x, y) => (x * 7 + y * 5 + f.length) % 6 === 0 ? C(sp[(x + y) % 4]) : S.jit(C('#f4ecd2'), 5));
+    paintBox(S, 0, 10, 2, 1, 2, () => S.jit(C('#f4ecd2'), 5));
+  });
+  // the bounce ball: red, white and blue panels; and the sandboard
+  addSkin('marsball', S => paintBox(S, 0, 0, 10, 10, 10, (f, x, y) => { const k = (Math.floor(x / 3.4) + Math.floor(y / 3.4) + (f === 'top' || f === 'left' ? 1 : 0)) % 3; return S.jit([C('#e8483a'), C('#f4f4f4'), C('#3a7ae0')][k], 4); }));
+  addSkin('sandboard', S => {
+    paintBox(S, 0, 0, 4, 1, 14, (f, x, y) => f === 'top' ? (y === 3 || y === 10 ? C('#2a2a2a') : (x === 1 || x === 2) && y > 4 && y < 9 ? C('#f4f4f4') : S.jit(C('#e8a23a'), 6)) : S.jit(C('#a8681a'), 6));
+    paintBox(S, 0, 16, 2, 1, 2, () => S.jit(C('#d8282a'), 6));
+  });
   // a pickup box: bright stripes with a star on each side
   addSkin('itembox', S => {
     paintBox(S, 0, 0, 10, 10, 10, (f, x, y) => {
@@ -118,5 +171,15 @@ function buildModels7() {
   ]);
   defModel('saucer_glass', 'saucer_glass', 4 / 16, [{ name: 'dome', box: [-3, 3, -3, 6, 5, 6], uv: [0, 0] }]);
   defModel('saucer_beam', 'saucer_beam', 4 / 16, [{ name: 'beam', boxes: [[-1, -4, -1, 2, 4, 2, 0, 0], [-1.5, -8, -1.5, 3, 4, 3, 0, 8], [-2, -12, -2, 4, 4, 4, 0, 16]] }]);
+  [0, 1, 2, 3].forEach(k => defModel('blip_' + k, 'blip_' + k, 1 / 16, [
+    { name: 'rleg', box: [-3, 0, -1, 2, 2, 3], uv: [0, 12], pivot: [-2, 2, 0] },
+    { name: 'lleg', box: [1, 0, -1, 2, 2, 3], uv: [0, 12], pivot: [2, 2, 0] },
+    { name: 'body', box: [-3, 2, -3, 6, 5, 6], uv: [0, 0] },
+    { name: 'head', boxes: [[-0.5, 7, -0.5, 1, 3, 1, 12, 12], [-1, 10, -1, 2, 2, 2, 18, 12]], pivot: [0, 7, 0] },
+    { name: 'tail', box: [-1, 3, -6, 2, 2, 3], uv: [28, 12], pivot: [0, 4, -3] },
+  ]));
+  defModel('alienegg', 'alienegg', 1 / 16, [{ name: 'body', boxes: [[-2, 0, -2, 4, 5, 4, 0, 0], [-1, 5, -1, 2, 1, 2, 0, 10]], pivot: [0, 0, 0] }]);
+  defModel('marsball', 'marsball', 1 / 16, [{ name: 'ball', box: [-5, 1, -5, 10, 10, 10], uv: [0, 0], pivot: [0, 6, 0] }]);
+  defModel('sandboard', 'sandboard', 2 / 16, [{ name: 'body', boxes: [[-2, 0, -7, 4, 1, 14, 0, 0], [-1, 1, 6, 2, 1, 2, 0, 16]] }]);
   defModel('itembox', 'itembox', 1 / 16, [{ name: 'box', box: [-5, -5, -5, 10, 10, 10], uv: [0, 0] }]);
 }

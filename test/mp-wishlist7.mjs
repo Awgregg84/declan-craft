@@ -81,7 +81,7 @@ const GID = GUEST.pid;
     await sleep(1200);
   };
   const g0 = await G.evaluate(() => { const pl = game.player; return { map: game.mapId, wmap: game.world.map, helmet: wearsSpaceHelmet(pl), breathe: canBreatheHere(pl), g: gravOf(game.world.map), hello: T.chat(/Welcome to Mars/), track: game.gen.marsTracks().length }; });
-  check('she is on Mars too: a helmet, Mars\'s gravity, and a hello', g0.map === 'marsworld' && g0.wmap === 'marsworld' && g0.helmet && g0.breathe && g0.g === 0.38 && g0.hello && g0.track === 2, g0);
+  check('she is on Mars too: a helmet, Mars\'s gravity, and a hello', g0.map === 'marsworld' && g0.wmap === 'marsworld' && g0.helmet && g0.breathe && g0.g === 0.38 && g0.hello && g0.track >= 2, g0);
 
   if (on('aliens')) {
     // she sees the Martians (and which are the marshals), one says hello to her, and she swaps an apple for a present

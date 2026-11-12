@@ -43,6 +43,9 @@ const MOB_DEFS = {
   // the Mars world (see 12m-mars.js): friendly Martians, and the alien racers in their buggies
   martian: { model: 'martian_0', w: 0.3, h: 1.3, hp: 20, speed: 1.6, martian: true, special: true, unhurt: true, xp: [0, 0], drops: [], sound: 'martian' },
   racer: { model: 'martian_0', w: 0.6, h: 1.4, hp: 20, speed: 0, racer: true, special: true, unhurt: true, xp: [0, 0], drops: [], sound: 'martian' },
+  // more Mars (see 12mb-mars2.js): the alien pet (an egg at first), and the bounce ball
+  blip: { model: 'blip_0', w: 0.3, h: 0.6, hp: 10, speed: 2.6, blip: true, special: true, unhurt: true, xp: [0, 0], drops: [], sound: 'blip' },
+  marsball: { model: 'marsball', w: 0.4, h: 0.8, hp: 10, speed: 0, marsball: true, special: true, unhurt: true, xp: [0, 0], drops: [], sound: 'ball' },
 };
 const MOB_TYPES = Object.keys(MOB_DEFS);
 let ENTITY_NID = 0;
@@ -185,7 +188,8 @@ function blockDrops(id, held, st) {
   if (d.tier > 0 && (!tool || tool.kind !== d.tool || tool.tier < d.tier)) return [];
   if (st && enchLvl(st, 'silk_touch') && id !== B.BEDROCK && !LIQUID[id] && d.creative !== false && d.hardness >= 0) return [[id, 1]];   // the block itself
   if (d.drop === null) return [];
-  if (id === B.GOLD_ORE) return [[id, 1], [I.COIN, randInt(1, 3)]];   // (a little money in it too)
+  if (id === B.GOLD_ORE) return [[id, 1], [I.COIN, randInt(1, 3)]];
+  if (id === B.METEORITE) return [[I.MARS_CRYSTAL, randInt(1, 2)], [Math.random() < 0.5 ? I.IRON_INGOT : I.GOLD_INGOT, randInt(1, 2)]];   // (a present from the stars)   // (a little money in it too)
   const fortune = st ? enchLvl(st, 'fortune') : 0, base = id === B.LAPIS_ORE ? randInt(4, 8) : 1;
   if (d.xp) return [[d.drop, base * Math.max(1, randInt(0, fortune + 1))]];   // ores: more with Fortune
   if (d.drop === 'leaves') {
@@ -249,7 +253,8 @@ function hurtMob(game, e, dmg, fx, fz, cause, by, o) {
   if (e.dead || e.removed) return;
   const d = MOB_DEFS[e.type];
   if (e.proxy) { MP.sendHit(e, dmg, fx, fz, o); e.hurt = d.unhurt ? 0 : 0.45; sfx(d.sound + 'Hurt', e.x, e.y + 0.5, e.z); return; }
-  if (d.robot) { if (cause === 'player') robotHit(game, e, by || myPid()); return; }   // (nothing hurts a robot: hit by its owner, it goes back in the bag)
+  if (d.robot) { if (cause === 'player') robotHit(game, e, by || myPid()); return; }
+  if (d.marsball) { ballKick(game, e, fx, fz, 11, 6.5); return; }   // (a punch sends the ball flying)   // (nothing hurts a robot: hit by its owner, it goes back in the bag)
   e.hurt = 0.45;
   let dx = e.x - fx, dz = e.z - fz;
   const l = Math.hypot(dx, dz) || 1, kb = 1 + ((o && o.kb) || 0);
@@ -503,6 +508,7 @@ function updateMob(game, e, dt) {
   if (d.wisp) { updateWisp(game, e, dt); return; }
   if (d.ghost) { updateGhost(game, e, dt); return; }
   if (d.racer) { updateRacer(game, e, dt); return; }
+  if (d.marsball) { updateBall(game, e, dt); return; }
   if (d.ender) { enderTick(game, e, dt); if (e.removed || e.dead) return; }
   if (d.fish) { updateFish(game, e, d, dt); return; }
   if (d.swimmer) { updateSnork(game, e, d, dt); return; }
@@ -534,6 +540,9 @@ function updateMob(game, e, dt) {
     mx = st[0]; mz = st[1]; speed *= st[2];
   } else if (d.gnome) {
     const st = gnomeSteer(game, e, dt);
+    mx = st[0]; mz = st[1]; speed *= st[2];
+  } else if (d.blip) {
+    const st = petSteer(game, e, dt);
     mx = st[0]; mz = st[1]; speed *= st[2];
   } else if (d.martian) {
     const st = martianSteer(game, e, dt);
@@ -703,6 +712,11 @@ function mobPose(e, t) {
     const wv = e.waveT > 0 ? Math.sin(t * 12) * 0.35 : 0, bob = Math.sin(t * 3 + e.nid) * 0.06;
     return { head: [head[0] + bob, head[1], bob], rleg: [a, 0, 0], lleg: [-a, 0, 0], rarm: e.marshal !== undefined ? [-2.9 + wv * 1.6, 0, 0.2] : e.waveT > 0 ? [-2.7 + wv, 0, 0.25] : [-a * 0.8, 0, 0], larm: [a * 0.8, 0, 0] };
   }
+  if (e.type === 'blip') {   // an egg wobbles; a Blip waddles, wags its tail and bounces when it is happy
+    if (!e.stage) return { body: [Math.sin(t * 9 + e.nid) * 0.12, 0, Math.sin(t * 7) * 0.12] };
+    return { head: [Math.sin(t * 4 + e.nid) * 0.25, 0, Math.sin(t * 3) * 0.2], rleg: [a, 0, 0], lleg: [-a, 0, 0], tail: [0, Math.sin(t * (e.happy > 0 ? 18 : 6)) * 0.5, 0] };
+  }
+  if (e.type === 'marsball') return { ball: [-e.walk, 0, 0] };   // (rolling)
   if (e.type === 'racer') return { head, rleg: [-1.4, 0.15, 0], lleg: [-1.4, -0.15, 0], rarm: [-1.1, 0.2, 0], larm: [-1.1, -0.2, 0] };   // sitting in its buggy
   if (e.type === 'gnome') return { head, rleg: [a, 0, 0], lleg: [-a, 0, 0], rarm: [-a * 0.9, 0, 0.1], larm: [a * 0.9, 0, -0.1] };
   if (e.type === 'lakemon') { const sw = Math.sin(t * 0.7) * 0.12; return { neck: [sw - 0.1, Math.sin(t * 0.4) * 0.25, 0], lfl: [0, 0, Math.sin(t * 2) * 0.4], rfl: [0, 0, -Math.sin(t * 2) * 0.4], tail: [0, Math.sin(t * 1.3) * 0.3, 0] }; }
@@ -752,10 +766,11 @@ function drawEntities(game, s, t, cam) {
     if (!boxInFrustum(R.planes, dx - bw, dy - low, dz - bw, dx + bw, dy + Math.max(2.2, e.h + 0.4), dz + bw)) continue;
     if (e.vehicle) { drawVehicle(game, e, dx, dy, dz, s); continue; }
     if (mobInvisible(e)) continue;
-    const def = MOB_DEFS[e.type], model = MODELS[e.type === 'villager' ? 'villager_' + (e.prof || 'farmer') : e.type === 'ghast' && e.firing > 0 ? 'ghast_fire' : e.type === 'snork' ? 'snork_' + (e.variant | 0) : e.type === 'martian' || e.type === 'racer' ? 'martian_' + ((e.variant | 0) & 3) : e.type === 'student' || e.type === 'qplayer' ? 'student_' + ((e.variant | 0) % STUDENT_LOOKS) : def.model];
+    const def = MOB_DEFS[e.type], model = MODELS[e.type === 'villager' ? 'villager_' + (e.prof || 'farmer') : e.type === 'ghast' && e.firing > 0 ? 'ghast_fire' : e.type === 'snork' ? 'snork_' + (e.variant | 0) : e.type === 'martian' || e.type === 'racer' ? 'martian_' + ((e.variant | 0) & 3) : e.type === 'blip' ? (e.stage ? 'blip_' + ((e.variant | 0) & 3) : 'alienegg') : e.type === 'student' || e.type === 'qplayer' ? 'student_' + ((e.variant | 0) % STUDENT_LOOKS) : def.model];
     gl.uniform1f(P.u.uBright, Math.max(def.glow ? 1 : def.swimmer || def.lakemon ? 0.6 : def.robot ? 0.4 : 0, brightAt(world, e.x, e.y + e.h * 0.7, e.z, s)));   // (snorks stay bright and colourful deep in the sea)
     let tint = e.hurt > 0 || e.dead ? [0.8, 0.1, 0.1, 0.45] : e.frozen > 0 ? (e.stun > 0 ? [1, 0.95, 0.5, 0.2] : [0.6, 0.85, 1, 0.5]) : [0, 0, 0, 0];
     let sc = model.scale;
+    if (e.type === 'blip' && e.stage === 1) sc *= 0.62;   // (a baby)
     if (e.type === 'creeper' && e.fuse > 0) {
       const f = e.fuse / 1.5;
       if (Math.floor(e.fuse * 8) % 2 === 0) tint = [1, 1, 1, 0.55 * f];

@@ -9,7 +9,7 @@ const B = {
   COAL_BLOCK: 46, TORCH: 47, TALL_GRASS: 48, DANDELION: 49, POPPY: 50, CORNFLOWER: 51, DEAD_BUSH: 52,
   OAK_SAPLING: 53, BIRCH_SAPLING: 54, SPRUCE_SAPLING: 55, BED: 56,
   DOOR: 57, EMERALD_ORE: 58, EMERALD_BLOCK: 59, BIRCH_DOOR: 60, SPRUCE_DOOR: 61, IRON_DOOR: 62, GLASS_DOOR: 63,
-  AIRLOCK: 119, GARAGE_DOOR: 120, GARAGE_OPEN: 121, STATION: 122, MARS_DUST: 123, MARS_ROCK: 124, CLOUD: 125, URANUS_ICE: 126, TRACK: 127, BOOST: 128,
+  AIRLOCK: 119, GARAGE_DOOR: 120, GARAGE_OPEN: 121, STATION: 122, MARS_DUST: 123, MARS_ROCK: 124, CLOUD: 125, URANUS_ICE: 126, TRACK: 127, BOOST: 128, AIR_MAKER: 129, METEORITE: 130,
   WOOL: 64, // 64..79
   NETHERRACK: 80, SOUL_SAND: 81, NETHER_QUARTZ_ORE: 82, QUARTZ_BLOCK: 83, NETHER_BRICKS: 84, NETHER_PORTAL: 85,
   MEGA_TNT: 86, ICE_TNT: 87, DIG_TNT: 88, PARTY_TNT: 89, CLUSTER_TNT: 90, DISPENSER: 91, LEVER: 92, BUTTON: 93, RAIL: 94,
@@ -36,7 +36,7 @@ const I = {
   JOURNAL: 424, PINE_CAP: 425, SWEATER: 426, // 426..430 sweaters, in SWEATERS order
   FEZ: 431, GOLF_CART: 432, PIZZA: 433,
   TALE: 434, // 434..441 story books of old tales, in TALES order
-  LASER: 442, COIN: 443, BILL: 444, TRAIN: 445, PROTON_PACK: 446, GHOST_TRAP: 447, GHOST_DETECTOR: 448, BUGGY: 449, SAUCER: 450, MARS_CRYSTAL: 451,
+  LASER: 442, COIN: 443, BILL: 444, TRAIN: 445, PROTON_PACK: 446, GHOST_TRAP: 447, GHOST_DETECTOR: 448, BUGGY: 449, SAUCER: 450, MARS_CRYSTAL: 451, ALIEN_EGG: 452, SANDBOARD: 453,
   POTION: 370, // 370..381 potions, 390..401 splash potions, in POTIONS order
   SPLASH: 390,
   ARMOR: 350, // 350..365 = material*4 + slot
@@ -242,6 +242,7 @@ const camBox = d => d < 16 ? [0.3, 0, 0.3, 0.7, 0.75, 0.7] : [[0.3, 0.5, 0, 0.7,
 defBlock(B.CAMERA, 'Security Camera', { tex: 'camera_item', solid: false, opaque: false, render: R_NONE, hardness: 0.5, sound: 'metal', plant: 'sign', ao: false, boxFn: camBox });
 defBlock(B.MONITOR, 'Camera Monitor', { tex: { top: 'monitor_top', bottom: 'monitor_side', side: 'monitor_side', front: 'monitor_front', back: 'monitor_back' }, hardness: 1.5, sound: 'metal', facing: true });
 SPECIAL[B.CAMERA] = SPECIAL[B.MONITOR] = 1;
+SPECIAL[B.AIR_MAKER] = 1;   // (kept track of in each chunk, so the air bubbles round them are quick to find: see 12mb-mars2.js)
 // dungeons (see 02b-gen3.js and 09y-dungeons.js): monster spawners (a little monster turns inside: data 0 zombie, 1 magma cube), old cracked stone bricks and iron bars
 defBlock(B.SPAWNER, 'Monster Spawner', { tex: 'spawner', opaque: false, hardness: 5, tool: 'pickaxe', tier: 1, sound: 'metal', drop: null, xp: [15, 43] });
 defBlock(B.CRACKED_BRICKS, 'Cracked Stone Bricks', { tex: 'cracked_bricks', hardness: 1.5, tool: 'pickaxe', tier: 1 });
@@ -482,6 +483,8 @@ shapeless(I.PIZZA, 2, [I.BREAD, I.CHEESE]);
 shaped(I.TRAIN, 1, ['F  ', 'MMM'], { F: B.FURNACE, M: I.MINECART });   // (an engine with a furnace, and two carriages)
 shaped(B.STATION, 2, ['YYY', 'SSS'], { Y: B.WOOL + 4, S: B.STONE_BRICKS });   // (a platform with a yellow edge)
 shaped(I.LASER, 1, ['IIG', 'IL ', 'I  '], { I: I.IRON_INGOT, G: B.GLASS, L: B.GLOWSTONE });   // (an iron blaster with a glass tip and a glowing heart)
+shaped(B.AIR_MAKER, 1, ['IGI', 'GCG', 'IGI'], { I: I.IRON_INGOT, G: B.GLASS, C: I.MARS_CRYSTAL });   // (iron and glass round a Mars Crystal)
+shaped(I.SANDBOARD, 1, ['PCP'], { P: 'planks', C: I.MARS_CRYSTAL });
 shaped(I.BROOM, 1, ['  S', ' S ', 'F  '], { S: I.STICK, F: I.FEATHER });
 shaped(I.ROCKET, 1, [' I ', 'IGI', 'IFI'], { I: I.IRON_INGOT, G: B.GLASS, F: B.FURNACE });   // (the furnace is the engine)
 shapeless(I.WAND, 1, [I.STICK, I.FEATHER, I.GOLD_INGOT]);   // (a phoenix feather inside)
@@ -586,15 +589,15 @@ const CREATIVE_LIST = [
   B.COAL_ORE, B.IRON_ORE, B.GOLD_ORE, B.DIAMOND_ORE, B.EMERALD_ORE, B.LAPIS_ORE, B.COAL_BLOCK, B.IRON_BLOCK, B.GOLD_BLOCK, B.DIAMOND_BLOCK, B.EMERALD_BLOCK, B.LAPIS_BLOCK,
   B.NETHERRACK, B.SOUL_SAND, B.NETHER_QUARTZ_ORE, B.QUARTZ_BLOCK, B.NETHER_BRICKS,
   B.GLOWSTONE, B.TORCH, B.JACK_O_LANTERN, B.PUMPKIN, B.TNT, B.MEGA_TNT, B.ICE_TNT, B.DIG_TNT, B.PARTY_TNT, B.CLUSTER_TNT,
-  B.CRAFTING_TABLE, B.FURNACE, B.CHEST, B.BOOKSHELF, B.ENCH_TABLE, B.BREWING_STAND, B.SIGN, B.BOARD, B.TV, B.MONITOR, B.CAMERA, B.BED, I.DOOR, I.BIRCH_DOOR, I.SPRUCE_DOOR, I.GLASS_DOOR, I.IRON_DOOR, I.AIRLOCK, B.GARAGE_DOOR, B.DISPENSER, B.LEVER, B.BUTTON, B.RAIL, I.MINECART, I.TRAIN, B.STATION, I.CAR, I.FLYING_CAR, I.BROOM, I.ROCKET, I.PLANE, I.JET, I.AIRLINER, ...TANK_COLORS.map((c, i) => I.TANK + i), I.GOLF_CART, I.BUGGY, I.SAUCER, I.SPACE_HELMET, I.BOAT, I.SUBMARINE,
+  B.CRAFTING_TABLE, B.FURNACE, B.CHEST, B.BOOKSHELF, B.ENCH_TABLE, B.BREWING_STAND, B.SIGN, B.BOARD, B.TV, B.MONITOR, B.CAMERA, B.BED, I.DOOR, I.BIRCH_DOOR, I.SPRUCE_DOOR, I.GLASS_DOOR, I.IRON_DOOR, I.AIRLOCK, B.GARAGE_DOOR, B.DISPENSER, B.LEVER, B.BUTTON, B.RAIL, I.MINECART, I.TRAIN, B.STATION, I.CAR, I.FLYING_CAR, I.BROOM, I.ROCKET, I.PLANE, I.JET, I.AIRLINER, ...TANK_COLORS.map((c, i) => I.TANK + i), I.GOLF_CART, I.BUGGY, I.SAUCER, I.SANDBOARD, I.SPACE_HELMET, I.BOAT, I.SUBMARINE,
   B.CACTUS, B.SUGAR_CANE, B.TALL_GRASS, B.DANDELION, B.POPPY, B.CORNFLOWER, B.DEAD_BUSH, B.OAK_SAPLING, B.BIRCH_SAPLING, B.SPRUCE_SAPLING,
-  B.WATER, B.LAVA, B.CORAL_RED, B.CORAL_YELLOW, B.CORAL_BLUE, B.MOON_DUST, B.MOON_ROCK, B.MOON_CHEESE, B.MARS_DUST, B.MARS_ROCK, B.CLOUD, B.URANUS_ICE, B.TRACK, B.BOOST, B.FLAG, B.SLATE, B.STAINED_GLASS, B.CANDLE, B.SORTING_HAT,
+  B.WATER, B.LAVA, B.CORAL_RED, B.CORAL_YELLOW, B.CORAL_BLUE, B.MOON_DUST, B.MOON_ROCK, B.MOON_CHEESE, B.MARS_DUST, B.MARS_ROCK, B.CLOUD, B.URANUS_ICE, B.TRACK, B.BOOST, B.AIR_MAKER, B.METEORITE, B.FLAG, B.SLATE, B.STAINED_GLASS, B.CANDLE, B.SORTING_HAT,
   ...TAGS.wool,
   toolId(0, 0), toolId(0, 1), toolId(0, 2), toolId(0, 3), toolId(1, 0), toolId(1, 1), toolId(1, 2), toolId(1, 3),
   toolId(2, 0), toolId(2, 1), toolId(2, 2), toolId(2, 3), toolId(3, 0), toolId(3, 1), toolId(3, 2), toolId(3, 3), I.FLINT_AND_STEEL,
   I.BOW, I.CROSSBOW, I.ARROW, I.FIRE_CHARGE, I.ENDER_PEARL, I.SHIELD, I.FISHING_ROD, I.WAND, I.LASER, I.PROTON_PACK, I.GHOST_TRAP, I.GHOST_DETECTOR,
   ...[0, 1, 2, 3].flatMap(m => [0, 1, 2, 3].map(k => armorId(m, k))),
-  I.STICK, I.COAL, I.IRON_INGOT, I.GOLD_INGOT, I.DIAMOND, I.EMERALD, I.MARS_CRYSTAL, I.COIN, I.BILL, I.LAPIS, I.FLINT, I.QUARTZ, I.NETHER_BRICK, I.GUNPOWDER, I.FEATHER, I.LEATHER, I.STRING, I.GHAST_TEAR,
+  I.STICK, I.COAL, I.IRON_INGOT, I.GOLD_INGOT, I.DIAMOND, I.EMERALD, I.MARS_CRYSTAL, I.ALIEN_EGG, I.COIN, I.BILL, I.LAPIS, I.FLINT, I.QUARTZ, I.NETHER_BRICK, I.GUNPOWDER, I.FEATHER, I.LEATHER, I.STRING, I.GHAST_TEAR,
   I.PAPER, I.BOOK, I.WRITABLE_BOOK, ...[0, 1, 2, 3, 4, 5, 6, 7].map(k => I.TALE + k), I.PLAN_BOOK, I.ROBOT, I.SUGAR, I.XP_BOTTLE, I.MAGMA_CREAM, I.GLASS_BOTTLE,
   ...POTIONS.map((pt, k) => potionId(k, false)), ...POTIONS.map((pt, k) => potionId(k, true)),
   I.APPLE, I.BREAD, I.PORKCHOP, I.COOKED_PORKCHOP, I.BEEF, I.STEAK, I.CHICKEN, I.COOKED_CHICKEN, I.ROTTEN_FLESH,

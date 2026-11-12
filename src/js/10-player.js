@@ -329,6 +329,12 @@ class Player {
       inp.use = false; inp.usePressed = false;
       return;
     }
+    // tap your alien pet: feed it, or tell it to sit or follow
+    if (inp.use && inp.usePressed && tEnt && tEnt.type === 'blip' && this.useCd <= 0 && !tEnt.dead) {
+      this.swing(); petTap(game, this, tEnt, hid, creative); this.useCd = 0.4;
+      inp.use = false; inp.usePressed = false;
+      return;
+    }
     // tap a Martian: a present for something from Earth (the race marshal starts a race)
     if (inp.use && inp.usePressed && tEnt && tEnt.type === 'martian' && this.useCd <= 0 && !tEnt.dead) {
       this.swing(); martianTap(game, this, tEnt, hid, creative); this.useCd = 0.4;
@@ -559,6 +565,14 @@ class Player {
       if (!creative) this.damageTool(1);
       return true;
     }
+    if (hid === I.ALIEN_EGG && t.face === 2) {   // set a Blip's egg down (on top of a block): it hatches after a little while
+      const rx = t.x + 0.5, ry = t.y + 1, rz = t.z + 0.5;
+      if (!boxFree(world, rx, ry, rz, 0.3, 0.6)) return false;
+      placeEgg(game, this, rx, ry, rz);
+      this.swing();
+      if (!creative) this.consumeHeld(1);
+      return true;
+    }
     if (hid === I.ROBOT && t.face === 2) {   // let your robot out (on top of a block)
       const rx = t.x + 0.5, ry = t.y + 1, rz = t.z + 0.5;
       if (!boxFree(world, rx, ry, rz, 0.3, 1.15)) return false;
@@ -578,8 +592,8 @@ class Player {
     }
     if (hid >= 256 && ITEMS[hid] && ITEMS[hid].door && t.face >= 0) return placeDoor(game, this, hid, t, creative);
     if (hid === B.GARAGE_DOOR && t.face >= 0) return placeGarage(game, this, t, creative);
-    if ((hid === I.MINECART || hid === I.TRAIN || hid === I.CAR || hid === I.BOAT || hid === I.SUBMARINE || hid === I.FLYING_CAR || hid === I.BROOM || hid === I.ROCKET || hid === I.PLANE || hid === I.JET || hid === I.AIRLINER || hid === I.GOLF_CART || hid === I.BUGGY || hid === I.SAUCER || isTankItem(hid)) && t.face >= 0) {
-      const type = hid === I.TRAIN ? 'train' : hid === I.CAR ? 'car' : hid === I.BOAT ? 'boat' : hid === I.SUBMARINE ? 'submarine' : hid === I.FLYING_CAR ? 'flycar' : hid === I.BROOM ? 'broom' : hid === I.ROCKET ? 'rocket' : hid === I.PLANE ? 'plane' : hid === I.JET ? 'jet' : hid === I.AIRLINER ? 'airliner' : hid === I.GOLF_CART ? 'golfcart' : hid === I.BUGGY ? 'buggy' : hid === I.SAUCER ? 'saucer' : isTankItem(hid) ? 'tank' : 'minecart';
+    if ((hid === I.MINECART || hid === I.TRAIN || hid === I.CAR || hid === I.BOAT || hid === I.SUBMARINE || hid === I.FLYING_CAR || hid === I.BROOM || hid === I.ROCKET || hid === I.PLANE || hid === I.JET || hid === I.AIRLINER || hid === I.GOLF_CART || hid === I.BUGGY || hid === I.SAUCER || hid === I.SANDBOARD || isTankItem(hid)) && t.face >= 0) {
+      const type = hid === I.TRAIN ? 'train' : hid === I.CAR ? 'car' : hid === I.BOAT ? 'boat' : hid === I.SUBMARINE ? 'submarine' : hid === I.FLYING_CAR ? 'flycar' : hid === I.BROOM ? 'broom' : hid === I.ROCKET ? 'rocket' : hid === I.PLANE ? 'plane' : hid === I.JET ? 'jet' : hid === I.AIRLINER ? 'airliner' : hid === I.GOLF_CART ? 'golfcart' : hid === I.BUGGY ? 'buggy' : hid === I.SAUCER ? 'saucer' : hid === I.SANDBOARD ? 'sandboard' : isTankItem(hid) ? 'tank' : 'minecart';
       let vx = t.x + 0.5, vy = t.y + 1, vz = t.z + 0.5;
       if (hid === I.MINECART || hid === I.TRAIN) {
         if (t.id !== B.RAIL) { if (!this.toldRails) { this.toldRails = true; toast((hid === I.TRAIN ? 'Trains' : 'Minecarts') + ' go on rails. Put some rails down first.', 3); } return false; }
@@ -846,6 +860,9 @@ const HELD_TIPS = {
   [I.BUGGY]: ['Tap the ground to put the rover buggy down, then tap it to get in. It is fast!', 'Right-click the ground to put the rover buggy down, then right-click it to get in. It is fast!'],
   [I.SAUCER]: ['Tap the ground to put the flying saucer down, then tap it to get in. In the air, tap for the tractor beam!', 'Right-click the ground to put the flying saucer down, then right-click it to get in. In the air, click for the tractor beam!'],
   [I.MARS_CRYSTAL]: ['A present from a Martian! A store will buy it for a good price.', 'A present from a Martian! A store will buy it for a good price.'],
+  [I.ALIEN_EGG]: ['Tap the ground to set the egg down. Wait a little while, and a baby Blip hatches!', 'Right-click the ground to set the egg down. Wait a little while, and a baby Blip hatches!'],
+  [I.SANDBOARD]: ['Tap the ground to put the sandboard down, then tap it to stand on it. Slide down the dunes!', 'Right-click the ground to put the sandboard down, then right-click it to stand on it. Slide down the dunes!'],
+  [B.AIR_MAKER]: ['Put it down: it makes a bubble of air you can breathe in, and slowly turns Mars dust green.', 'Put it down: it makes a bubble of air you can breathe in, and slowly turns Mars dust green.'],
   [B.STATION]: ['Put the Train Station right beside the track: it builds a platform with a sign, and trains stop there.', 'Put the Train Station right beside the track: it builds a platform with a sign, and trains stop there.'],
   [I.WAND]: ['Tap to cast a spell! The Spell button (at the top) picks a different one.', 'Right-click to cast a spell! Press F to pick a different one.'],
   [I.SHIELD]: ['Hold Place to hide behind the shield. Put it in the slot beside your armor to use it with a sword.', 'Hold the right mouse button to hide behind the shield. Put it in the slot beside your armor to use it with a sword.'],
@@ -884,6 +901,7 @@ function playerPose(pl, t) {
     pose.rleg = [-1.4, 0.15, 0]; pose.lleg = [-1.4, -0.15, 0];
     if (ride === 'car' || ride === 'sub') { pose.rarm = [-0.95, 0.25, 0]; pose.larm = [-0.95, -0.25, 0]; }
     else if (ride === 'boat') { const p = (pl.riding && pl.riding.wheel) || 0, sw = Math.sin(p) * 0.3; pose.rarm = [-1.05 + Math.cos(p) * 0.3, 0.25 + sw, 0]; pose.larm = [-1.05 + Math.cos(p) * 0.3, -0.25 - sw, 0]; }
+    else if (ride === 'board') { pose.rleg = [0, 0, 0.3]; pose.lleg = [0, 0, -0.3]; pose.rarm = [0, 0, 1.2]; pose.larm = [0, 0, -1.2]; }   // standing on a sandboard, arms out
     else if (ride === 'broom') { pose.rleg = [-0.55, 0.1, 0.12]; pose.lleg = [-0.55, -0.1, -0.12]; pose.rarm = [-1.2, -0.15, 0]; pose.larm = [-1.2, 0.15, 0]; }   // astride it, holding on in front
   }
   if (pl.drawT > 0 || pl.loadT > 0 || pl.aiming) { const up = -1.45 - pl.pitch; pose.rarm = [up, -0.1, 0]; pose.larm = [up, 0.5, 0]; }   // aiming a bow or crossbow

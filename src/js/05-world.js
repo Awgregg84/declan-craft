@@ -723,7 +723,7 @@ class World {
       this.tiles.set(k, t);
       // a village chest that has never been opened: fill it now (and remember it has been). lootData: the chest's data as it is broken
       const d = lootData !== undefined ? lootData : this.getBlock(x, y, z) === B.CHEST ? this.getData(x, y, z) : 0;
-      if (create === 'chest' && !this.remote && (d & 8)) { fillChestLoot(t, (d >> 4) & 3); if (lootData === undefined) this.setBlock(x, y, z, B.CHEST, d & 7); }   // (d >> 4: a dungeon's treasure)
+      if (create === 'chest' && !this.remote && (d & 8)) { fillChestLoot(t, (d >> 4) & 7); if (lootData === undefined) this.setBlock(x, y, z, B.CHEST, d & 7); }   // (d >> 4: a dungeon's treasure)
     }
     return t || null;
   }

@@ -26,6 +26,8 @@ defBlock(B.URANUS_ICE, 'Uranus Ice', { tex: 'uranus_ice', hardness: 0.6, tool: '
 // the Mars world's race tracks, its vehicles and a present from a Martian (see 12m-mars.js)
 defBlock(B.TRACK, 'Race Track', { tex: 'track', hardness: 1.5, tool: 'pickaxe', tier: 1 });
 defBlock(B.BOOST, 'Boost Pad', { tex: { top: 'boost', bottom: 'track', side: 'track' }, hardness: 1.5, tool: 'pickaxe', tier: 1, emit: 10 });
+defBlock(B.AIR_MAKER, 'Air Maker', { tex: { top: 'air_maker_top', bottom: 'air_maker', side: 'air_maker' }, hardness: 2, tool: 'pickaxe', emit: 9, sound: 'metal' });   // (see 12mb-mars2.js)
+defBlock(B.METEORITE, 'Meteorite', { tex: 'meteorite', hardness: 1.5, tool: 'pickaxe', emit: 7 });
 defItem(I.MARS_CRYSTAL, 'Mars Crystal', { tex: 'mars_crystal' });
 defItem(I.BUGGY, 'Rover Buggy', { tex: 'buggy', stack: 1 });
 defItem(I.SAUCER, 'Flying Saucer', { tex: 'saucer', stack: 1 });

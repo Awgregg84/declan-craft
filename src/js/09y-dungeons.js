@@ -5,7 +5,7 @@
 // a pickaxe to stop it. The chests are full of treasure, the best in the Treasure Vault.
 
 /* a chest that has never been opened is filled when it first is: a village's, or a dungeon's (tier 1-3: better and better) */
-function fillChestLoot(t, tier) { if (tier) fillDungeonChest(t, tier); else fillVillageChest(t); }
+function fillChestLoot(t, tier) { if (tier & 4) fillMarsChest(t, tier & 3); else if (tier) fillDungeonChest(t, tier); else fillVillageChest(t); }   // (4 and up: a chest on Mars)
 function fillDungeonChest(t, tier) {
   const put = (id, n, ex) => { if (n <= 0) return; const free = []; for (let i = 0; i < t.slots.length; i++) if (!t.slots[i]) free.push(i); if (!free.length) return; t.slots[free[randInt(0, free.length - 1)]] = Object.assign({ id, count: n }, ex || {}); };
   const chance = p => Math.random() < p;

@@ -76,6 +76,7 @@ const VEHICLES = {
   train: { w: 1.1, h: 2.8, item: I.TRAIN, hits: 6, code: -18, wheel: 0.2 },   // (see 09ct-trains.js)
   buggy: { w: 0.8, h: 1.2, item: I.BUGGY, hits: 4, code: -19, wheel: 0.25 },   // (a rover buggy, for racing on Mars: see 12m-mars.js)
   saucer: { w: 1.1, h: 1.2, item: I.SAUCER, hits: 5, code: -20, wheel: 1 },   // (a flying saucer with a tractor beam)
+  sandboard: { w: 0.4, h: 0.3, item: I.SANDBOARD, hits: 2, code: -21, wheel: 1, wood: true },   // (see 12mb-mars2.js)
 };
 const VEHICLE_TYPES = Object.keys(VEHICLES);
 const isVehicleType = t => typeof t === 'string' && Object.prototype.hasOwnProperty.call(VEHICLES, t);   // (not "constructor" and the like)
@@ -95,7 +96,8 @@ function seatOf(v) {
   if (v.type === 'train') return trainSeat(v, 0);   // (in the engine's cab)
   if (v.type === 'tank') return [v.x, v.y + 0.2, v.z];   // (in the hatch on top, head and shoulders out)
   if (v.type === 'broom') return [v.x, v.y + 0.05, v.z];
-  if (v.type === 'saucer') return [v.x, v.y + 0.3, v.z];   // (under the glass dome)
+  if (v.type === 'saucer') return [v.x, v.y + 0.3, v.z];
+  if (v.type === 'sandboard') return [v.x, v.y + 0.13, v.z];   // (standing on it)   // (under the glass dome)
   if (v.type === 'buggy') return [v.x + Math.sin(v.yaw) * 0.1, v.y + 0.1, v.z + Math.cos(v.yaw) * 0.1];
   if (v.type === 'rocket') return [v.x, v.y + 0.6, v.z];   // (inside, looking out of the window)
   if (v.type === 'boat') return [v.x, v.y - 0.64, v.z];
@@ -117,7 +119,7 @@ function updateVehicle(game, e, dt) {
   if (e.boostT > 0) e.boostT -= dt;   // (a race's boost pad or turbo, and a dust cloud's slow-down: see 12m-mars.js)
   if (e.slowT > 0) e.slowT -= dt;
   const steps = Math.max(1, Math.ceil(Math.hypot(e.vx, e.vy, e.vz) * dt / 0.3));
-  const step = e.type === 'train' ? trainStep : e.type === 'car' || e.type === 'golfcart' || e.type === 'buggy' ? carStep : e.type === 'tank' ? tankStep : e.type === 'boat' ? boatStep : e.type === 'submarine' ? subStep : isFlyer(e) ? flyStep : isPlane(e) ? planeStep : e.type === 'rocket' ? rocketStep : cartStep;
+  const step = e.type === 'sandboard' ? boardStep : e.type === 'train' ? trainStep : e.type === 'car' || e.type === 'golfcart' || e.type === 'buggy' ? carStep : e.type === 'tank' ? tankStep : e.type === 'boat' ? boatStep : e.type === 'submarine' ? subStep : isFlyer(e) ? flyStep : isPlane(e) ? planeStep : e.type === 'rocket' ? rocketStep : cartStep;
   for (let i = 0; i < steps; i++) step(game, e, dt / steps);
   if (e.y < -40) { e.removed = true; return; }
   if (e.type === 'train') trainTrail(e);
@@ -138,7 +140,7 @@ function updateVehicle(game, e, dt) {
 function sitRider(pl, v) {
   const [x, y, z] = seatOf(v);
   pl.x = x; pl.y = y; pl.z = z; pl.vx = v.vx; pl.vz = v.vz; pl.vy = 0; pl.fallDist = 0; pl.onGround = true;
-  if (v.type === 'car' || v.type === 'golfcart' || v.type === 'buggy' || v.type === 'boat') {   // the view turns with the car or boat
+  if (v.type === 'car' || v.type === 'golfcart' || v.type === 'buggy' || v.type === 'sandboard' || v.type === 'boat') {   // the view turns with the car or boat
     const d = ((v.yaw - (v.lastYaw === undefined ? v.yaw : v.lastYaw) + Math.PI) % TAU + TAU) % TAU - Math.PI;
     pl.yaw += d;
     pl.bodyYaw = v.yaw;
@@ -272,6 +274,7 @@ const RIDE_TIPS = {
   train: 'Push forward to set off: the train keeps going by itself. Pull back to stop (and again to back up). Tap for the horn! It stops at stations. Press Sneak to get out.',
   buggy: 'Drive with the joystick (or W A S D). It is fast, and jumps high on Mars! Tap a race marshal to start a race. Press Sneak to get out.',
   saucer: 'Push forward to fly where you look! Jump goes up, Sneak goes down. Tap to switch the tractor beam on: it lifts the creature below you. Land, then Sneak to get out.',
+  sandboard: 'Push forward to kick off, then slide! Every drop down a dune makes you faster. Left and right steer, pull back to slow down. Press Sneak to get off.',
 };
 /* host: where a guest's vehicle has got to */
 function applyVehState(v, s) {
@@ -371,7 +374,7 @@ function drawVehicle(game, e, dx, dy, dz, s) {
   drawModel(model, _eb, e.type === 'car' || e.type === 'golfcart' || e.type === 'buggy' ? { wfl: [wr, st, 0], wfr: [wr, st, 0], wbl: [wr, 0, 0], wbr: [wr, 0, 0] }
     : e.type === 'flycar' ? { wfl: [wr, 0, 0], wfr: [wr, 0, 0], wbl: [wr, 0, 0], wbr: [wr, 0, 0], lwing: [0, 0, -fold], rwing: [0, 0, fold] }
     : isPlane(e) ? { prop: [0, 0, e.prop || 0] }
-    : e.type === 'minecart' || e.type === 'broom' || e.type === 'rocket' || e.type === 'saucer' ? null : boatPose(e));
+    : e.type === 'minecart' || e.type === 'broom' || e.type === 'rocket' || e.type === 'saucer' || e.type === 'sandboard' ? null : boatPose(e));
   if (e.type === 'saucer') { drawSubGlass(_eb, Math.max(bright, 0.7), MODELS.saucer_glass); if (e.beamOn) drawSubGlass(_eb, 1, MODELS.saucer_beam); }   // (its glass dome, and its tractor beam)
   if (e.type === 'submarine') drawSubGlass(_eb, bright);
 }

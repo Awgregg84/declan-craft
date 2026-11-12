@@ -17,3 +17,17 @@ Object.assign(SFX, {
   beamOff: (v, p) => tone({ f: 880, fEnd: 240, dur: 0.4, type: 'sine', vol: 0.06 * v, vib: [12, 40], pan: p }),
   beamCatch: (v, p) => { tone({ f: 520, fEnd: 1040, dur: 0.25, type: 'triangle', vol: 0.07 * v, pan: p }); tone({ f: 1560, dur: 0.2, type: 'sine', vol: 0.04 * v, when: 0.2, pan: p }); },
 });
+Object.assign(SFX, {
+  // (the second Mars update) a Blip's chirps, its happy trill, and its egg cracking open; the ball; the sandboard; the wind and a meteorite
+  blipSay: (v, p) => { [1320, 1760].forEach((f, i) => tone({ f, fEnd: f * 1.15, dur: 0.07, type: 'sine', vol: 0.04 * v, when: i * 0.08, pan: p })); },
+  blipHurt: (v, p) => tone({ f: 1500, fEnd: 2100, dur: 0.12, type: 'sine', vol: 0.04 * v, pan: p }),
+  blipHappy: (v, p) => { [1047, 1319, 1568, 2093].forEach((f, i) => tone({ f, dur: 0.1, type: 'sine', vol: 0.05 * v, when: i * 0.07, vib: [18, 40], pan: p })); },
+  blipHatch: (v, p) => { nz({ f: 2600, q: 3, dur: 0.07, vol: 0.14 * v, pan: p }); nz({ f: 1800, q: 3, dur: 0.07, vol: 0.12 * v, when: 0.12, pan: p }); tone({ f: 900, fEnd: 1800, dur: 0.3, type: 'sine', vol: 0.06 * v, when: 0.25, pan: p }); },
+  ballBoing: (v, p) => tone({ f: 180, fEnd: 420, dur: 0.22, type: 'sine', vol: 0.12 * v, pan: p }),
+  ballHurt: (v, p) => tone({ f: 200, fEnd: 480, dur: 0.2, type: 'sine', vol: 0.1 * v, pan: p }),
+  ballGoal: (v, p) => { [523, 659, 784, 1047].forEach((f, i) => tone({ f, dur: 0.18, type: 'triangle', vol: 0.07 * v, when: i * 0.1, pan: p })); },
+  boardSwish: (v, p) => nz({ f: 1400, fEnd: 500, q: 0.8, dur: 0.35, vol: 0.1 * v, pan: p }),
+  airHiss: (v, p) => nzLong({ f: 4200, type: 'highpass', dur: 0.7, vol: 0.05 * v, attack: 0.05, pan: p }),
+  dustWind: (v, p) => nzLong({ f: 380, type: 'lowpass', q: 0.6, dur: 2.6, vol: 0.09 * v, attack: 0.6, pan: p }),
+  meteorThump: (v, p) => { tone({ f: 90, fEnd: 40, dur: 0.5, type: 'sine', vol: 0.2 * v, pan: p }); nz({ f: 300, fEnd: 100, q: 0.7, dur: 0.6, vol: 0.16 * v, pan: p }); },
+});

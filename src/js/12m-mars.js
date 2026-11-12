@@ -17,7 +17,7 @@ const atMars = () => game.mapId === 'marsworld' && game.dim === 'over';
 const MARTIAN_COLORS = ['#58c84a', '#4a9ae0', '#e86ab8', '#f2cf3a'];   // green, blue and pink Martians; the marshal is yellow
 const MARTIAN_HI = ['Zorp! Hello, Earth friend %!', 'Bleep bloop! Nice helmet, %!', 'Welcome to Mars, %! Mind the canyons.', 'Greetings, %! Have you got any apples?', 'Wibble! Want to race, %?', 'Hello %! The red dust gets everywhere.'];
 const MARS_FOOD = () => [I.APPLE, I.BREAD, I.PIZZA, I.CHEESE, I.COOKED_PORKCHOP, I.STEAK, I.COOKED_CHICKEN, I.COOKED_COD, I.COOKED_SALMON, B.DANDELION, B.POPPY, B.CORNFLOWER, B.PUMPKIN, I.SUGAR];
-const MARS_GIFTS = () => [[I.MARS_CRYSTAL, 1, 2, 40], [I.COIN, 3, 9, 25], [B.GLOWSTONE, 2, 4, 15], [I.EMERALD, 1, 2, 10], [I.DIAMOND, 1, 1, 5], [I.ENDER_PEARL, 1, 1, 5]];   // [thing, at least, at most, how likely]
+const MARS_GIFTS = () => [[I.MARS_CRYSTAL, 1, 2, 40], [I.COIN, 3, 9, 25], [B.GLOWSTONE, 2, 4, 15], [I.EMERALD, 1, 2, 10], [I.DIAMOND, 1, 1, 5], [I.ENDER_PEARL, 1, 1, 5], [I.ALIEN_EGG, 1, 1, 8]];   // [thing, at least, at most, how likely]
 // (the track's blocks, the buggy, the saucer and the Mars Crystal are named in 09ma-planets.js)
 
 /* ---- arriving ---- */
@@ -35,6 +35,7 @@ function marsSpawnTick(game) {
   const garageYaw = tr => { const p = game.gen.marsTracks()[tr].pts, a = p[p.length - 16]; return Math.atan2(-(a[0] - M.tracks[tr].garage[0]), -(a[1] - M.tracks[tr].garage[1])); };   // (facing the way out to the track)
   const cars = game.entities.filter(e => e.vehicle && !e.removed);
   M.tracks.forEach((tr, i) => {
+    if (tr.id && game.overVB.includes(tr.id)) return;   // (a track this world does not have)
     const [gx, gz] = tr.garage;
     once(4 << i, gx, gz, () => { for (const dx of [-3, 0, 3]) cars.push(spawnVehicle(game, 'buggy', gx + dx + 0.5, Y, gz + 0.5, garageYaw(i))); });
     // a garage never stays empty: when its buggies have all been driven away, another one is wheeled out
@@ -48,8 +49,9 @@ function marsSpawnTick(game) {
     const e = spawnMob(game, 'martian', x + 0.5, Y, z + 1.5);
     e.homeK = k; e.home = [x + 0.5, z + 0.5]; e.variant = k % 3; e.aiT = 0;
   });
+  mars2SpawnTick(game);
   game.gen.marsTracks().forEach((tr, i) => {
-    if (mars.some(e => e.marshal === i)) return;
+    if (mars.some(e => e.marshal === i) || (tr.id && game.overVB.includes(tr.id))) return;
     const p = marshalSpot(tr);
     if (!loaded(p[0], p[2])) return;
     const e = spawnMob(game, 'martian', p[0], p[1], p[2]);
@@ -74,7 +76,8 @@ function martianSteer(game, e, dt) {
   }
   if (near && !(e.hiT > game.t)) {   // someone new: a wave and a hello
     e.hiT = game.t + 40; e.waveT = 2.5;
-    const [p] = near, name = p === game.player ? playerName() : p.name || 'friend', line = 'A Martian: "' + MARTIAN_HI[randInt(0, MARTIAN_HI.length - 1)].replace('%', name) + '"';
+    const [p] = near, name = p === game.player ? playerName() : p.name || 'friend', hint = Math.random() < 0.3 ? ruinHint(game, near[1], near[3]) : null;   // (now and then: where the nearest ruins are)
+    const line = 'A Martian: "' + (hint ? RUIN_HINTS[randInt(0, RUIN_HINTS.length - 1)].replace('#', hint.d).replace('@', hint.dir) : MARTIAN_HI[randInt(0, MARTIAN_HI.length - 1)]).replace('%', name) + '"';
     if (p === game.player) chat(line, MARTIAN_COLORS[e.variant % 3]); else if (p.link) p.link.send({ t: 'chat', m: line, c: MARTIAN_COLORS[e.variant % 3] });
     sfx('martianHi', e.x, e.y + 1, e.z); MP.sfx('martianHi', e.x, e.y + 1, e.z);
   }
@@ -98,6 +101,8 @@ function martianTap(game, pl, e, hid, creative) {
   const G = MARS_GIFTS();
   let r = Math.random() * G.reduce((a, g) => a + g[3], 0), g = G[0];
   for (const q of G) { if (r < q[3]) { g = q; break; } r -= q[3]; }
+  if (g[0] === I.ALIEN_EGG) game.stats.eggGift = 1;
+  else if (!game.stats.eggGift && (game.stats.martians | 0) >= 2) { g = G.find(q => q[0] === I.ALIEN_EGG); game.stats.eggGift = 1; }   // (your third present is always a Blip's egg, if you have not had one)
   const n = randInt(g[1], g[2]), left = pl.give(g[0], n);
   if (left > 0) dropItem(game, pl.x, pl.y + 1, pl.z, g[0], left);
   ui.dirty = true;
@@ -440,7 +445,12 @@ function drawRacerBuggy(e, dx, dy, dz) {
 /* every frame: the race, and every flying saucer's beam */
 function marsTick(game, dt) {
   raceTick(game, dt);
-  for (const e of game.entities) if (e.type === 'saucer' && !e.removed) saucerTick(game, e, dt);
+  mars2Tick(game, dt);   // (air bubbles; and on Mars the ruins, the meteors and the dust storms: see 12mb-mars2.js)
+  for (const e of game.entities) {
+    if (e.removed) continue;
+    if (e.type === 'saucer') saucerTick(game, e, dt);
+    else if (e.type === 'blip' && e.happy > 0 && Math.random() < dt * 7 && PARTICLES.length < 1400) PARTICLES.push({ x: e.x + randRange(-0.3, 0.3), y: e.y + 0.7, z: e.z + randRange(-0.3, 0.3), vx: 0, vy: 1.1, vz: 0, life: 0.8, tile: TILE.heart_p, u: 0, v: 0, us: 16, size: 0.09, grav: 0, bright: 1 });   // (a happy Blip: little hearts)
+  }
 }
 /* the picture on the world's card: red hills under an orange sky, glass domes, a saucer and a buggy */
 function drawMarsThumb(ctx, W, H) {
