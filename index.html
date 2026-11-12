@@ -469,6 +469,14 @@ textarea.book-page:focus-visible { border-color: #4a6ac8; }
 .life-end h2 { font-size: 28px; margin: 6px 0 10px; }
 .life-stats { list-style: none; padding: 0; margin: 10px 0 14px; font-size: 18px; line-height: 1.6; }
 .life-end .btn { font-size: 20px; padding: 10px 18px; }
+/* the race marshal's menu on Mars */
+.race-info { margin: 0; font-size: 16px; }
+.race-info.no { color: #a02020; font-weight: bold; }
+.race-ai { display: flex; align-items: center; gap: 8px; font-size: 17px; }
+.race-n { min-width: 44px; min-height: 44px; font: inherit; font-size: 20px; font-weight: bold; cursor: pointer; background: #fff; border: 2px solid #000; border-radius: 6px; }
+.race-n.on { background: #ffd24a; border-color: #2d4ab8; }
+.race-go:disabled { opacity: 0.5; cursor: default; }
+.race-go { grid-template-columns: 1fr; text-align: center; font-size: 20px; font-weight: bold; }
 </style>
 </head>
 <body>
@@ -945,7 +953,7 @@ const B = {
   COAL_BLOCK: 46, TORCH: 47, TALL_GRASS: 48, DANDELION: 49, POPPY: 50, CORNFLOWER: 51, DEAD_BUSH: 52,
   OAK_SAPLING: 53, BIRCH_SAPLING: 54, SPRUCE_SAPLING: 55, BED: 56,
   DOOR: 57, EMERALD_ORE: 58, EMERALD_BLOCK: 59, BIRCH_DOOR: 60, SPRUCE_DOOR: 61, IRON_DOOR: 62, GLASS_DOOR: 63,
-  AIRLOCK: 119, GARAGE_DOOR: 120, GARAGE_OPEN: 121, STATION: 122, MARS_DUST: 123, MARS_ROCK: 124, CLOUD: 125, URANUS_ICE: 126,
+  AIRLOCK: 119, GARAGE_DOOR: 120, GARAGE_OPEN: 121, STATION: 122, MARS_DUST: 123, MARS_ROCK: 124, CLOUD: 125, URANUS_ICE: 126, TRACK: 127, BOOST: 128,
   WOOL: 64, // 64..79
   NETHERRACK: 80, SOUL_SAND: 81, NETHER_QUARTZ_ORE: 82, QUARTZ_BLOCK: 83, NETHER_BRICKS: 84, NETHER_PORTAL: 85,
   MEGA_TNT: 86, ICE_TNT: 87, DIG_TNT: 88, PARTY_TNT: 89, CLUSTER_TNT: 90, DISPENSER: 91, LEVER: 92, BUTTON: 93, RAIL: 94,
@@ -972,7 +980,7 @@ const I = {
   JOURNAL: 424, PINE_CAP: 425, SWEATER: 426, // 426..430 sweaters, in SWEATERS order
   FEZ: 431, GOLF_CART: 432, PIZZA: 433,
   TALE: 434, // 434..441 story books of old tales, in TALES order
-  LASER: 442, COIN: 443, BILL: 444, TRAIN: 445, PROTON_PACK: 446, GHOST_TRAP: 447, GHOST_DETECTOR: 448,
+  LASER: 442, COIN: 443, BILL: 444, TRAIN: 445, PROTON_PACK: 446, GHOST_TRAP: 447, GHOST_DETECTOR: 448, BUGGY: 449, SAUCER: 450, MARS_CRYSTAL: 451,
   POTION: 370, // 370..381 potions, 390..401 splash potions, in POTIONS order
   SPLASH: 390,
   ARMOR: 350, // 350..365 = material*4 + slot
@@ -1522,15 +1530,15 @@ const CREATIVE_LIST = [
   B.COAL_ORE, B.IRON_ORE, B.GOLD_ORE, B.DIAMOND_ORE, B.EMERALD_ORE, B.LAPIS_ORE, B.COAL_BLOCK, B.IRON_BLOCK, B.GOLD_BLOCK, B.DIAMOND_BLOCK, B.EMERALD_BLOCK, B.LAPIS_BLOCK,
   B.NETHERRACK, B.SOUL_SAND, B.NETHER_QUARTZ_ORE, B.QUARTZ_BLOCK, B.NETHER_BRICKS,
   B.GLOWSTONE, B.TORCH, B.JACK_O_LANTERN, B.PUMPKIN, B.TNT, B.MEGA_TNT, B.ICE_TNT, B.DIG_TNT, B.PARTY_TNT, B.CLUSTER_TNT,
-  B.CRAFTING_TABLE, B.FURNACE, B.CHEST, B.BOOKSHELF, B.ENCH_TABLE, B.BREWING_STAND, B.SIGN, B.BOARD, B.TV, B.MONITOR, B.CAMERA, B.BED, I.DOOR, I.BIRCH_DOOR, I.SPRUCE_DOOR, I.GLASS_DOOR, I.IRON_DOOR, I.AIRLOCK, B.GARAGE_DOOR, B.DISPENSER, B.LEVER, B.BUTTON, B.RAIL, I.MINECART, I.TRAIN, B.STATION, I.CAR, I.FLYING_CAR, I.BROOM, I.ROCKET, I.PLANE, I.JET, I.AIRLINER, ...TANK_COLORS.map((c, i) => I.TANK + i), I.GOLF_CART, I.SPACE_HELMET, I.BOAT, I.SUBMARINE,
+  B.CRAFTING_TABLE, B.FURNACE, B.CHEST, B.BOOKSHELF, B.ENCH_TABLE, B.BREWING_STAND, B.SIGN, B.BOARD, B.TV, B.MONITOR, B.CAMERA, B.BED, I.DOOR, I.BIRCH_DOOR, I.SPRUCE_DOOR, I.GLASS_DOOR, I.IRON_DOOR, I.AIRLOCK, B.GARAGE_DOOR, B.DISPENSER, B.LEVER, B.BUTTON, B.RAIL, I.MINECART, I.TRAIN, B.STATION, I.CAR, I.FLYING_CAR, I.BROOM, I.ROCKET, I.PLANE, I.JET, I.AIRLINER, ...TANK_COLORS.map((c, i) => I.TANK + i), I.GOLF_CART, I.BUGGY, I.SAUCER, I.SPACE_HELMET, I.BOAT, I.SUBMARINE,
   B.CACTUS, B.SUGAR_CANE, B.TALL_GRASS, B.DANDELION, B.POPPY, B.CORNFLOWER, B.DEAD_BUSH, B.OAK_SAPLING, B.BIRCH_SAPLING, B.SPRUCE_SAPLING,
-  B.WATER, B.LAVA, B.CORAL_RED, B.CORAL_YELLOW, B.CORAL_BLUE, B.MOON_DUST, B.MOON_ROCK, B.MOON_CHEESE, B.MARS_DUST, B.MARS_ROCK, B.CLOUD, B.URANUS_ICE, B.FLAG, B.SLATE, B.STAINED_GLASS, B.CANDLE, B.SORTING_HAT,
+  B.WATER, B.LAVA, B.CORAL_RED, B.CORAL_YELLOW, B.CORAL_BLUE, B.MOON_DUST, B.MOON_ROCK, B.MOON_CHEESE, B.MARS_DUST, B.MARS_ROCK, B.CLOUD, B.URANUS_ICE, B.TRACK, B.BOOST, B.FLAG, B.SLATE, B.STAINED_GLASS, B.CANDLE, B.SORTING_HAT,
   ...TAGS.wool,
   toolId(0, 0), toolId(0, 1), toolId(0, 2), toolId(0, 3), toolId(1, 0), toolId(1, 1), toolId(1, 2), toolId(1, 3),
   toolId(2, 0), toolId(2, 1), toolId(2, 2), toolId(2, 3), toolId(3, 0), toolId(3, 1), toolId(3, 2), toolId(3, 3), I.FLINT_AND_STEEL,
   I.BOW, I.CROSSBOW, I.ARROW, I.FIRE_CHARGE, I.ENDER_PEARL, I.SHIELD, I.FISHING_ROD, I.WAND, I.LASER, I.PROTON_PACK, I.GHOST_TRAP, I.GHOST_DETECTOR,
   ...[0, 1, 2, 3].flatMap(m => [0, 1, 2, 3].map(k => armorId(m, k))),
-  I.STICK, I.COAL, I.IRON_INGOT, I.GOLD_INGOT, I.DIAMOND, I.EMERALD, I.COIN, I.BILL, I.LAPIS, I.FLINT, I.QUARTZ, I.NETHER_BRICK, I.GUNPOWDER, I.FEATHER, I.LEATHER, I.STRING, I.GHAST_TEAR,
+  I.STICK, I.COAL, I.IRON_INGOT, I.GOLD_INGOT, I.DIAMOND, I.EMERALD, I.MARS_CRYSTAL, I.COIN, I.BILL, I.LAPIS, I.FLINT, I.QUARTZ, I.NETHER_BRICK, I.GUNPOWDER, I.FEATHER, I.LEATHER, I.STRING, I.GHAST_TEAR,
   I.PAPER, I.BOOK, I.WRITABLE_BOOK, ...[0, 1, 2, 3, 4, 5, 6, 7].map(k => I.TALE + k), I.PLAN_BOOK, I.ROBOT, I.SUGAR, I.XP_BOTTLE, I.MAGMA_CREAM, I.GLASS_BOTTLE,
   ...POTIONS.map((pt, k) => potionId(k, false)), ...POTIONS.map((pt, k) => potionId(k, true)),
   I.APPLE, I.BREAD, I.PORKCHOP, I.COOKED_PORKCHOP, I.BEEF, I.STEAK, I.CHICKEN, I.COOKED_CHICKEN, I.ROTTEN_FLESH,
@@ -2353,7 +2361,7 @@ function genModule(B, P) {
   function getGen(map, seed) {
     const k = map + ':' + seed;
     let g = gens.get(k);
-    if (!g) { g = map === 'sky' ? skyGen(seed) : map === 'nether' ? netherGen(seed) : map === 'moon' ? GEN3.moonGen(seed) : map === 'mars' ? GEN3.marsGen(seed) : map === 'jupiter' ? GEN3.jupiterGen(seed) : map === 'uranus' ? GEN3.uranusGen(seed) : map === 'hogwarts' ? GEN3.hogwartsGen(seed) : map === 'falls' ? GEN3.fallsGen(seed) : map === 'ghost' ? GEN3.ghostGen(seed) : map === 'life' ? GEN3.lifeGen(seed) : valleyGen(seed); gens.set(k, g); }
+    if (!g) { g = map === 'sky' ? skyGen(seed) : map === 'nether' ? netherGen(seed) : map === 'moon' ? GEN3.moonGen(seed) : map === 'mars' ? GEN3.marsGen(seed) : map === 'marsworld' ? GEN3.marsGen(seed, true) : map === 'jupiter' ? GEN3.jupiterGen(seed) : map === 'uranus' ? GEN3.uranusGen(seed) : map === 'hogwarts' ? GEN3.hogwartsGen(seed) : map === 'falls' ? GEN3.fallsGen(seed) : map === 'ghost' ? GEN3.ghostGen(seed) : map === 'life' ? GEN3.lifeGen(seed) : valleyGen(seed); gens.set(k, g); }
     return g;
   }
 
@@ -2489,11 +2497,11 @@ function genModule(B, P) {
   }
   /* what falls from the sky here when the weather turns: 0 nothing (a desert), 1 rain, 2 snow (cold places) */
   function climateAt(map, seed, x, z) {
-    if (map === 'moon' || map === 'nether' || map === 'mars' || map === 'jupiter' || map === 'uranus') return 0;
+    if (map === 'moon' || map === 'nether' || map === 'mars' || map === 'marsworld' || map === 'jupiter' || map === 'uranus') return 0;
     const bio = map === 'valley' ? getGen(map, seed).column(Math.floor(x), Math.floor(z)) >> 8 : map === 'sky' ? getGen(map, seed).biomeAt(Math.floor(x), Math.floor(z)) : PLAINS;
     return bio === DESERT ? 0 : bio === SNOWY || bio === PEAKS || bio === FROZEN ? 2 : 1;
   }
-  return { generateChunk, spawnPoint, computeLight, makeNoise, mulberry32, hash3, villagesTouching, storesTouching, findStore, planetLanding: GEN3.planetLanding, nearestRover: GEN3.nearestRover, findVillage, dungeonsTouching, findDungeon, dungeonHere, dungeonsNear, climateAt, hogwarts: GEN3.HW, falls: GEN3.FF, ghost: GEN3.GB, life: GEN3.LC, ghostGround: (seed, x, z) => getGen('ghost', seed).column(Math.floor(x), Math.floor(z)), fallsGround: (seed, x, z) => getGen('falls', seed).column(Math.floor(x), Math.floor(z)) };
+  return { generateChunk, spawnPoint, computeLight, makeNoise, mulberry32, hash3, villagesTouching, storesTouching, findStore, planetLanding: GEN3.planetLanding, nearestRover: GEN3.nearestRover, findVillage, dungeonsTouching, findDungeon, dungeonHere, dungeonsNear, climateAt, hogwarts: GEN3.HW, falls: GEN3.FF, ghost: GEN3.GB, marsw: GEN3.MW, marsTracks: GEN3.marsTracks, trackNear: GEN3.trackNear, marsGround: (seed, x, z) => getGen('marsworld', seed).column(Math.floor(x), Math.floor(z)), life: GEN3.LC, ghostGround: (seed, x, z) => getGen('ghost', seed).column(Math.floor(x), Math.floor(z)), fallsGround: (seed, x, z) => getGen('falls', seed).column(Math.floor(x), Math.floor(z)) };
 }
 
 /* ---- 02b-gen3.js ---- */
@@ -2559,12 +2567,14 @@ function genModule3(B, H) {
   const ROVER_CELL = 96, ISLE_CELL = 44;
   /* Mars: red dust over dark red rock, rolling hills cut by deep canyons, boulders, and a little rover in each 96-block square */
   function roverAt(seed, gx, gz) { const r = mulberry32(hash3(seed ^ 0x40e, gx, gz)); return { x: Math.floor((gx + 0.2 + r() * 0.6) * ROVER_CELL), z: Math.floor((gz + 0.2 + r() * 0.6) * ROVER_CELL), yaw: (r() * 4) | 0 }; }
-  function marsGen(seed) {
+  function marsGen(seed, town) {   // (town: the Mars world, with its base, the aliens' village and the race tracks)
     const nA = makeNoise(seed ^ 0x3a5a), nB = makeNoise(seed ^ 0x3a5b), nC = makeNoise(seed ^ 0x3a5c);
     function column(x, z) {
       const base = 54 + fbm2(nA, x * 0.006, z * 0.006, 3) * 12 + fbm2(nB, x * 0.05, z * 0.05, 2) * 1.5;
       const c = Math.abs(fbm2(nC, x * 0.004, z * 0.004, 2)), cut = c < 0.07 ? (1 - c / 0.07) : 0;   // a winding canyon where the noise crosses zero
-      return Math.round(clamp(base - Math.pow(cut, 0.6) * 26, 8, WH - 24));
+      let h = base - Math.pow(cut, 0.6) * 26;
+      if (town) { const T = MW.town, d = Math.hypot(x - T.x, z - T.z); if (d < T.r + 18) { const k = d <= T.r ? 1 : 1 - (d - T.r) / 18; h += (T.y - h) * k * k * (3 - 2 * k); } }   // (level ground for the base and the village)
+      return Math.round(clamp(h, 8, WH - 24));
     }
     function generate(cx, cz) {
       const blocks = new Uint8Array(CVOL), x0 = cx * 16, z0 = cz * 16, r = mulberry32(hash3(seed ^ 0x3a5, cx, cz));
@@ -2591,10 +2601,135 @@ function genModule3(B, H) {
         for (let a = -2; a <= 0; a++) for (const b of [-1, 0, 1]) P(a, b, h + 3, B.LAPIS_BLOCK);
         P(2, 0, h + 3, B.IRON_BARS); P(2, 0, h + 4, B.IRON_BARS); P(2, 0, h + 5, B.GLASS);
       }
+      if (town) { const P = painter(blocks, cx, cz); paintMarsTown(P); for (const tr of marsTracks()) paintTrack(blocks, cx, cz, tr, column); }
       return { blocks, spawns: [] };
     }
-    function spawn() { return [0.5, column(0, 0) + 1, 0.5]; }
+    function spawn() { return town ? MW.spawn.slice() : [0.5, column(0, 0) + 1, 0.5]; }
     return { generate, spawn, column };
+  }
+  /* ---- the Mars world (the seventh wish list): a landing pad, the aliens' village of glass domes, and two race tracks ---- */
+  const MW = {
+    town: { x: 0, z: 0, r: 46, y: 58 },
+    spawn: [0.5, 59, 10.5],
+    rocket: [10, 24], saucer: [-12, 24],   // the two landing pads
+    plaza: [-22, -16],
+    domes: [[-22, -31, 14], [-36, -22, 5], [-36, -8, 11], [-9, -24, 4], [-20, -2, 10]],   // [x, z, floor colour]
+    tracks: [
+      { name: 'Canyon Loop', laps: 3, y: 58, garage: [27, 12],
+        way: [[40, 4], [40, -30], [52, -58], [80, -66], [104, -50], [108, -14], [96, 14], [104, 40], [88, 62], [58, 58], [42, 36]],
+        boost: [0.12, 0.62], boxes: [0.26, 0.74], ramps: [[0.46, 2]], dips: [], tunnels: [[0.84, 0.05]] },
+      { name: 'Crater Run', laps: 3, y: 58, garage: [-4, -38],
+        way: [[-10, -52], [-44, -56], [-72, -76], [-76, -112], [-52, -138], [-60, -170], [-30, -190], [4, -176], [0, -140], [24, -120], [30, -86], [14, -60]],
+        boost: [0.08, 0.5, 0.8], boxes: [0.2, 0.46, 0.72], ramps: [[0.3, 3], [0.9, 2]], dips: [[0.55, 0.12, 4]], tunnels: [[0.38, 0.05]] },
+    ],
+  };
+  /* a track: its waypoints joined by a smooth closed curve and walked one block at a time. pts: [x, z, y] for each step;
+     boost and tunnel: flags for each step; boxes: the steps where pickup boxes float */
+  let _tracks = null;
+  function marsTracks() {
+    if (_tracks) return _tracks;
+    _tracks = MW.tracks.map((tr, ti) => {
+      const W = tr.way, n = W.length, dense = [];
+      for (let i = 0; i < n; i++) {
+        const p0 = W[(i + n - 1) % n], p1 = W[i], p2 = W[(i + 1) % n], p3 = W[(i + 2) % n];
+        for (let s = 0; s < 40; s++) {
+          const t = s / 40, t2 = t * t, t3 = t2 * t;
+          dense.push([0, 1].map(k => 0.5 * (2 * p1[k] + (p2[k] - p0[k]) * t + (2 * p0[k] - 5 * p1[k] + 4 * p2[k] - p3[k]) * t2 + (3 * p1[k] - p0[k] - 3 * p2[k] + p3[k]) * t3)));
+        }
+      }
+      const pts = [[dense[0][0], dense[0][1], tr.y]];
+      let last = dense[0];
+      for (let i = 1; i <= dense.length; i++) {   // one step for each block of the way round
+        const q = dense[i % dense.length];
+        let d = Math.hypot(q[0] - last[0], q[1] - last[1]);
+        while (d >= 1) { last = [last[0] + (q[0] - last[0]) / d, last[1] + (q[1] - last[1]) / d]; pts.push([last[0], last[1], tr.y]); d = Math.hypot(q[0] - last[0], q[1] - last[1]); }
+      }
+      if (Math.hypot(pts[pts.length - 1][0] - pts[0][0], pts[pts.length - 1][1] - pts[0][1]) < 0.6) pts.pop();
+      const N = pts.length, at = f => Math.floor(f * N) % N, boost = new Uint8Array(N), tunnel = new Uint8Array(N), pit = new Uint8Array(N);
+      for (const [f, rise] of tr.ramps) for (let k = 0; k < rise * 3; k++) pts[(at(f) + k) % N][2] = tr.y + Math.floor(k / 3) + 1;   // up a ramp, and off the end
+      for (const [f, len, depth] of tr.dips) { const L = Math.floor(len * N); for (let i = 0; i < L; i++) pts[(at(f) + i) % N][2] = tr.y - Math.min(depth, Math.floor(i / 2) + 1, Math.floor((L - 1 - i) / 4) + 1); }
+      for (const f of tr.boost) for (let k = 0; k < 4; k++) boost[(at(f) + k) % N] = 1;
+      for (const [f, len] of tr.tunnels) for (let k = 0; k < Math.floor(len * N); k++) tunnel[(at(f) + k) % N] = 1;
+      for (let k = 10; k <= 22; k++) pit[N - k] = 1;   // (the way in from the garage, just before the start line)
+      let x0 = 1e9, z0 = 1e9, x1 = -1e9, z1 = -1e9;
+      for (const q of pts) { x0 = Math.min(x0, q[0]); z0 = Math.min(z0, q[1]); x1 = Math.max(x1, q[0]); z1 = Math.max(z1, q[1]); }
+      return { i: ti, name: tr.name, laps: tr.laps, y: tr.y, garage: tr.garage, pts, N, boost, tunnel, pit, boxes: tr.boxes.map(at), bbox: [x0 - 11, z0 - 11, x1 + 11, z1 + 11] };
+    });
+    return _tracks;
+  }
+  /* the nearest step of a track to a spot: [step, distance, which side (-1 left, 1 right of the way you drive)] */
+  function trackNear(tr, x, z, from, span) {
+    let bi = -1, bd = 1e9;
+    const N = tr.N, a = from === undefined ? 0 : from, n = span === undefined ? N : span;
+    for (let k = 0; k < n; k++) { const i = ((a + k) % N + N) % N, q = tr.pts[i], d = (q[0] - x) * (q[0] - x) + (q[1] - z) * (q[1] - z); if (d < bd) { bd = d; bi = i; } }
+    const q = tr.pts[bi], nx = tr.pts[(bi + 1) % N], side = (nx[0] - q[0]) * (z - q[1]) - (nx[1] - q[1]) * (x - q[0]) < 0 ? -1 : 1;
+    return [bi, Math.sqrt(bd), side];
+  }
+  /* the track in one chunk: a dark road nine blocks wide between striped barriers, cut through the hills and carried on
+     bridges over the canyons; boost pads, a start line under an arch, ramps to jump off, and a tunnel */
+  function paintTrack(blocks, cx, cz, tr, column) {
+    const x0 = cx * 16, z0 = cz * 16, bb = tr.bbox;
+    if (bb[2] < x0 || bb[0] > x0 + 15 || bb[3] < z0 || bb[1] > z0 + 15) return;
+    const near = [];
+    for (let i = 0; i < tr.N; i++) { const q = tr.pts[i]; if (q[0] > x0 - 11 && q[0] < x0 + 27 && q[1] > z0 - 11 && q[1] < z0 + 27) near.push(i); }
+    if (!near.length) return;
+    for (let lz = 0; lz < 16; lz++) for (let lx = 0; lx < 16; lx++) {
+      const x = x0 + lx + 0.5, z = z0 + lz + 0.5;
+      let bi = -1, bd = 1e9;
+      for (const i of near) { const q = tr.pts[i], d = (q[0] - x) * (q[0] - x) + (q[1] - z) * (q[1] - z); if (d < bd) { bd = d; bi = i; } }
+      const d = Math.sqrt(bd), q = tr.pts[bi], nx = tr.pts[(bi + 1) % tr.N], left = (nx[0] - q[0]) * (z - q[1]) - (nx[1] - q[1]) * (x - q[0]) < 0;
+      const open = tr.pit[bi] && left, wide = open ? 10.5 : 5.6;   // (the pit lane is on the left, towards the base)
+      if (d > wide) continue;
+      const ty = q[2], h = column(x0 + lx, z0 + lz), road = d <= 4.3 || open, arch = bi < 2 || bi === tr.N - 1, tun = tr.tunnel[bi];
+      const set = (y, id) => { if (y > 0 && y < WH) blocks[idx(lx, y, lz)] = id; };
+      if (h < ty - 3) { set(ty - 1, B.MARS_ROCK); if (bi % 12 === 0 && d < 1.6) for (let y = h + 1; y < ty - 1; y++) set(y, B.MARS_ROCK); }   // a bridge, on a pillar now and then
+      else for (let y = Math.min(h, ty) + 1; y < ty; y++) set(y, B.MARS_ROCK);
+      set(ty, arch && road ? B.WOOL + (((x0 + lx + z0 + lz) & 1) ? 15 : 0) : road && tr.boost[bi] && d <= 2.1 ? B.BOOST : B.TRACK);
+      const top = tun ? ty + 5 : WH - 1;
+      for (let y = ty + 1; y <= top; y++) set(y, B.AIR);
+      if (tun) { set(ty + 6, B.MARS_ROCK); set(ty + 7, B.MARS_ROCK); if (bi % 6 === 0 && d < 1) set(ty + 5, B.GLOWSTONE); }
+      if (!road && tun) for (let y = ty + 1; y <= ty + 5; y++) set(y, B.MARS_ROCK);   // (a tunnel's walls)
+      else if (!road) { set(ty + 1, B.WOOL + ((bi >> 1) & 1 ? 14 : 0)); set(ty + 2, arch ? B.QUARTZ_BLOCK : B.IRON_BARS); if (arch) for (let y = ty + 3; y <= ty + 5; y++) set(y, B.QUARTZ_BLOCK); }
+      if (arch && !tun) set(ty + 6, B.WOOL + (((x0 + lx + z0 + lz) & 1) ? 15 : 0));   // the start arch, in black and white checks
+    }
+  }
+  function paintMarsTown(P) {
+    const T = MW.town, Y = T.y + 1;
+    if (!P.near(-60, -60, 60, 60)) return;
+    for (const [px, pz, id] of [[MW.rocket[0], MW.rocket[1], B.STONE_BRICKS], [MW.saucer[0], MW.saucer[1], B.LAPIS_BLOCK]]) {   // the landing pads, with lamps round them
+      P.disc(px, pz, 4.6, Y, Y + 8, B.AIR, false);
+      P.disc(px, pz, 3.6, T.y, T.y, id, false);
+      for (const [dx, dz] of [[4, 0], [-4, 0], [0, 4], [0, -4]]) P.set(px + dx, T.y, pz + dz, B.GLOWSTONE);
+    }
+    // paths of darker rock: from where you start to the pads, the village and the two garages
+    const path = (ax, az, bx, bz) => { for (const [ox, oz] of [[0, 0], [1, 0], [0, 1]]) P.line(ax + ox, az + oz, bx + ox, bz + oz, T.y, T.y, B.MARS_ROCK); };
+    path(0, 10, MW.rocket[0] - 3, MW.rocket[1] - 3); path(0, 10, MW.saucer[0] + 3, MW.saucer[1] - 3);
+    path(0, 10, MW.plaza[0] + 4, MW.plaza[1] + 4); path(2, 10, MW.tracks[0].garage[0] - 6, MW.tracks[0].garage[1]);
+    path(MW.plaza[0] + 4, MW.plaza[1] - 4, MW.tracks[1].garage[0] - 2, MW.tracks[1].garage[1] + 5);
+    // the aliens' village: glass domes round a plaza with a glowing crystal
+    const [vx, vz] = MW.plaza;
+    P.disc(vx, vz, 5.5, T.y, T.y, B.QUARTZ_BLOCK, false);
+    P.box(vx, Y, vz, vx, Y + 3, vz, B.STAINED_GLASS); P.set(vx, Y + 4, vz, B.GLOWSTONE);
+    for (const [dx, dz, col] of MW.domes) {
+      for (let x = -6; x <= 6; x++) for (let z = -6; z <= 6; z++) {
+        const r = Math.hypot(x, z);
+        if (r <= 5.4) P.set(dx + x, T.y, dz + z, r > 4.4 ? B.QUARTZ_BLOCK : B.WOOL + col);
+        for (let y = 0; y <= 6; y++) { const rr = Math.hypot(x, y, z); if (rr > 4.5 && rr <= 5.5) P.set(dx + x, Y + y, dz + z, B.GLASS); else if (rr <= 4.5) P.set(dx + x, Y + y, dz + z, B.AIR); }
+      }
+      const a = Math.atan2(vz - dz, vx - dx), ox = Math.round(Math.cos(a) * 5), oz = Math.round(Math.sin(a) * 5);   // the doorway faces the plaza
+      for (let k = 4; k <= 6; k++) { const ex = dx + Math.round(Math.cos(a) * k), ez = dz + Math.round(Math.sin(a) * k); P.box(ex, Y, ez, ex, Y + 1, ez, B.AIR); }
+      P.set(dx, T.y, dz, B.GLOWSTONE);
+      P.set(dx - Math.sign(ox || 1) * 2, Y, dz - Math.sign(oz || 1) * 2, B.WOOL + ((col + 3) % 16));   // (a little table)
+    }
+    // a garage at each track: a roof on four posts, where the buggies wait
+    for (const tr of MW.tracks) {
+      const [gx, gz] = tr.garage;
+      P.box(gx - 5, Y, gz - 4, gx + 5, Y + 4, gz + 4, B.AIR);
+      for (const [dx, dz] of [[-4, -3], [4, -3], [-4, 3], [4, 3]]) P.box(gx + dx, Y, gz + dz, gx + dx, Y + 3, gz + dz, B.IRON_BLOCK);
+      P.box(gx - 5, Y + 4, gz - 4, gx + 5, Y + 4, gz + 4, B.QUARTZ_BLOCK);
+      P.box(gx - 4, T.y, gz - 3, gx + 4, T.y, gz + 3, B.STONE_BRICKS);
+      P.set(gx, Y + 3, gz, B.GLOWSTONE);
+    }
   }
   /* Jupiter: nobody can stand on a gas giant, so: floating islands of cloud, one in each 44-block square, over nothing */
   function isleAt(seed, gx, gz) {
@@ -3561,7 +3696,7 @@ function genModule3(B, H) {
     return { generate, spawn, column };
   }
 
-  return { moonGen, marsGen, jupiterGen, uranusGen, planetLanding, nearestRover, hogwartsGen, HW, fallsGen, FF, ghostGen, GB, lifeGen, LC, dungeonPlanner };
+  return { MW, marsTracks, trackNear, moonGen, marsGen, jupiterGen, uranusGen, planetLanding, nearestRover, hogwartsGen, HW, fallsGen, FF, ghostGen, GB, lifeGen, LC, dungeonPlanner };
 }
 
 /* ---- 03-textures.js ---- */
@@ -4159,11 +4294,13 @@ function buildTiles() {
   buildNewBlockTiles();
   buildBlockTiles3();
   buildBlockTiles6();
+  buildBlockTiles7();
   buildItemTiles();
   buildNewItemTiles();
   buildItemTiles3();
   buildItemTiles5();
   buildItemTiles6();
+  buildItemTiles7();
 }
 
 /* ---------- item sprites ---------- */
@@ -4748,6 +4885,7 @@ function buildSkins() {
   buildSkins4();
   buildSkins5();
   buildSkins6();
+  buildSkins7();
   addSkin('item_glint', S => { /* reserved */ });
 }
 /* a player's face as a small picture, for menus */
@@ -7144,6 +7282,7 @@ function buildModels() {
   buildModels4();
   buildModels5();
   buildModels6();
+  buildModels7();
   defModel('pig', 'pig', 1 / 16, [
     { name: 'head', box: [-4, 8, 6, 8, 8, 8], uv: [0, 0], pivot: [0, 12, 6] },
     { name: 'snout', box: [-2, 9, 14, 4, 3, 1], uv: [32, 0], pivot: [0, 12, 6], follow: 'head' },
@@ -8024,6 +8163,130 @@ function buildModels6() {
   ]);
 }
 
+/* ---- 07g-art7.js ---- */
+/* ===================== Pictures, skins and models for the seventh wish list (the Mars world) ===================== */
+function buildBlockTiles7() {
+  // the race track: dark, a little speckled; and a boost pad: glowing arrows on the track
+  addTile('track', p => p.fill(() => { const v = 52 + p.r() * 14; return p.r() < 0.06 ? [v + 30, v + 26, v + 24] : [v, v * 0.96, v]; }));
+  addTile('boost', p => p.fill((x, y) => {
+    const d = Math.abs(x - 7.5) + ((y + 2) % 8), v = 46 + p.r() * 10;
+    return d > 6.2 && d < 8.4 ? [255, 214, 60] : d >= 8.4 && d < 9.6 ? [255, 130, 30] : [v, v * 0.9, v * 1.25];
+  }));
+}
+function buildItemTiles7() {
+  // a Mars crystal: a spiky pink-orange gem
+  addTile('mars_crystal', p => {
+    shadeMask(p, mask(poly([[5, 14], [3.5, 8], [6, 3], [8, 7], [10.5, 1.5], [13, 8], [11.5, 14]])), [C('#ff7a5a'), C('#ffd0b8'), C('#c8402a'), C('#5a1408')], true);
+    p.px(6, 6, C('#fff0e8')); p.px(10, 5, C('#fff0e8')); p.px(10, 6, C('#ffe0d0'));
+  });
+  // the rover buggy: orange and white, with big wheels and a dish; and the flying saucer, silver with a glass dome
+  addTile('buggy', p => {
+    shadeMask(p, mask(poly([[1.5, 7], [14.5, 7], [14.5, 10.5], [1.5, 10.5]])), [C('#f08a2a'), C('#ffc070'), C('#b85a10'), C('#4a2204')], true);
+    p.rect(5, 4, 1, 3, C('#d8d8d8')); p.rect(5, 3, 5, 1, C('#d8d8d8')); p.rect(9, 4, 1, 3, C('#d8d8d8'));
+    p.rect(2, 4, 1, 3, C('#9a9a9a')); p.rect(1, 3, 3, 1, C('#f4f4f4'));
+    p.px(14, 8, C('#fff3a0'));
+    for (const cx of [4, 12]) shadeMask(p, mask(circle(cx, 12, 2.6)), [C('#2a2a2a'), C('#5a5a5a'), C('#141414'), C('#050505')], true);
+    p.px(4, 12, C('#f08a2a')); p.px(12, 12, C('#f08a2a'));
+  });
+  addTile('saucer', p => {
+    shadeMask(p, mask((x, y) => Math.hypot((x - 8) / 4, (y - 7) / 3.4) < 1 && y < 8.5), [C('#8adcf4'), C('#e0faff'), C('#4aa8c8'), C('#14485a')], true);
+    shadeMask(p, mask((x, y) => Math.hypot((x - 8) / 7.4, (y - 9.5) / 2.6) < 1), [C('#b8b8c4'), C('#eeeef6'), C('#74747e'), C('#26262c')], true);
+    for (const x of [3, 6, 9, 12]) p.px(x, 10, C('#ffe04a'));
+    p.px(7, 5, C('#ffffff'));
+  });
+}
+const MARTIAN_SKINS = [['#58c84a', '#2e8a2a', '#a8f08a'], ['#4a9ae0', '#2a5aa8', '#a0d0ff'], ['#e86ab8', '#a83a80', '#ffb0e0'], ['#f2cf3a', '#b8902a', '#fff0a0']];   // (the last is the race marshal)
+function buildSkins7() {
+  // the Martians: little people with a big head, two big dark eyes, a smile and two wobbly antennae
+  MARTIAN_SKINS.forEach(([hex, dk, lt], k) => addSkin('martian_' + k, S => {
+    const c = C(hex), cD = C(dk), cL = C(lt), suit = k === 3 ? C('#f4f4f4') : mixc(C(dk), C('#404060'), 0.5);
+    paintBox(S, 0, 0, 8, 7, 8, (f, x, y, fw, fh) => {   // the head
+      if (f === 'front') {
+        if (y >= 2 && y <= 4 && (x === 1 || x === 2 || x === 5 || x === 6)) return (y === 2 && (x === 2 || x === 6)) ? C('#ffffff') : C('#10101c');
+        if (y === 5 && x >= 3 && x <= 4) return cD;
+        if (y === 5 && (x === 2 || x === 5)) return mixc(c, cD, 0.5);
+      }
+      return f === 'top' ? S.jit(cL, 6) : y === fh - 1 && f !== 'bottom' ? cD : (x * 5 + y * 3) % 11 === 0 ? cL : S.jit(c, 6);
+    });
+    paintBox(S, 0, 16, 6, 6, 4, (f, x, y, fw) => {   // the body, in a little suit with a badge (the marshal's is checked)
+      if (k === 3) return ((x + y) & 1) ? C('#f4f4f4') : C('#1a1a1a');
+      if (f === 'front' && y === 1 && x === 4) return C('#ffe04a');
+      return y === 4 ? C('#d8d8e0') : S.jit(suit, 6);
+    });
+    paintBox(S, 24, 16, 2, 4, 2, (f, x, y) => y === 3 ? C('#3a3a48') : S.jit(suit, 6));   // a leg, with a boot
+    paintBox(S, 34, 16, 2, 6, 2, (f, x, y) => y >= 5 ? S.jit(c, 6) : S.jit(suit, 6));   // an arm, with a hand
+    paintBox(S, 44, 16, 1, 3, 1, () => cD);   // an antenna, and the ball on its end
+    paintBox(S, 50, 16, 2, 2, 2, () => S.jit(C('#ffe04a'), 10));
+    paintBox(S, 0, 28, 1, 8, 1, () => C('#8a6a3a'));   // the marshal's flag: a pole and black-and-white checks
+    paintBox(S, 8, 28, 5, 4, 1, (f, x, y) => ((x + y) & 1) ? C('#f4f4f4') : C('#1a1a1a'));
+  }));
+  // the rover buggy
+  addSkin('buggy', S => {
+    const o = C('#f08a2a'), oD = C('#b85a10'), w = C('#eeeef2'), g = C('#3a3a40');
+    paintBox(S, 0, 0, 10, 2, 16, (f, x, y, fw, fh) => f === 'top' ? ((x + y) % 5 === 0 ? C('#55555c') : S.jit(g, 5)) : f === 'bottom' ? C('#1a1a1a') : y === 0 ? w : S.jit(o, 5));   // the chassis
+    paintBox(S, 52, 0, 2, 4, 4, (f, x, y) => (f === 'left' || f === 'right') ? ((x === 1 || x === 2) && (y === 1 || y === 2) ? o : C('#1c1c1c')) : ((x + y) & 1 ? C('#2a2a2a') : C('#161616')));   // a big knobbly wheel
+    paintBox(S, 0, 20, 8, 2, 4, (f, x, y, fw) => f === 'front' && y === 0 && (x <= 1 || x >= fw - 2) ? C('#fff3a0') : f === 'top' ? S.jit(w, 4) : S.jit(o, 5));   // the nose, with headlights
+    paintBox(S, 24, 20, 6, 1, 4, () => S.jit(C('#4a4a58'), 6));   // the seat
+    paintBox(S, 44, 20, 6, 5, 1, (f, x, y) => y === 0 ? w : S.jit(C('#4a4a58'), 6));
+    paintBox(S, 58, 10, 1, 6, 1, () => C('#d8d8de'));   // a roll bar's post, and its top
+    paintBox(S, 0, 28, 8, 1, 1, () => C('#d8d8de'));
+    paintBox(S, 0, 32, 8, 3, 4, (f, x, y) => f === 'top' ? ((x & 1) ? C('#2a4a8a') : C('#3a6ac0')) : y === 0 ? w : S.jit(oD, 5));   // the box on the back, with a solar panel
+    paintBox(S, 24, 32, 4, 1, 4, (f) => f === 'top' ? C('#f4f4f8') : C('#b0b0b8'));   // the dish
+  });
+  // the flying saucer: a silver disc with lights round the rim; its glass dome is a skin of its own (see-through)
+  addSkin('saucer', S => {
+    const s = C('#b4b4c0'), sL = C('#e6e6f0'), sD = C('#6e6e7a');
+    paintBox(S, 0, 0, 10, 1, 10, (f, x, y, fw, fh) => f === 'top' ? (Math.hypot(x - 4.5, y - 4.5) > 4.2 ? sD : S.jit(sL, 4)) : f === 'bottom' ? S.jit(sD, 4) : (x % 3 === 1 ? C('#ffe04a') : s));   // the rim
+    paintBox(S, 0, 12, 8, 1, 8, (f, x, y) => f === 'top' ? S.jit(s, 5) : sL);   // the top of the hull
+    paintBox(S, 0, 22, 6, 1, 6, (f, x, y) => f === 'bottom' ? (Math.hypot(x - 2.5, y - 2.5) < 1.6 ? C('#8affc8') : S.jit(sD, 4)) : S.jit(sD, 4));   // underneath, where the beam comes out
+    paintBox(S, 0, 30, 4, 1, 4, () => S.jit(C('#4a4a58'), 6));   // the seat inside
+  });
+  addSkin('saucer_glass', S => {
+    paintBox(S, 0, 0, 6, 5, 6, (f, x, y, fw, fh) => {
+      if (f === 'bottom') return null;
+      if (f !== 'top' && y === fh - 1) return C('#d8d8e4');
+      if ((f === 'front' || f === 'left') && Math.abs(x - y - 1) < 1) return [255, 255, 255, 150];
+      return [150, 235, 255, 70];
+    });
+  });
+  addSkin('saucer_beam', S => {   // the tractor beam: pale green light, wider further down
+    for (const [v, w] of [[0, 2], [8, 3], [16, 4]]) paintBox(S, 0, v, w, 4, w, (f, x, y) => f === 'top' || f === 'bottom' ? null : [140, 255, 200, (x + y) % 3 === 0 ? 110 : 60]);
+  });
+  // a pickup box: bright stripes with a star on each side
+  addSkin('itembox', S => {
+    paintBox(S, 0, 0, 10, 10, 10, (f, x, y) => {
+      if (Math.abs(x - 4.5) + Math.abs(y - 4.5) < 2.6) return C('#ffffff');
+      return [C('#ff5a5a'), C('#ffc83a'), C('#5ad06a'), C('#4a9af0')][((x + y) >> 1) & 3];
+    });
+  });
+}
+function buildModels7() {
+  MARTIAN_SKINS.forEach((q, k) => defModel('martian_' + k, 'martian_' + k, 1 / 16, [
+    { name: 'rleg', box: [-3, 0, -1, 2, 4, 2], uv: [24, 16], pivot: [-2, 4, 0] },
+    { name: 'lleg', box: [1, 0, -1, 2, 4, 2], uv: [24, 16], pivot: [2, 4, 0] },
+    { name: 'body', box: [-3, 4, -2, 6, 6, 4], uv: [0, 16] },
+    { name: 'rarm', boxes: k === 3 ? [[-5, 4, -1, 2, 6, 2, 34, 16], [-4.5, -3, -0.5, 1, 8, 1, 0, 28], [-4.5, -3, 0.5, 5, 4, 1, 8, 28]] : [[-5, 4, -1, 2, 6, 2, 34, 16]], pivot: [-4, 9.5, 0] },
+    { name: 'larm', box: [3, 4, -1, 2, 6, 2], uv: [34, 16], pivot: [4, 9.5, 0] },
+    { name: 'head', boxes: [[-4, 10, -4, 8, 7, 8, 0, 0], [-2.5, 17, -0.5, 1, 3, 1, 44, 16], [1.5, 17, -0.5, 1, 3, 1, 44, 16], [-3, 20, -1, 2, 2, 2, 50, 16], [1, 20, -1, 2, 2, 2, 50, 16]], pivot: [0, 10, 0] },
+  ]));
+  const wheel = (name, x, z) => ({ name, box: [x, 0, z - 2, 2, 4, 4], uv: [52, 0], pivot: [x + 1, 2, z] });
+  defModel('buggy', 'buggy', 2 / 16, [
+    { name: 'body', boxes: [
+      [-5, 2, -8, 10, 2, 16, 0, 0], [-4, 4, 5, 8, 2, 4, 0, 20],
+      [-3, 4, -3, 6, 1, 4, 24, 20], [-3, 5, -4, 6, 5, 1, 44, 20],
+      [-4.5, 4, -5, 1, 6, 1, 58, 10], [3.5, 4, -5, 1, 6, 1, 58, 10], [-4, 10, -5, 8, 1, 1, 0, 28],
+      [-4, 4, -9, 8, 3, 4, 0, 32], [1.5, 7, -8, 1, 6, 1, 58, 10], [0, 13, -9.5, 4, 1, 4, 24, 32],
+    ] },
+    wheel('wfl', -7, 5), wheel('wfr', 5, 5), wheel('wbl', -7, -5), wheel('wbr', 5, -5),
+  ]);
+  defModel('saucer', 'saucer', 4 / 16, [
+    { name: 'body', boxes: [[-5, 1, -5, 10, 1, 10, 0, 0], [-4, 2, -4, 8, 1, 8, 0, 12], [-3, 0, -3, 6, 1, 6, 0, 22], [-2, 3, -2, 4, 1, 4, 0, 30]] },
+  ]);
+  defModel('saucer_glass', 'saucer_glass', 4 / 16, [{ name: 'dome', box: [-3, 3, -3, 6, 5, 6], uv: [0, 0] }]);
+  defModel('saucer_beam', 'saucer_beam', 4 / 16, [{ name: 'beam', boxes: [[-1, -4, -1, 2, 4, 2, 0, 0], [-1.5, -8, -1.5, 3, 4, 3, 0, 8], [-2, -12, -2, 4, 4, 4, 0, 16]] }]);
+  defModel('itembox', 'itembox', 1 / 16, [{ name: 'box', box: [-5, -5, -5, 10, 10, 10], uv: [0, 0] }]);
+}
+
 /* ---- 08-render.js ---- */
 /* ===================== Renderer ===================== */
 const R = {
@@ -8071,6 +8334,7 @@ function initRenderExtras() {
 const NETHER_FOG = [0.24, 0.05, 0.035];
 const EARTH_DIR = [0.34, 0.62, -0.71];   // where the Earth is in the Moon's sky (it never moves)
 function skyState(time, map, underwater) {
+  if (map === 'marsworld') map = 'mars';   // (the Mars world has Mars's sky)
   if (map === 'moon') {   // no air: a black sky full of stars, a bright sun and the Earth; the ground is lit by the sun, or the Earth at night
     const ang = time * TAU, sy = Math.sin(ang), len = Math.hypot(Math.cos(ang), sy, 0.22), black = [0.004, 0.004, 0.01], far = [0.02, 0.02, 0.032];
     return { sunDir: [Math.cos(ang) / len, sy / len, 0.22 / len], day: 1, zenith: black, horizon: far, bottom: black, glow: [1, 1, 1], glowAmt: 0, stars: 1, sunVis: 1,
@@ -8405,6 +8669,9 @@ const MOB_DEFS = {
   slimer: { model: 'slimer', w: 0.4, h: 1.1, hp: 20, speed: 2, ghost: true, special: true, unhurt: true, glow: true, xp: [0, 0], drops: [], sound: 'ghost' },
   sheetghost: { model: 'sheetghost', w: 0.35, h: 1.8, hp: 20, speed: 2, ghost: true, special: true, unhurt: true, glow: true, xp: [0, 0], drops: [], sound: 'ghost' },
   marshmallow: { model: 'marshmallow', w: 1.2, h: 5.6, hp: 200, speed: 1, ghost: true, special: true, unhurt: true, glow: true, xp: [0, 0], drops: [], sound: 'ghost' },
+  // the Mars world (see 12m-mars.js): friendly Martians, and the alien racers in their buggies
+  martian: { model: 'martian_0', w: 0.3, h: 1.3, hp: 20, speed: 1.6, martian: true, special: true, unhurt: true, xp: [0, 0], drops: [], sound: 'martian' },
+  racer: { model: 'martian_0', w: 0.6, h: 1.4, hp: 20, speed: 0, racer: true, special: true, unhurt: true, xp: [0, 0], drops: [], sound: 'martian' },
 };
 const MOB_TYPES = Object.keys(MOB_DEFS);
 let ENTITY_NID = 0;
@@ -8856,6 +9123,7 @@ function updateMob(game, e, dt) {
   }
   if (e.angryT > 0) e.angryT -= dt;
   if (e.fleeT > 0) e.fleeT -= dt;   // (chased off by a Patronus)
+  if (e.beamV && beamedMob(game, e, dt)) return;   // (held in a flying saucer's tractor beam)
   if (d.spirit) { updatePatronus(game, e, dt); return; }
   if (d.snitch) { updateSnitch(game, e, dt); return; }
   if (d.qplayer) { updateQPlayer(game, e, dt); return; }
@@ -8863,6 +9131,7 @@ function updateMob(game, e, dt) {
   if (d.lakemon) { updateLakemon(game, e, dt); return; }
   if (d.wisp) { updateWisp(game, e, dt); return; }
   if (d.ghost) { updateGhost(game, e, dt); return; }
+  if (d.racer) { updateRacer(game, e, dt); return; }
   if (d.ender) { enderTick(game, e, dt); if (e.removed || e.dead) return; }
   if (d.fish) { updateFish(game, e, d, dt); return; }
   if (d.swimmer) { updateSnork(game, e, d, dt); return; }
@@ -8894,6 +9163,9 @@ function updateMob(game, e, dt) {
     mx = st[0]; mz = st[1]; speed *= st[2];
   } else if (d.gnome) {
     const st = gnomeSteer(game, e, dt);
+    mx = st[0]; mz = st[1]; speed *= st[2];
+  } else if (d.martian) {
+    const st = martianSteer(game, e, dt);
     mx = st[0]; mz = st[1]; speed *= st[2];
   } else if (d.student) {
     const st = studentSteer(game, e, dt);
@@ -8984,6 +9256,7 @@ function spawnTick(game) {
   if (world.map === 'falls') fallsSpawnTick(game);
   if (world.map === 'ghost') { ghostSpawnTick(game); return; }   // (spooky, but no monsters)
   if (world.map === 'life') { lifeSpawnTick(game); return; }   // (a friendly city: no monsters)
+  if (world.map === 'marsworld') { marsSpawnTick(game); return; }   // (Martians, and nothing that bites)
   if (game.settings.animals) { fishSpawnTick(game); snorkSpawnTick(game); }
   const players = allPlayers(game).filter(p => p.alive && (p === game.player ? game.mode : p.mode) === 'survival');
   if (!players.length || difficulty() === 0) return;
@@ -9055,6 +9328,11 @@ function mobPose(e, t) {
   if (e.type === 'villager') return { head, rleg: [a, 0, 0], lleg: [-a, 0, 0], rarmU: [-0.75, 0, 0], larmU: [-0.75, 0, 0] };
   if (e.type === 'snitch') { const f = Math.sin(e.walk) * 0.9; return { lwing: [0, 0, f], rwing: [0, 0, -f] }; }   // (its wings a blur)
   if (e.type === 'student') { const wv = e.waveT > 0 ? Math.sin(t * 12) * 0.35 : 0; return { head, rleg: [a, 0, 0], lleg: [-a, 0, 0], rarm: e.waveT > 0 ? [-2.7 + wv, 0, 0.25] : [-a * 0.8, 0, 0], larm: [a * 0.8, 0, 0] }; }
+  if (e.type === 'martian') {   // (the marshal holds his flag up, and waves it)
+    const wv = e.waveT > 0 ? Math.sin(t * 12) * 0.35 : 0, bob = Math.sin(t * 3 + e.nid) * 0.06;
+    return { head: [head[0] + bob, head[1], bob], rleg: [a, 0, 0], lleg: [-a, 0, 0], rarm: e.marshal !== undefined ? [-2.9 + wv * 1.6, 0, 0.2] : e.waveT > 0 ? [-2.7 + wv, 0, 0.25] : [-a * 0.8, 0, 0], larm: [a * 0.8, 0, 0] };
+  }
+  if (e.type === 'racer') return { head, rleg: [-1.4, 0.15, 0], lleg: [-1.4, -0.15, 0], rarm: [-1.1, 0.2, 0], larm: [-1.1, -0.2, 0] };   // sitting in its buggy
   if (e.type === 'gnome') return { head, rleg: [a, 0, 0], lleg: [-a, 0, 0], rarm: [-a * 0.9, 0, 0.1], larm: [a * 0.9, 0, -0.1] };
   if (e.type === 'lakemon') { const sw = Math.sin(t * 0.7) * 0.12; return { neck: [sw - 0.1, Math.sin(t * 0.4) * 0.25, 0], lfl: [0, 0, Math.sin(t * 2) * 0.4], rfl: [0, 0, -Math.sin(t * 2) * 0.4], tail: [0, Math.sin(t * 1.3) * 0.3, 0] }; }
   if (e.type === 'qplayer') return { head, rleg: [-0.55, 0.1, 0.12], lleg: [-0.55, -0.1, -0.12], rarm: e.hold ? [-2.4, 0, 0.2] : [-1.2, -0.15, 0], larm: [-1.2, 0.15, 0] };   // astride a broomstick (one arm up with the Quaffle)
@@ -9103,7 +9381,7 @@ function drawEntities(game, s, t, cam) {
     if (!boxInFrustum(R.planes, dx - bw, dy - low, dz - bw, dx + bw, dy + Math.max(2.2, e.h + 0.4), dz + bw)) continue;
     if (e.vehicle) { drawVehicle(game, e, dx, dy, dz, s); continue; }
     if (mobInvisible(e)) continue;
-    const def = MOB_DEFS[e.type], model = MODELS[e.type === 'villager' ? 'villager_' + (e.prof || 'farmer') : e.type === 'ghast' && e.firing > 0 ? 'ghast_fire' : e.type === 'snork' ? 'snork_' + (e.variant | 0) : e.type === 'student' || e.type === 'qplayer' ? 'student_' + ((e.variant | 0) % STUDENT_LOOKS) : def.model];
+    const def = MOB_DEFS[e.type], model = MODELS[e.type === 'villager' ? 'villager_' + (e.prof || 'farmer') : e.type === 'ghast' && e.firing > 0 ? 'ghast_fire' : e.type === 'snork' ? 'snork_' + (e.variant | 0) : e.type === 'martian' || e.type === 'racer' ? 'martian_' + ((e.variant | 0) & 3) : e.type === 'student' || e.type === 'qplayer' ? 'student_' + ((e.variant | 0) % STUDENT_LOOKS) : def.model];
     gl.uniform1f(P.u.uBright, Math.max(def.glow ? 1 : def.swimmer || def.lakemon ? 0.6 : def.robot ? 0.4 : 0, brightAt(world, e.x, e.y + e.h * 0.7, e.z, s)));   // (snorks stay bright and colourful deep in the sea)
     let tint = e.hurt > 0 || e.dead ? [0.8, 0.1, 0.1, 0.45] : e.frozen > 0 ? (e.stun > 0 ? [1, 0.95, 0.5, 0.2] : [0.6, 0.85, 1, 0.5]) : [0, 0, 0, 0];
     let sc = model.scale;
@@ -9118,6 +9396,7 @@ function drawEntities(game, s, t, cam) {
     M4.rotY(_eb, _eb, e.bodyYaw + Math.PI);
     if (e.dead) M4.rotZ(_eb, _eb, Math.min(1, e.dead / 0.4) * Math.PI / 2);
     if (e.type === 'ghast') M4.translate(_eb, _eb, 0, -2.25, 0);   // its tentacles hang below it
+    if (e.type === 'racer') M4.translate(_eb, _eb, 0, 0.3, 0.15);   // (up on the buggy's seat)
     if (e.carry || (e.type === 'golem' && e.rose > 0)) held.push(e);
     if (def.spirit) { M4.scale(_eb, _eb, sc, sc, sc); PATRONUS_Q.push({ m: Float32Array.from(_eb), pose: mobPose(e, t), a: clamp((e.life === undefined ? 1 : e.life), 0, 1) * 0.75 }); continue; }   // (drawn later, glowing)
     if (e.type === 'magma') {
@@ -9128,9 +9407,11 @@ function drawEntities(game, s, t, cam) {
     if (def.fish && e.pitch) M4.rotX(_eb, _eb, e.pitch);
     drawModel(model, _eb, mobPose(e, t), e.color);
     if (e.type === 'qplayer') drawMobBroom(e, dx, dy, dz);
+    if (e.type === 'racer') drawRacerBuggy(e, dx, dy, dz);
     if (e.type === 'robot') drawModel(MODELS.robot_light, _eb, mobPose(e, t), ROBOT_LIGHT[Math.max(0, ROBOT_MODES.indexOf(e.mode))]);   // (its antenna light shows what it is doing)
   }
   drawTraps(cam);   // (a ghost trap, open under a ghost)
+  drawRace(cam, t);   // (the pickup boxes over a race track)
   if ((game.view > 0 || CAMS.pass) && game.player.alive) drawPlayerModel(game, s, t, cam);   // (and on a security camera's monitor)
   if (MP.remotes.size) drawRemotePlayers(game, s, t, cam);
   entityBegin(texTiles);
@@ -9718,6 +9999,8 @@ const VEHICLES = {
   tank: { w: 0.95, h: 1.3, item: I.TANK, hits: 6, code: -16, wheel: 0.2 },   // (see 09u-tanks.js)
   golfcart: { w: 0.7, h: 1.6, item: I.GOLF_CART, hits: 3, code: -17, wheel: 0.14 },   // (Soos's, in Declan Falls: a little car)
   train: { w: 1.1, h: 2.8, item: I.TRAIN, hits: 6, code: -18, wheel: 0.2 },   // (see 09ct-trains.js)
+  buggy: { w: 0.8, h: 1.2, item: I.BUGGY, hits: 4, code: -19, wheel: 0.25 },   // (a rover buggy, for racing on Mars: see 12m-mars.js)
+  saucer: { w: 1.1, h: 1.2, item: I.SAUCER, hits: 5, code: -20, wheel: 1 },   // (a flying saucer with a tractor beam)
 };
 const VEHICLE_TYPES = Object.keys(VEHICLES);
 const isVehicleType = t => typeof t === 'string' && Object.prototype.hasOwnProperty.call(VEHICLES, t);   // (not "constructor" and the like)
@@ -9737,6 +10020,8 @@ function seatOf(v) {
   if (v.type === 'train') return trainSeat(v, 0);   // (in the engine's cab)
   if (v.type === 'tank') return [v.x, v.y + 0.2, v.z];   // (in the hatch on top, head and shoulders out)
   if (v.type === 'broom') return [v.x, v.y + 0.05, v.z];
+  if (v.type === 'saucer') return [v.x, v.y + 0.3, v.z];   // (under the glass dome)
+  if (v.type === 'buggy') return [v.x + Math.sin(v.yaw) * 0.1, v.y + 0.1, v.z + Math.cos(v.yaw) * 0.1];
   if (v.type === 'rocket') return [v.x, v.y + 0.6, v.z];   // (inside, looking out of the window)
   if (v.type === 'boat') return [v.x, v.y - 0.64, v.z];
   if (v.type === 'submarine') return [v.x, v.y - 0.58, v.z];
@@ -9754,8 +10039,10 @@ function updateVehicle(game, e, dt) {
   }
   if (e.rider === 'me' && game.player.riding !== e) e.rider = null;
   if (e.rider === 'me' && (game.paused || game.uiOpen || game.state !== 'playing')) { e.ctrlX = e.ctrlZ = 0; e.push = null; }   // the menu is open: let go of the wheel
+  if (e.boostT > 0) e.boostT -= dt;   // (a race's boost pad or turbo, and a dust cloud's slow-down: see 12m-mars.js)
+  if (e.slowT > 0) e.slowT -= dt;
   const steps = Math.max(1, Math.ceil(Math.hypot(e.vx, e.vy, e.vz) * dt / 0.3));
-  const step = e.type === 'train' ? trainStep : e.type === 'car' || e.type === 'golfcart' ? carStep : e.type === 'tank' ? tankStep : e.type === 'boat' ? boatStep : e.type === 'submarine' ? subStep : isFlyer(e) ? flyStep : isPlane(e) ? planeStep : e.type === 'rocket' ? rocketStep : cartStep;
+  const step = e.type === 'train' ? trainStep : e.type === 'car' || e.type === 'golfcart' || e.type === 'buggy' ? carStep : e.type === 'tank' ? tankStep : e.type === 'boat' ? boatStep : e.type === 'submarine' ? subStep : isFlyer(e) ? flyStep : isPlane(e) ? planeStep : e.type === 'rocket' ? rocketStep : cartStep;
   for (let i = 0; i < steps; i++) step(game, e, dt / steps);
   if (e.y < -40) { e.removed = true; return; }
   if (e.type === 'train') trainTrail(e);
@@ -9768,6 +10055,7 @@ function updateVehicle(game, e, dt) {
   else if (e.sndT <= 0 && sp > 0.5) {
     if (e.type === 'tank' && e.rider) { e.sndT = 0.22; sfx('tankEngine', e.x, e.y, e.z, clamp(0.5 + sp / 8, 0.5, 1)); }
     else if (e.type === 'golfcart' && e.rider) { e.sndT = 0.2; sfx('cartHum', e.x, e.y, e.z, clamp(0.4 + sp / 8, 0.4, 1)); }
+    else if (e.type === 'buggy' && e.rider) { e.sndT = 0.15; sfx('buggyEngine', e.x, e.y, e.z, clamp(0.4 + sp / 14, 0.4, 1)); }
     else if (e.type === 'car' && e.rider) { e.sndT = 0.16; sfx('carEngine', e.x, e.y, e.z, clamp(0.4 + sp / 12, 0.4, 1)); }
     else if (e.type === 'minecart' && e.onRail) { e.sndT = 0.32 - Math.min(0.2, sp * 0.02); sfx('minecartRoll', e.x, e.y, e.z, clamp(sp / 8, 0.25, 1)); }
   }
@@ -9775,7 +10063,7 @@ function updateVehicle(game, e, dt) {
 function sitRider(pl, v) {
   const [x, y, z] = seatOf(v);
   pl.x = x; pl.y = y; pl.z = z; pl.vx = v.vx; pl.vz = v.vz; pl.vy = 0; pl.fallDist = 0; pl.onGround = true;
-  if (v.type === 'car' || v.type === 'golfcart' || v.type === 'boat') {   // the view turns with the car or boat
+  if (v.type === 'car' || v.type === 'golfcart' || v.type === 'buggy' || v.type === 'boat') {   // the view turns with the car or boat
     const d = ((v.yaw - (v.lastYaw === undefined ? v.yaw : v.lastYaw) + Math.PI) % TAU + TAU) % TAU - Math.PI;
     pl.yaw += d;
     pl.bodyYaw = v.yaw;
@@ -9825,10 +10113,12 @@ function carStep(game, e, dt) {
   const w = game.world, driven = !!e.rider;
   const throttle = driven ? e.ctrlZ || 0 : 0, steer = driven ? e.ctrlX || 0 : 0;
   let fx = -Math.sin(e.yaw), fz = -Math.cos(e.yaw), v = e.vx * fx + e.vz * fz;
-  if (throttle > 0.1) v += throttle * (v < 0 ? 16 : 8) * dt;
+  const buggy = e.type === 'buggy', top = (e.type === 'golfcart' ? 7 : buggy ? 13 : 11) * (e.boostT > 0 ? 1.45 : 1) * (e.slowT > 0 ? 0.45 : 1);   // (boost pads and dust clouds in a race)
+  if (throttle > 0.1) v += throttle * (v < 0 ? 16 : buggy ? 11 : 8) * (e.boostT > 0 ? 2.5 : 1) * dt;
   else if (throttle < -0.1) v += throttle * (v > 0 ? 16 : 6) * dt;
   else v *= Math.pow(e.onGround ? 0.3 : 0.9, dt);
-  v = clamp(v, -4, e.type === 'golfcart' ? 7 : 11);
+  v = clamp(v, -4, top);
+  if (e.rider === 'me' && e.onGround && w.getBlock(Math.floor(e.x), Math.floor(e.y - 0.5), Math.floor(e.z)) === B.BOOST) raceBoost(e);
   if (e.inWater) v = clamp(v, -1.2, 2);
   e.yaw -= steer * clamp(Math.abs(v) / 3, 0, 1) * 2 * Math.sign(v || 1) * dt;
   fx = -Math.sin(e.yaw); fz = -Math.cos(e.yaw);
@@ -9837,10 +10127,10 @@ function carStep(game, e, dt) {
   physicsStep(w, e, dt, 24);
   if (e.collidedH && before && want && boxFree(w, e.x + fx * 0.35 * want, e.y + 1.05, e.z + fz * 0.35 * want, e.w, e.h)) {   // a one-block step: hop up it
     const sp = Math.max(Math.abs(v), 2.5) * want;
-    e.vy = 7.2; e.vx = fx * sp; e.vz = fz * sp;
+    e.vy = 7.2 * Math.sqrt(gravOf(w.map)); e.vx = fx * sp; e.vz = fz * sp;   // (just up the step, whatever the gravity)
   }
   e.fallDist = 0;
-  e.wheel += v * dt / 0.19;
+  e.wheel += v * dt / (buggy ? 0.25 : 0.19);
   e.steer = lerp(e.steer || 0, steer * 0.45, Math.min(1, dt * 8));
   // driving into creatures knocks them flying
   if (Math.abs(v) > 3.5) {
@@ -9878,7 +10168,7 @@ function mountVehicle(game, v) {
   if (v.rider && !hasSeats(v)) { toast('Someone is already in it.', 2); return; }
   if (!v.rider && !lifeCan('drive')) return;   // (in the Life Cycle world: only grown-ups drive; anyone can ride along)
   if (MP.role === 'guest') { if (!v.askT || performance.now() - v.askT > 1500) { v.askT = performance.now(); MP.send({ t: 'mount', e: v.nid }); } return; }   // the host says yes or no
-  if (v.rider) { const k = freeSeat(v); if (k) boardSeat(game, v, k); else toast(isPlane(v) ? 'This plane is full.' : 'The train is full.', 2); return; }   // (a plane's pilot is already in: a passenger seat)
+  if (v.rider) { const k = freeSeat(v); if (k) boardSeat(game, v, k); else toast(isPlane(v) ? 'This plane is full.' : v.type === 'saucer' ? 'Someone is in the beam already.' : 'The train is full.', 2); return; }   // (a plane's pilot is already in: a passenger seat)
   boardVehicle(game, v);
 }
 function boardVehicle(game, v) {
@@ -9887,7 +10177,7 @@ function boardVehicle(game, v) {
   pl.riding = v; pl.sneakHeld = true; pl.flying = false; pl.drawT = pl.loadT = 0;
   if (v.type !== 'minecart') pl.yaw = v.yaw;
   sitRider(pl, v);
-  sfx(v.type === 'car' || v.type === 'golfcart' ? 'carStart' : 'click', v.x, v.y, v.z);
+  sfx(v.type === 'car' || v.type === 'golfcart' || v.type === 'buggy' ? 'carStart' : 'click', v.x, v.y, v.z);
   if (!game.tipped) game.tipped = {};
   if (!game.tipped[v.type]) { game.tipped[v.type] = 1; toast(RIDE_TIPS[v.type], 5); }
 }
@@ -9905,10 +10195,12 @@ const RIDE_TIPS = {
   golfcart: 'Drive with the joystick (or W A S D). Tap to beep! Press Sneak to get out.',
   tank: 'Drive with the joystick (or W A S D). The gun points where you look: tap to fire a paint shell! Press Sneak to get out.',
   train: 'Push forward to set off: the train keeps going by itself. Pull back to stop (and again to back up). Tap for the horn! It stops at stations. Press Sneak to get out.',
+  buggy: 'Drive with the joystick (or W A S D). It is fast, and jumps high on Mars! Tap a race marshal to start a race. Press Sneak to get out.',
+  saucer: 'Push forward to fly where you look! Jump goes up, Sneak goes down. Tap to switch the tractor beam on: it lifts the creature below you. Land, then Sneak to get out.',
 };
 /* host: where a guest's vehicle has got to */
 function applyVehState(v, s) {
-  const sp = clamp(s[5], -12, isPlane(v) ? 45 : 12);
+  const sp = clamp(s[5], -12, isPlane(v) ? 45 : 20);
   v.x = s[0]; v.y = s[1]; v.z = s[2]; v.yaw = s[3] % TAU; v.slope = clamp(s[4], -1, 1);
   if (isFlyer(v) || isPlane(v)) v.flying = s[6] === 1;
   if (isPlane(v)) { v.bank = clamp(+s[7] || 0, -1, 1); v.vy = clamp(+s[8] || 0, -60, 60); v.spd = Math.abs(sp); v.slope = clamp(s[4], -1, 1); }
@@ -10001,10 +10293,11 @@ function drawVehicle(game, e, dx, dy, dz, s) {
   if (isFlyer(e)) e.wing = clamp((e.wing || 0) + ((e.flying ? 1 : 0) - (e.wing || 0)) * 0.12, 0, 1);   // (the flying car's wings fold out in the air)
   const fold = (1 - (e.wing || 0)) * 1.35;   // (folded down along its sides)
   if (e.type === 'tank') { drawTank(e, _eb); return; }
-  drawModel(model, _eb, e.type === 'car' || e.type === 'golfcart' ? { wfl: [wr, st, 0], wfr: [wr, st, 0], wbl: [wr, 0, 0], wbr: [wr, 0, 0] }
+  drawModel(model, _eb, e.type === 'car' || e.type === 'golfcart' || e.type === 'buggy' ? { wfl: [wr, st, 0], wfr: [wr, st, 0], wbl: [wr, 0, 0], wbr: [wr, 0, 0] }
     : e.type === 'flycar' ? { wfl: [wr, 0, 0], wfr: [wr, 0, 0], wbl: [wr, 0, 0], wbr: [wr, 0, 0], lwing: [0, 0, -fold], rwing: [0, 0, fold] }
     : isPlane(e) ? { prop: [0, 0, e.prop || 0] }
-    : e.type === 'minecart' || e.type === 'broom' || e.type === 'rocket' ? null : boatPose(e));
+    : e.type === 'minecart' || e.type === 'broom' || e.type === 'rocket' || e.type === 'saucer' ? null : boatPose(e));
+  if (e.type === 'saucer') { drawSubGlass(_eb, Math.max(bright, 0.7), MODELS.saucer_glass); if (e.beamOn) drawSubGlass(_eb, 1, MODELS.saucer_beam); }   // (its glass dome, and its tractor beam)
   if (e.type === 'submarine') drawSubGlass(_eb, bright);
 }
 
@@ -10059,9 +10352,9 @@ function trainSeat(v, k) {
   return [p.x + c * s[0] + sn * s[2], p.y + s[1], p.z - sn * s[0] + c * s[2]];
 }
 /* seats for passengers: a plane's or a train's */
-const hasSeats = v => isPlane(v) || (!!v && v.type === 'train');
-const seatCount = v => isPlane(v) ? PLANES[v.type].seats.length : v && v.type === 'train' ? TRAIN_SEATS.length : 0;
-const seatPos = (v, k) => v.type === 'train' ? trainSeat(v, k) : planeSeat(v, k);
+const hasSeats = v => isPlane(v) || (!!v && (v.type === 'train' || v.type === 'saucer'));
+const seatCount = v => isPlane(v) ? PLANES[v.type].seats.length : v && v.type === 'train' ? TRAIN_SEATS.length : v && v.type === 'saucer' ? 2 : 0;
+const seatPos = (v, k) => v.type === 'train' ? trainSeat(v, k) : v.type === 'saucer' ? saucerSeat(v, k) : planeSeat(v, k);
 
 /* ---- driving ---- */
 /* forward: off it goes (and keeps going); back: stop, and back again to reverse slowly */
@@ -10182,7 +10475,7 @@ function drawTrain(game, e, dx, dy, dz, s) {
 // with it. On land a boat only shuffles along. A submarine goes where you look when you push forward (up, down,
 // anywhere), and left and right turn it. Inside a submarine you never run out of air, its lamps light up the
 // water, and a tap sends out a sonar ping. Sneak gets out of either.
-const RIDE_KIND = { car: 'car', minecart: 'cart', boat: 'boat', submarine: 'sub', flycar: 'car', broom: 'broom', rocket: 'rocket', plane: 'car', jet: 'car', airliner: 'car', tank: 'car', golfcart: 'car' };
+const RIDE_KIND = { car: 'car', minecart: 'cart', boat: 'boat', submarine: 'sub', flycar: 'car', broom: 'broom', rocket: 'rocket', plane: 'car', jet: 'car', airliner: 'car', tank: 'car', golfcart: 'car', buggy: 'car', saucer: 'car' };
 const rideKind = v => v ? (typeof v === 'string' ? v : RIDE_KIND[v.type] || 'cart') : null;
 const inSubmarine = pl => !!(pl.riding && pl.riding.type === 'submarine');
 
@@ -10295,13 +10588,13 @@ function boatPose(e) {
 /* a submarine's glass dome is see-through, so it is drawn last of all, after the water (drawQueuedGlass), with
    whatever is behind it showing through */
 const SUB_GLASS = [];
-function drawSubGlass(m, bright) { SUB_GLASS.push({ m: Float32Array.from(m), bright }); }
+function drawSubGlass(m, bright, model) { SUB_GLASS.push({ m: Float32Array.from(m), bright, model: model || MODELS.sub_glass }); }   // (a flying saucer's dome too)
 function drawQueuedGlass() {
   if (!SUB_GLASS.length) return;
   const P = PROG.entity;
   entityBegin(texSkins);
   gl.enable(gl.CULL_FACE);
-  for (const g of SUB_GLASS) { gl.uniform1f(P.u.uBright, g.bright); drawModel(MODELS.sub_glass, g.m, null); }
+  for (const g of SUB_GLASS) { gl.uniform1f(P.u.uBright, g.bright); drawModel(g.model, g.m, null); }
   gl.disable(gl.CULL_FACE);
   SUB_GLASS.length = 0;
 }
@@ -11207,7 +11500,8 @@ function tickAirlocks(game, dt) {
 // board, a flying car (or a broom still in the air) floats gently down.
 const FLYERS = {
   flycar: { speed: 12, climb: 6, turn: 1.6, follow: 3, acc: 1.6 },
-  broom: { speed: 15, climb: 7, turn: 2.3, follow: 6, acc: 2.6 },
+  broom: { speed: 15, climb: 7, turn: 2.3, follow: 6, acc: 2.6, hover: true },
+  saucer: { speed: 13, climb: 7, turn: 2.2, follow: 5, acc: 2.2, hover: true },   // (see 12m-mars.js)
 };
 const isFlyer = v => !!(v && FLYERS[v.type]);
 /* the height to stand at on the ground under a spot up in the air (on water too), or -1 if there is none (nothing but
@@ -11225,7 +11519,7 @@ function groundUnder(w, x, y, z) {
 const aloft = (w, v) => (isFlyer(v) || isPlane(v) || v.type === 'rocket') && !SOLID[w.getBlock(Math.floor(v.x), Math.floor(v.y + 0.01) - 1, Math.floor(v.z))];
 
 function flyStep(game, e, dt) {
-  const w = game.world, pl = game.player, F = FLYERS[e.type], me = e.rider === 'me', broom = e.type === 'broom';
+  const w = game.world, pl = game.player, F = FLYERS[e.type], me = e.rider === 'me', broom = !!F.hover, saucer = e.type === 'saucer';   // (a broom and a saucer both hover)
   const thr = me ? e.ctrlZ || 0 : 0, steer = me ? e.ctrlX || 0 : 0, up = me && !!e.up, down = me && !!e.down;
   if (me) {   // it heads where its driver looks; left and right turn the view, and so the vehicle
     pl.yaw -= steer * F.turn * dt;
@@ -11234,10 +11528,11 @@ function flyStep(game, e, dt) {
   const pitch = me ? clamp(pl.pitch, -1.2, 1.2) : 0;
   if (!e.flying && me && (up || (thr > 0.3 && pitch > 0.35) || (broom && Math.abs(thr) > 0.1))) {   // take off
     e.flying = true; e.vy = Math.max(e.vy, broom ? 2 : 3);
-    sfx(broom ? 'broomWhoosh' : 'flycarLift', e.x, e.y, e.z);
+    sfx(saucer ? 'beamOff' : broom ? 'broomWhoosh' : 'flycarLift', e.x, e.y, e.z);
   }
   if (e.flying) {
-    const cp = Math.cos(pitch), sp = thr > 0.1 ? thr * F.speed : thr < -0.1 ? thr * F.speed * 0.4 : 0, k = Math.min(1, dt * F.acc);
+    const fast = (e.boostT > 0 ? 1.45 : 1) * (e.slowT > 0 ? 0.45 : 1);   // (in a race: boost pads and dust clouds)
+    const cp = Math.cos(pitch), sp = (thr > 0.1 ? thr * F.speed : thr < -0.1 ? thr * F.speed * 0.4 : 0) * fast, k = Math.min(1, dt * F.acc);
     let tvy = Math.sin(pitch) * sp + (up ? F.climb : 0) - (down ? F.climb : 0);
     if (!me) tvy = -2;   // nobody on board: it floats down
     else if (!sp && !up && !down) tvy = Math.sin(e.age * 2.2) * 0.25;   // hovering, bobbing a little
@@ -11245,7 +11540,7 @@ function flyStep(game, e, dt) {
     e.vx += (-Math.sin(e.yaw) * cp * sp - e.vx) * k; e.vz += (-Math.cos(e.yaw) * cp * sp - e.vz) * k;
     e.vy += (tvy - e.vy) * Math.min(1, dt * 3);
     moveEntity(w, e, e.vx * dt, e.vy * dt, e.vz * dt);
-    if (e.onGround && !up) { e.flying = false; e.vy = 0; sfx(broom ? 'broomWhoosh' : 'flycarLand', e.x, e.y, e.z, 0.6); }   // touched down
+    if (e.onGround && !up) { e.flying = false; e.vy = 0; sfx(saucer ? 'saucerHum' : broom ? 'broomWhoosh' : 'flycarLand', e.x, e.y, e.z, 0.6); }   // touched down
     e.onGround = false; e.fallDist = 0;
     e.slope = lerp(e.slope || 0, sp ? clamp(pitch * Math.sign(sp), -0.6, 0.6) : 0, Math.min(1, dt * 3));
     e.bank = lerp(e.bank || 0, steer * (broom ? 0.5 : 0.3), Math.min(1, dt * 4));
@@ -11253,7 +11548,7 @@ function flyStep(game, e, dt) {
       const bx = e.x + Math.sin(e.yaw) * 1.4, bz = e.z + Math.cos(e.yaw) * 1.4, side = (Math.random() < 0.5 ? -1 : 1) * 0.38;
       PARTICLES.push({ x: bx + Math.cos(e.yaw) * side, y: e.y + 0.5, z: bz - Math.sin(e.yaw) * side, vx: Math.sin(e.yaw) * 2, vy: randRange(-0.2, 0.2), vz: Math.cos(e.yaw) * 2, life: randRange(0.15, 0.3), tile: TILE.flame, u: 0, v: 0, us: 16, size: randRange(0.1, 0.16), grav: 0, bright: 1 });
     }
-    if (broom && Math.hypot(e.vx, e.vz) > 9 && Math.random() < dt * 12 && PARTICLES.length < 1500) PARTICLES.push({ x: e.x + Math.sin(e.yaw) * 1, y: e.y + 0.7, z: e.z + Math.cos(e.yaw) * 1, vx: 0, vy: 0, vz: 0, life: 0.5, tile: TILE.ender_dot, u: 0, v: 0, us: 16, size: 0.05, grav: 0, bright: 1 });   // a trail of sparkles
+    if (broom && !saucer && Math.hypot(e.vx, e.vz) > 9 && Math.random() < dt * 12 && PARTICLES.length < 1500) PARTICLES.push({ x: e.x + Math.sin(e.yaw) * 1, y: e.y + 0.7, z: e.z + Math.cos(e.yaw) * 1, vx: 0, vy: 0, vz: 0, life: 0.5, tile: TILE.ender_dot, u: 0, v: 0, us: 16, size: 0.05, grav: 0, bright: 1 });   // a trail of sparkles
   } else if (broom) {   // a broom waiting where it was left: it hovers there, quite still
     const f = Math.pow(0.02, dt); e.vx *= f; e.vz *= f; e.vy = 0;
     moveEntity(w, e, e.vx * dt, 0, e.vz * dt);
@@ -11271,7 +11566,8 @@ function flySounds(e, sp) {
   if (e.type === 'flycar') {
     if (e.flying) { e.sndT = 0.3; sfx('flycarHum', e.x, e.y, e.z, clamp(0.45 + Math.hypot(sp, e.vy || 0) / 14, 0.45, 1)); }
     else if (sp > 0.5) { e.sndT = 0.16; sfx('carEngine', e.x, e.y, e.z, clamp(0.4 + sp / 12, 0.4, 1)); }
-  } else if (e.flying && sp > 6) { e.sndT = 0.5; sfx('broomWhoosh', e.x, e.y, e.z, clamp(sp / 16, 0.3, 0.8)); }
+  } else if (e.type === 'saucer') { if (e.flying) { e.sndT = 0.45; sfx('saucerHum', e.x, e.y, e.z, clamp(0.5 + sp / 20, 0.5, 1)); } }
+  else if (e.flying && sp > 6) { e.sndT = 0.5; sfx('broomWhoosh', e.x, e.y, e.z, clamp(sp / 16, 0.3, 0.8)); }
 }
 /* the rider in the air can't just step out: Sneak takes it down instead (and gets out once it has landed) */
 function flyControls(game, pl, v, fx, fz, inp) {
@@ -11647,7 +11943,8 @@ function bigText(text, secs) {
 const wearsSpaceHelmet = p => !!(p.inv && p.inv[ARMOR_INV] && p.inv[ARMOR_INV].id === I.SPACE_HELMET);
 const inRocket = p => !!(p.riding && p.riding.type === 'rocket');
 /* can this player breathe where they are? (on the Moon: only in a space helmet, or inside the rocket) */
-const canBreatheHere = p => !isSpace(game.dim) || wearsSpaceHelmet(p) || inRocket(p);
+const noAir = () => isSpace(game.dim) || (game.mapId === 'marsworld' && game.dim === 'over');   // (the Mars world is on Mars too)
+const canBreatheHere = p => !noAir() || wearsSpaceHelmet(p) || inRocket(p);
 
 /* tap inside a rocket: the countdown starts (and everyone playing together is told) */
 function rocketLaunch(game, pl, v) {
@@ -11755,12 +12052,18 @@ const PLANETS = {
   uranus: { name: 'Uranus', title: 'Uranus', g: 0.9, about: 'Icy, blue-green and very cold, with rings', color: '#7ad8d8',
     welcome: 'Welcome to Uranus! Brrr, it is VERY cold. Everything is ice. Look up to see its rings!' },
 };
-const gravOf = map => PLANETS[map] ? PLANETS[map].g : 1;
+const gravOf = map => map === 'marsworld' ? PLANETS.mars.g : PLANETS[map] ? PLANETS[map].g : 1;   // (the Mars world pulls like Mars)
 const placeName = d => PLANETS[d] ? PLANETS[d].name : d === 'nether' ? 'the Nether' : MAPS[game.mapId] ? MAPS[game.mapId].name : 'home';
 defBlock(B.MARS_DUST, 'Mars Dust', { tex: 'mars_dust', hardness: 0.5, tool: 'shovel', sound: 'sand' });
 defBlock(B.MARS_ROCK, 'Mars Rock', { tex: 'mars_rock', hardness: 1.5, tool: 'pickaxe', tier: 1 });
 defBlock(B.CLOUD, 'Jupiter Cloud', { tex: 'cloud', hardness: 0.3, sound: 'wool' });
 defBlock(B.URANUS_ICE, 'Uranus Ice', { tex: 'uranus_ice', hardness: 0.6, tool: 'pickaxe', sound: 'glass' });
+// the Mars world's race tracks, its vehicles and a present from a Martian (see 12m-mars.js)
+defBlock(B.TRACK, 'Race Track', { tex: 'track', hardness: 1.5, tool: 'pickaxe', tier: 1 });
+defBlock(B.BOOST, 'Boost Pad', { tex: { top: 'boost', bottom: 'track', side: 'track' }, hardness: 1.5, tool: 'pickaxe', tier: 1, emit: 10 });
+defItem(I.MARS_CRYSTAL, 'Mars Crystal', { tex: 'mars_crystal' });
+defItem(I.BUGGY, 'Rover Buggy', { tex: 'buggy', stack: 1 });
+defItem(I.SAUCER, 'Flying Saucer', { tex: 'saucer', stack: 1 });
 
 /* ---- where does the rocket go? (picked before the countdown, at home) ---- */
 function pickPlanet(game, pl, v, go) {
@@ -11770,6 +12073,7 @@ function pickPlanet(game, pl, v, go) {
   box.appendChild(h('h3', { text: 'Where shall we go?' }));
   const close = () => { root.hidden = true; game.uiOpen = false; if (!game.touchOn && !game.dragLook) game.requestPointer(); };
   for (const d of SPACE_DIMS) {
+    if (d === 'mars' && game.mapId === 'marsworld') continue;   // (in the Mars world you are there already)
     const P = PLANETS[d], b = h('button', { type: 'button', class: 'planet-btn', 'data-planet': d });
     b.appendChild(h('span', { class: 'planet-dot', style: 'background:' + P.color }));
     b.appendChild(h('span', { class: 'planet-name', text: P.title }));
@@ -11793,7 +12097,11 @@ function spaceArrival(game) {
   if (!isSpace(d) || !pl.alive) return;
   const key = d === 'moon' ? 'moon' : 'p_' + d;
   if (!game.stats[key]) { game.stats[key] = 1; chat(PLANETS[d].welcome, '#ffd24a'); if (d === 'mars') roverHint(game); }
-  if (game.mode !== 'survival') return;
+  spaceHelmet(game);
+}
+function spaceHelmet(game) {
+  const pl = game.player;
+  if (game.mode !== 'survival' || !pl.alive) return;
   if (wearsSpaceHelmet(pl) || pl.inv.some(s => s && s.id === I.SPACE_HELMET)) return;
   if (!pl.inv[ARMOR_INV]) pl.inv[ARMOR_INV] = { id: I.SPACE_HELMET, count: 1 };
   else if (pl.give(I.SPACE_HELMET, 1) > 0) dropItem(game, pl.x, pl.y + 1, pl.z, I.SPACE_HELMET, 1);
@@ -13832,7 +14140,7 @@ const SHOP_BUY = [
 const SHOP_SELL = [
   [B.COBBLE, 16, 1], [B.DIRT, 32, 1], [B.OAK_LOG, 8, 2], [B.WOOL, 4, 2], [I.COAL, 8, 2], [I.IRON_INGOT, 1, 3], [I.GOLD_INGOT, 1, 5],
   [I.DIAMOND, 1, 20], [I.EMERALD, 1, 5], [I.ROTTEN_FLESH, 8, 1], [I.GUNPOWDER, 2, 2], [I.COD, 4, 2], [B.PUMPKIN, 2, 2], [B.SUGAR_CANE, 8, 1],
-  [I.FEATHER, 4, 1], [I.STRING, 4, 1], [I.LEATHER, 2, 2], [B.MOON_CHEESE, 1, 10],
+  [I.FEATHER, 4, 1], [I.STRING, 4, 1], [I.LEATHER, 2, 2], [B.MOON_CHEESE, 1, 10], [I.MARS_CRYSTAL, 1, 8],
 ];
 const moneyOf = pl => countItem(pl, I.COIN) + 10 * countItem(pl, I.BILL);
 const money$ = n => '$' + n;
@@ -14008,7 +14316,7 @@ function wxTick(game, dt) {
   }
   WX.kindT -= dt;
   if (WX.kindT <= 0) { WX.kindT = 1; WX.kind = WX.snowAll ? 2 : game.gen.climateAt(w.map, game.seed, pl.x, pl.z); }
-  const here = WX.on && game.dim === 'over', k = WX.snap ? 1 : Math.min(1, dt * 0.3);
+  const here = WX.on && game.dim === 'over' && game.mapId !== 'marsworld', k = WX.snap ? 1 : Math.min(1, dt * 0.3);
   WX.snap = false;
   WX.dark += ((here ? (WX.thunder ? 1 : 0.75) : 0) - WX.dark) * k;
   WX.amt += ((here && WX.kind ? 1 : 0) - WX.amt) * k;
@@ -15167,6 +15475,18 @@ class Player {
     inp.minePressed = false;
     // talk to a villager
     const tEnt = this.targetEnt;
+    // in a race on Mars: a tap uses your pickup
+    if (inp.use && inp.usePressed && RACE && RACE.me.in && RACE.state === 'run' && this.riding && !this.seat) {
+      if (this.useCd <= 0) { this.useCd = 0.3; raceUsePickup(game, this); }
+      inp.use = false; inp.usePressed = false;
+      return;
+    }
+    // tap a Martian: a present for something from Earth (the race marshal starts a race)
+    if (inp.use && inp.usePressed && tEnt && tEnt.type === 'martian' && this.useCd <= 0 && !tEnt.dead) {
+      this.swing(); martianTap(game, this, tEnt, hid, creative); this.useCd = 0.4;
+      inp.use = false; inp.usePressed = false;
+      return;
+    }
     if (inp.use && tEnt && tEnt.type === 'villager' && this.useCd <= 0 && !tEnt.dead) {
       this.swing(); openTrade(tEnt); this.useCd = 0.3;
       inp.use = false; inp.usePressed = false;
@@ -15199,12 +15519,17 @@ class Player {
       inp.usePressed = false;
       return;
     }
+    if (this.riding && this.riding.type === 'saucer' && !this.seat && inp.use) {   // flying a saucer: a tap switches its tractor beam on and off
+      if (inp.usePressed && this.useCd <= 0) { this.useCd = 0.5; saucerBeam(game, this, this.riding); }
+      inp.usePressed = false;
+      return;
+    }
     if (this.riding && this.riding.type === 'tank' && !this.seat && inp.use) {   // in a tank: a tap fires a paint shell
       if (inp.usePressed && this.useCd <= 0) { this.useCd = 0.7; tankFire(game, this, this.riding); }
       inp.usePressed = false;
       return;
     }
-    if (this.riding && (this.riding.type === 'car' || this.riding.type === 'golfcart' || this.riding.type === 'flycar' || this.riding.type === 'submarine') && inp.use) {   // (in a submarine: a sonar ping)
+    if (this.riding && (this.riding.type === 'car' || this.riding.type === 'golfcart' || this.riding.type === 'buggy' || this.riding.type === 'flycar' || this.riding.type === 'submarine') && inp.use) {   // (in a submarine: a sonar ping)
       if (inp.usePressed && this.useCd <= 0) {
         this.useCd = 0.5;
         if (this.riding.type === 'submarine') sonarPing(game, this);
@@ -15405,8 +15730,8 @@ class Player {
     }
     if (hid >= 256 && ITEMS[hid] && ITEMS[hid].door && t.face >= 0) return placeDoor(game, this, hid, t, creative);
     if (hid === B.GARAGE_DOOR && t.face >= 0) return placeGarage(game, this, t, creative);
-    if ((hid === I.MINECART || hid === I.TRAIN || hid === I.CAR || hid === I.BOAT || hid === I.SUBMARINE || hid === I.FLYING_CAR || hid === I.BROOM || hid === I.ROCKET || hid === I.PLANE || hid === I.JET || hid === I.AIRLINER || hid === I.GOLF_CART || isTankItem(hid)) && t.face >= 0) {
-      const type = hid === I.TRAIN ? 'train' : hid === I.CAR ? 'car' : hid === I.BOAT ? 'boat' : hid === I.SUBMARINE ? 'submarine' : hid === I.FLYING_CAR ? 'flycar' : hid === I.BROOM ? 'broom' : hid === I.ROCKET ? 'rocket' : hid === I.PLANE ? 'plane' : hid === I.JET ? 'jet' : hid === I.AIRLINER ? 'airliner' : hid === I.GOLF_CART ? 'golfcart' : isTankItem(hid) ? 'tank' : 'minecart';
+    if ((hid === I.MINECART || hid === I.TRAIN || hid === I.CAR || hid === I.BOAT || hid === I.SUBMARINE || hid === I.FLYING_CAR || hid === I.BROOM || hid === I.ROCKET || hid === I.PLANE || hid === I.JET || hid === I.AIRLINER || hid === I.GOLF_CART || hid === I.BUGGY || hid === I.SAUCER || isTankItem(hid)) && t.face >= 0) {
+      const type = hid === I.TRAIN ? 'train' : hid === I.CAR ? 'car' : hid === I.BOAT ? 'boat' : hid === I.SUBMARINE ? 'submarine' : hid === I.FLYING_CAR ? 'flycar' : hid === I.BROOM ? 'broom' : hid === I.ROCKET ? 'rocket' : hid === I.PLANE ? 'plane' : hid === I.JET ? 'jet' : hid === I.AIRLINER ? 'airliner' : hid === I.GOLF_CART ? 'golfcart' : hid === I.BUGGY ? 'buggy' : hid === I.SAUCER ? 'saucer' : isTankItem(hid) ? 'tank' : 'minecart';
       let vx = t.x + 0.5, vy = t.y + 1, vz = t.z + 0.5;
       if (hid === I.MINECART || hid === I.TRAIN) {
         if (t.id !== B.RAIL) { if (!this.toldRails) { this.toldRails = true; toast((hid === I.TRAIN ? 'Trains' : 'Minecarts') + ' go on rails. Put some rails down first.', 3); } return false; }
@@ -15670,6 +15995,9 @@ const HELD_TIPS = {
   [I.GHOST_DETECTOR]: ['The lights and the beeping tell you how close a ghost is: faster beeps, closer ghost!', 'The lights and the beeping tell you how close a ghost is: faster beeps, closer ghost!'],
   [I.LASER]: ['Tap to fire the laser! It only hurts monsters. The button at the top picks its colour.', 'Right-click to fire the laser! It only hurts monsters. Press F to pick its colour.'],
   [I.TRAIN]: ['Tap a railway track to put the train on it, then tap the train to get in.', 'Right-click a railway track to put the train on it, then right-click the train to get in.'],
+  [I.BUGGY]: ['Tap the ground to put the rover buggy down, then tap it to get in. It is fast!', 'Right-click the ground to put the rover buggy down, then right-click it to get in. It is fast!'],
+  [I.SAUCER]: ['Tap the ground to put the flying saucer down, then tap it to get in. In the air, tap for the tractor beam!', 'Right-click the ground to put the flying saucer down, then right-click it to get in. In the air, click for the tractor beam!'],
+  [I.MARS_CRYSTAL]: ['A present from a Martian! A store will buy it for a good price.', 'A present from a Martian! A store will buy it for a good price.'],
   [B.STATION]: ['Put the Train Station right beside the track: it builds a platform with a sign, and trains stop there.', 'Put the Train Station right beside the track: it builds a platform with a sign, and trains stop there.'],
   [I.WAND]: ['Tap to cast a spell! The Spell button (at the top) picks a different one.', 'Right-click to cast a spell! Press F to pick a different one.'],
   [I.SHIELD]: ['Hold Place to hide behind the shield. Put it in the slot beside your armor to use it with a sword.', 'Hold the right mouse button to hide behind the shield. Put it in the slot beside your armor to use it with a sword.'],
@@ -16184,6 +16512,27 @@ Object.assign(SFX, {
   pkeBeep: (v, p) => tone({ f: 900 + v * 700, dur: 0.06, type: 'square', vol: 0.045, lp: 3500, pan: p }),
 });
 
+/* ---- 11f-audio7.js ---- */
+/* ===================== Sounds for the seventh wish list: the Mars world (added to SFX; see 11-audio.js) ===================== */
+Object.assign(SFX, {
+  // a Martian's chatter (wobbly bleeps going up and down), and a happy trill
+  martianHi: (v, p) => { [660, 990, 740, 1180].forEach((f, i) => tone({ f, fEnd: f * (i % 2 ? 0.8 : 1.25), dur: 0.09, type: 'square', vol: 0.035 * v, lp: 2600, when: i * 0.1, pan: p })); },
+  martianSay: (v, p) => { [880, 620].forEach((f, i) => tone({ f, fEnd: f * 1.2, dur: 0.08, type: 'square', vol: 0.02 * v, lp: 2400, when: i * 0.09, pan: p })); },
+  martianHurt: (v, p) => tone({ f: 900, fEnd: 1300, dur: 0.15, type: 'square', vol: 0.03 * v, lp: 2600, pan: p }),
+  martianHappy: (v, p) => { [784, 988, 1175, 1568].forEach((f, i) => tone({ f, dur: 0.12, type: 'triangle', vol: 0.06 * v, when: i * 0.08, vib: [14, 30], pan: p })); },
+  // racing: the start, a boost pad, a pickup box, a puff of dust; the buggy's engine
+  raceGo: (v, p) => { tone({ f: 1047, dur: 0.6, type: 'square', vol: 0.06 * v, lp: 3000, pan: p }); tone({ f: 1568, dur: 0.6, type: 'triangle', vol: 0.05 * v, pan: p }); },
+  raceBoost: (v, p) => { tone({ f: 300, fEnd: 1500, dur: 0.45, type: 'sawtooth', vol: 0.06 * v, lp: 2400, pan: p }); nz({ f: 800, fEnd: 3200, q: 1, dur: 0.4, vol: 0.08 * v, pan: p }); },
+  racePickup: (v, p) => { [880, 1320, 1760].forEach((f, i) => tone({ f, dur: 0.1, type: 'triangle', vol: 0.07 * v, when: i * 0.06, pan: p })); },
+  raceDust: (v, p) => nz({ f: 500, fEnd: 200, q: 0.8, dur: 0.5, vol: 0.14 * v, pan: p }),
+  buggyEngine: (v, p) => { tone({ f: 96 + Math.random() * 10, dur: 0.2, type: 'sawtooth', vol: 0.05 * v, lp: 700, pan: p }); tone({ f: 190 + Math.random() * 14, dur: 0.16, type: 'square', vol: 0.02 * v, lp: 900, pan: p }); },
+  // the flying saucer: a humming wobble, and its tractor beam going on, catching something, and going off
+  saucerHum: (v, p) => tone({ f: 180, dur: 0.5, type: 'sine', vol: 0.06 * v, vib: [9, 30], attack: 0.1, pan: p }),
+  beamOn: (v, p) => tone({ f: 260, fEnd: 880, dur: 0.5, type: 'sine', vol: 0.07 * v, vib: [12, 40], pan: p }),
+  beamOff: (v, p) => tone({ f: 880, fEnd: 240, dur: 0.4, type: 'sine', vol: 0.06 * v, vib: [12, 40], pan: p }),
+  beamCatch: (v, p) => { tone({ f: 520, fEnd: 1040, dur: 0.25, type: 'triangle', vol: 0.07 * v, pan: p }); tone({ f: 1560, dur: 0.2, type: 'sine', vol: 0.04 * v, when: 0.2, pan: p }); },
+});
+
 /* ---- 12-ui.js ---- */
 /* ===================== Interface ===================== */
 const ui = { dirty: true, cursor: null, screen: 'scr-title', inv: null, hoverRef: null, hbEls: [], hearts: -1, food: -1, air: -1, armor: -1, xp: -1, nameT: 0, toastT: 0, back: 'scr-title', px: 0, py: 0 };
@@ -16198,9 +16547,10 @@ const MAPS = {
   falls: { name: 'Declan Falls', desc: 'A little town in a tall pine forest by a lake, with the Mystery Shack. Be Dipper, Mabel, Grunkle Stan, Soos or Wendy, and find six mysteries!' },
   life: { name: 'Life Cycle', desc: 'A friendly little city where you live a whole life: start as a baby and grow up a little every day, all the way to old and wise.' },
   ghost: { name: 'Ghostbusters', desc: 'A spooky little city at dusk, full of ghosts. You have a proton pack, a ghost trap and a ghost detector: how many can you catch?' },
+  marsworld: { name: 'Mars', desc: 'The red planet! Friendly Martians in a village of glass domes, a flying saucer with a tractor beam, and buggy races round the canyons.' },
 };
 /* the saved worlds: each has its own save, and the land it is made of (Hardcore is a Sunny Valley you only get one life in) */
-const SLOTS = { valley: { map: 'valley' }, sky: { map: 'sky' }, hogwarts: { map: 'hogwarts' }, falls: { map: 'falls' }, ghost: { map: 'ghost' }, life: { map: 'life' }, hardcore: { map: 'valley', hardcore: true } };
+const SLOTS = { valley: { map: 'valley' }, sky: { map: 'sky' }, hogwarts: { map: 'hogwarts' }, falls: { map: 'falls' }, ghost: { map: 'ghost' }, life: { map: 'life' }, marsworld: { map: 'marsworld' }, hardcore: { map: 'valley', hardcore: true } };
 const HC_LAST_KEY = 'declancraft:v1:hardcore-last';
 /* Hardcore is always at least Normal */
 const difficulty = () => game.hardcore ? Math.max(2, game.settings.difficulty) : game.settings.difficulty;
@@ -16723,6 +17073,7 @@ function drawThumb(cv, map) {
   if (map === 'falls') { drawFallsThumb(ctx, W, H); return; }
   if (map === 'ghost') { drawGhostThumb(ctx, W, H); return; }
   if (map === 'life') { drawLifeThumb(ctx, W, H); return; }
+  if (map === 'marsworld') { drawMarsThumb(ctx, W, H); return; }
   const r = mulberry32(map === 'sky' ? 7 : 3);
   const g = ctx.createLinearGradient(0, 0, 0, H);
   g.addColorStop(0, '#5f8ff0'); g.addColorStop(1, map === 'sky' ? '#d8e8ff' : '#a9c8ff');
@@ -16754,7 +17105,7 @@ function buildWorldCards() {
   const wrap = el('world-cards');
   wrap.textContent = '';
   el('worlds-h').textContent = ui.hostMode ? 'Choose a World to Share' : 'Choose a World';
-  for (const id of ['valley', 'sky', 'hogwarts', 'falls', 'ghost', 'life', 'hardcore']) {
+  for (const id of ['valley', 'sky', 'hogwarts', 'falls', 'ghost', 'life', 'marsworld', 'hardcore']) {
     const hc = !!SLOTS[id].hardcore, info = hc ? { name: 'Hardcore', desc: 'Sunny Valley, but you only get one life! If you die, the world is gone and you start a new one.' } : MAPS[id], save = loadSaveMeta(id);
     const card = h('article', { class: 'card' + (hc ? ' hardcore' : '') });
     const cv = h('canvas', { 'aria-hidden': 'true' });
@@ -18611,6 +18962,472 @@ function drawLifeThumb(ctx, W, H) {
   ctx.fillStyle = '#ffd0b0'; ctx.fillRect(78, 44, 4, 6); ctx.fillStyle = '#3a7ae0'; ctx.fillRect(78, 47, 4, 3);
 }
 
+/* ---- 12m-mars.js ---- */
+/* ===================== The Mars world (the seventh wish list) ===================== */
+// A world of its own on Mars (see marsGen and paintMarsTown in 02b-gen3.js): you start beside your rocket on a landing
+// pad, with a flying saucer on the next pad, and the Martians' village of glass domes a short walk away. Martians are
+// friendly: they wave and chatter, and if you give one something from Earth (an apple, bread, a flower...) it gives
+// you a present from Mars. Mars has low gravity and no air, so everyone wears a space helmet, as on the other planets.
+//
+// Canyon racing: two tracks start at the edge of town, each with a garage of rover buggies and a race marshal. Get in
+// a buggy (or the car, the golf cart, the flying car or the saucer), tap the marshal and pick how many alien racers
+// to race: 3, 2, 1, GO! Laps are counted round the track; boost pads make you faster, and the floating boxes give a
+// pickup to use with a tap: a turbo, a dust cloud to drop behind you (it only slows whoever drives into it) or a
+// bubble that keeps one dust cloud off you. Playing together, everyone in a vehicle at the start races; the host's
+// iPad drives the alien racers and keeps the places.
+//
+// The flying saucer hovers like a broomstick. A tap switches its tractor beam on and off: it lifts the creature below
+// and carries it along, and sets it down gently. A friend who taps a saucer someone is flying rides in the beam.
+const atMars = () => game.mapId === 'marsworld' && game.dim === 'over';
+const MARTIAN_COLORS = ['#58c84a', '#4a9ae0', '#e86ab8', '#f2cf3a'];   // green, blue and pink Martians; the marshal is yellow
+const MARTIAN_HI = ['Zorp! Hello, Earth friend %!', 'Bleep bloop! Nice helmet, %!', 'Welcome to Mars, %! Mind the canyons.', 'Greetings, %! Have you got any apples?', 'Wibble! Want to race, %?', 'Hello %! The red dust gets everywhere.'];
+const MARS_FOOD = () => [I.APPLE, I.BREAD, I.PIZZA, I.CHEESE, I.COOKED_PORKCHOP, I.STEAK, I.COOKED_CHICKEN, I.COOKED_COD, I.COOKED_SALMON, B.DANDELION, B.POPPY, B.CORNFLOWER, B.PUMPKIN, I.SUGAR];
+const MARS_GIFTS = () => [[I.MARS_CRYSTAL, 1, 2, 40], [I.COIN, 3, 9, 25], [B.GLOWSTONE, 2, 4, 15], [I.EMERALD, 1, 2, 10], [I.DIAMOND, 1, 1, 5], [I.ENDER_PEARL, 1, 1, 5]];   // [thing, at least, at most, how likely]
+// (the track's blocks, the buggy, the saucer and the Mars Crystal are named in 09ma-planets.js)
+
+/* ---- arriving ---- */
+function marsWelcome(game) {
+  RACE = null;
+  if (!game.stats.marsHi) { game.stats.marsHi = 1; chat('Welcome to Mars! Your rocket and a flying saucer are on the pads behind you, the Martians live in the glass domes, and the race tracks start at the edge of town. Give a Martian something from Earth!', '#ffb27a'); }
+  spaceHelmet(game);
+}
+/* the host puts out the rocket, the saucer and the buggies once, and keeps the Martians and the marshals about */
+function marsSpawnTick(game) {
+  const M = game.gen.marsw, w = game.world, Y = M.town.y + 1, S = game.stats, loaded = (x, z) => w.getBlock(Math.floor(x), M.town.y, Math.floor(z)) !== B.UNLOADED;
+  const once = (bit, x, z, fn) => { if (!((S.marsKit | 0) & bit) && loaded(x, z)) { S.marsKit = (S.marsKit | 0) | bit; fn(); } };
+  once(1, M.rocket[0], M.rocket[1], () => spawnVehicle(game, 'rocket', M.rocket[0] + 0.5, Y, M.rocket[1] + 0.5, 0));
+  once(2, M.saucer[0], M.saucer[1], () => spawnVehicle(game, 'saucer', M.saucer[0] + 0.5, Y, M.saucer[1] + 0.5, 0));
+  const garageYaw = tr => { const p = game.gen.marsTracks()[tr].pts, a = p[p.length - 16]; return Math.atan2(-(a[0] - M.tracks[tr].garage[0]), -(a[1] - M.tracks[tr].garage[1])); };   // (facing the way out to the track)
+  const cars = game.entities.filter(e => e.vehicle && !e.removed);
+  M.tracks.forEach((tr, i) => {
+    const [gx, gz] = tr.garage;
+    once(4 << i, gx, gz, () => { for (const dx of [-3, 0, 3]) cars.push(spawnVehicle(game, 'buggy', gx + dx + 0.5, Y, gz + 0.5, garageYaw(i))); });
+    // a garage never stays empty: when its buggies have all been driven away, another one is wheeled out
+    if (loaded(gx, gz) && !RACE && !cars.some(e => e.type === 'buggy' && Math.hypot(e.x - gx, e.z - gz) < 7) && cars.filter(e => e.type === 'buggy').length < 14) cars.push(spawnVehicle(game, 'buggy', gx + 0.5, Y, gz + 0.5, garageYaw(i)));
+  });
+  if (!cars.some(e => e.type === 'saucer') && loaded(M.saucer[0], M.saucer[1])) spawnVehicle(game, 'saucer', M.saucer[0] + 0.5, Y, M.saucer[1] + 0.5, 0);   // (and there is always a saucer)
+  if (!livePlayers(game).length) return;
+  const mars = game.entities.filter(e => e.type === 'martian' && !e.removed);
+  M.domes.concat([[M.plaza[0] + 3, M.plaza[1] + 3]]).forEach(([x, z], k) => {
+    if (mars.some(e => e.homeK === k) || !loaded(x, z)) return;
+    const e = spawnMob(game, 'martian', x + 0.5, Y, z + 1.5);
+    e.homeK = k; e.home = [x + 0.5, z + 0.5]; e.variant = k % 3; e.aiT = 0;
+  });
+  game.gen.marsTracks().forEach((tr, i) => {
+    if (mars.some(e => e.marshal === i)) return;
+    const p = marshalSpot(tr);
+    if (!loaded(p[0], p[2])) return;
+    const e = spawnMob(game, 'martian', p[0], p[1], p[2]);
+    e.marshal = i; e.variant = 3; e.home = [p[0], p[2]];
+  });
+}
+/* the marshal stands beside the start line, on the pit-lane side */
+function marshalSpot(tr) {
+  const a = tr.pts[tr.N - 12], b = tr.pts[tr.N - 11], tx = b[0] - a[0], tz = b[1] - a[1], l = Math.hypot(tx, tz) || 1;
+  return [a[0] + (tz / l) * 7.5, tr.y + 1, a[1] - (tx / l) * 7.5];
+}
+
+/* ---- Martians ---- */
+function martianSteer(game, e, dt) {
+  if (e.waveT > 0) e.waveT -= dt;
+  if (game.mapId !== 'marsworld' || nearestPlayerDist(game, e) > 110) { e.removed = true; return [0, 0, 0]; }
+  const near = closePlayer(game, e, 5);
+  if (e.marshal !== undefined) {   // the marshal keeps to his post, and waves his flag at whoever comes by
+    if (near) { e.yaw = Math.atan2(-(near[1] - e.x), -(near[3] - e.z)); e.waveT = 0.5; }
+    const hx = e.home[0] - e.x, hz = e.home[1] - e.z, hd = Math.hypot(hx, hz);
+    return hd > 0.8 ? [hx / hd, hz / hd, 0.6] : [0, 0, 0];
+  }
+  if (near && !(e.hiT > game.t)) {   // someone new: a wave and a hello
+    e.hiT = game.t + 40; e.waveT = 2.5;
+    const [p] = near, name = p === game.player ? playerName() : p.name || 'friend', line = 'A Martian: "' + MARTIAN_HI[randInt(0, MARTIAN_HI.length - 1)].replace('%', name) + '"';
+    if (p === game.player) chat(line, MARTIAN_COLORS[e.variant % 3]); else if (p.link) p.link.send({ t: 'chat', m: line, c: MARTIAN_COLORS[e.variant % 3] });
+    sfx('martianHi', e.x, e.y + 1, e.z); MP.sfx('martianHi', e.x, e.y + 1, e.z);
+  }
+  if (near && e.waveT > 0) { e.yaw = Math.atan2(-(near[1] - e.x), -(near[3] - e.z)); return [0, 0, 0]; }
+  e.aiT -= dt;
+  if (e.aiT <= 0) {
+    e.moving = Math.random() < 0.6; e.aiT = randRange(2, 5); e.yaw = Math.random() * TAU;
+    if (e.home && Math.hypot(e.home[0] - e.x, e.home[1] - e.z) > 9) e.yaw = Math.atan2(-(e.home[0] - e.x), -(e.home[1] - e.z));
+  }
+  if (e.collidedH && e.moving) e.yaw += Math.PI * randRange(0.5, 1.5);
+  return e.moving ? [-Math.sin(e.yaw), -Math.cos(e.yaw), 0.5] : [0, 0, 0];
+}
+/* tap a Martian: the marshal starts a race; any other swaps something from Earth for a present from Mars */
+function martianTap(game, pl, e, hid, creative) {
+  if (e.marshal !== undefined) { openRaceMenu(e.marshal); return; }
+  e.waveT = 1.5;
+  if (!MARS_FOOD().includes(hid)) { sfx('martianHi', e.x, e.y + 1, e.z); toast('Martians love things from Earth! Give one an apple, some bread or a flower and it gives you a present.', 3.5); return; }
+  if (e.fedAt > game.t) { sfx('martianHi', e.x, e.y + 1, e.z); toast('This Martian is still admiring the last present. Ooooh!', 2.5); return; }
+  if (!creative) pl.consumeHeld(1);
+  e.fedAt = game.t + 10;
+  const G = MARS_GIFTS();
+  let r = Math.random() * G.reduce((a, g) => a + g[3], 0), g = G[0];
+  for (const q of G) { if (r < q[3]) { g = q; break; } r -= q[3]; }
+  const n = randInt(g[1], g[2]), left = pl.give(g[0], n);
+  if (left > 0) dropItem(game, pl.x, pl.y + 1, pl.z, g[0], left);
+  ui.dirty = true;
+  toast('The Martian gave you ' + (n > 1 ? n + ' x ' : /^[AEIOU]/.test(itemName(g[0])) ? 'an ' : 'a ') + itemName(g[0]) + '!', 3);
+  sfx('martianHappy', e.x, e.y + 1, e.z);
+  if (game.net) MP.localFx('sfx', e.x, e.y + 1, e.z, SFX_NET.indexOf('martianHappy'));
+  game.stats.martians = (game.stats.martians || 0) + 1;
+}
+
+/* ===================== Racing ===================== */
+const RACE_VEHICLES = ['buggy', 'car', 'golfcart', 'flycar', 'saucer', 'tank'];
+const RACE_COLORS = ['#e1453a', '#3a7ae0', '#f2cf3a', '#9a5ae0'];
+const PICKUPS = [['turbo', 'Turbo'], ['dust', 'Dust cloud'], ['bubble', 'Bubble']];
+let RACE = null;   // the race going on (the same on every iPad, each with its own "me")
+const myRaceId = () => (MP.role === 'guest' ? PROFILE.pid : 'host');
+const raceVehicle = pl => (pl.riding && !pl.seat && RACE_VEHICLES.includes(pl.riding.type) ? pl.riding : null);
+const fmtSecs = s => Math.floor(s / 60) + ':' + String(Math.floor(s % 60)).padStart(2, '0');
+const raceBests = () => { const b = game.stats.raceBest || {}; return [0, 1, 2, 3].map(i => +b[i] || 0); };   // (a guest's best times are kept in the host's world)
+const fmtTime = s0 => { const s = Math.round(s0 * 10) / 10; return fmtTime1(s); };
+const fmtTime1 = s => Math.floor(s / 60) + ':' + String(Math.floor(s % 60)).padStart(2, '0') + '.' + Math.floor((s * 10) % 10);
+const placeWord = n => n + (n === 1 ? 'st' : n === 2 ? 'nd' : n === 3 ? 'rd' : 'th');
+/* a place on the starting grid: [x, y, z, yaw, how far before the line] */
+function gridSlot(tr, k) {
+  const back = 4 + 4 * Math.floor(k / 2), a = tr.pts[tr.N - back], b = tr.pts[(tr.N - back + 1) % tr.N], tx = b[0] - a[0], tz = b[1] - a[1], l = Math.hypot(tx, tz) || 1, side = k % 2 ? 2.2 : -2.2;
+  return [a[0] - (tz / l) * side, a[2] + 1, a[1] + (tx / l) * side, Math.atan2(-tx, -tz), back];
+}
+
+/* ---- the marshal's menu ---- */
+function openRaceMenu(ti) {
+  const tr = game.gen.marsTracks()[ti], pl = game.player;
+  if (!tr) return;
+  if (RACE) { toast('A race is on already. Wait for the chequered flag!', 2.5); return; }
+  const root = el('race-menu') || document.body.appendChild(h('div', { id: 'race-menu', class: 'planet-pick', role: 'dialog', 'aria-label': 'Race' }));
+  root.textContent = '';
+  const box = h('div', { class: 'panel' }), best = game.stats.raceBest && game.stats.raceBest[ti], ready = !!raceVehicle(pl);
+  let ai = game.raceAi === undefined ? 2 : game.raceAi;
+  const close = () => { root.hidden = true; game.uiOpen = false; if (!game.touchOn && !game.dragLook) game.requestPointer(); };
+  box.appendChild(h('h3', { text: tr.name }));
+  box.appendChild(h('p', { class: 'race-info', text: tr.laps + ' laps. ' + (best ? 'Your best time: ' + fmtTime(best) : 'No best time yet.') }));
+  const row = h('div', { class: 'race-ai', role: 'group', 'aria-label': 'Alien racers' });
+  row.appendChild(h('span', { text: 'Alien racers:' }));
+  const btns = [0, 1, 2, 3].map(n => { const b = h('button', { type: 'button', class: 'race-n', text: String(n) }); b.addEventListener('click', () => { ai = game.raceAi = n; sfx('click'); mark(); }); row.appendChild(b); return b; });
+  const mark = () => btns.forEach((b, n) => { b.classList.toggle('on', n === ai); b.setAttribute('aria-pressed', n === ai ? 'true' : 'false'); });
+  mark();
+  box.appendChild(row);
+  if (!ready) box.appendChild(h('p', { class: 'race-info no', text: 'Get in a buggy first (or a car, the golf cart or the saucer), then tap me again!' }));
+  const go = h('button', { type: 'button', class: 'planet-btn race-go', text: 'Start the race!' });
+  go.disabled = !ready;
+  go.addEventListener('click', () => { initAudio(); sfx('click'); close(); if (MP.role === 'guest') MP.send({ t: 'race', a: 'start', ti, ai }); else raceStart(game, ti, ai); });
+  box.appendChild(go);
+  const no = h('button', { type: 'button', class: 'planet-cancel', text: 'Not now' });
+  no.addEventListener('click', () => { sfx('click'); close(); });
+  box.appendChild(no);
+  root.appendChild(box);
+  root.hidden = false;
+  game.releasePointer();
+  game.uiOpen = true;
+}
+
+/* ---- the host starts it: everyone sitting in a vehicle near the start is in ---- */
+function raceStart(game, ti, ai) {
+  const tr = game.gen.marsTracks()[ti];
+  if (!tr || RACE || !atMars()) return false;
+  const s0 = tr.pts[0], slots = {}, names = {};
+  let k = 0;
+  const near = (x, z) => Math.hypot(x - s0[0], z - s0[1]) < 45;
+  if (raceVehicle(game.player) && near(game.player.x, game.player.z)) { slots.host = k++; names.host = playerName(); }
+  for (const r of MP.remotes.values()) if (r.alive && k < 6 && near(r.tx, r.tz) && game.entities.some(q => q.vehicle && !q.removed && q.rider === r.id && RACE_VEHICLES.includes(q.type))) { slots[r.id] = k++; names[r.id] = r.name; }
+  if (!k) return false;
+  ai = clamp(ai | 0, 0, 3);
+  const m = { t: 'race', a: 'go', ti, slots, names, ai, n: k };
+  for (let i = 0; i < ai; i++) {   // the alien racers line up behind
+    const g = gridSlot(tr, k + i), e = spawnMob(game, 'racer', g[0], g[1], g[2]);
+    e.variant = i; e.bodyYaw = e.headYaw = e.yaw = g[3];
+    e.rc = { d: -g[4], lane: (k + i) % 2 ? 2.2 : -2.2, speed: 9.8 + i * 0.7, name: ['Zorp', 'Bleep', 'Wibble'][i] };
+  }
+  MP.broadcast(Object.assign({ we: MP.we }, m));
+  raceBegin(game, m);
+  return true;
+}
+/* on every iPad: the race is on. If you are in it, your vehicle goes to its place on the grid */
+function raceBegin(game, m) {
+  const tr = game.gen.marsTracks()[m.ti | 0], pl = game.player, id = myRaceId();
+  if (!tr || !atMars()) return;
+  const slot = m.slots && m.slots[id], v = raceVehicle(pl), inRace = slot !== undefined && !!v;
+  RACE = { ti: tr.i, tr, laps: tr.laps, state: 'count', cd: 4.2, shown: 0, t: 0, names: m.names || {}, list: [], clouds: [], sendT: 0, endT: 0,
+    boxes: [], prog: {}, me: { in: inRace, d: 0, fin: 0, lastT: 0, pickup: null, shield: 0, slot: null } };
+  for (const bi of tr.boxes) for (const lat of [-2.6, 0, 2.6]) { const a = tr.pts[bi], b = tr.pts[(bi + 1) % tr.N], tx = b[0] - a[0], tz = b[1] - a[1], l = Math.hypot(tx, tz) || 1; RACE.boxes.push({ x: a[0] - (tz / l) * lat, y: a[2] + 1.7, z: a[1] + (tx / l) * lat, t: 0 }); }
+  if (inRace) {
+    const g = gridSlot(tr, slot);
+    RACE.me.slot = g; RACE.me.d = -g[4];
+    Object.assign(v, { x: g[0], y: g[1], z: g[2], yaw: g[3], lastYaw: g[3], vx: 0, vy: 0, vz: 0, flying: false, boostT: 0, slowT: 0 });
+    pl.yaw = g[3]; pl.pitch = -0.28;   // (looking down the track a little, from above and behind)
+    if (game.view === 0) { RACE.viewBefore = 0; game.view = 1; }   // (watch your buggy from behind while you race)
+    chat(tr.name + ': ' + tr.laps + ' laps. Get ready...', '#ffd24a');
+  } else chat('A race is starting on ' + tr.name + '!', '#ffd24a');
+}
+/* your place: 1 plus everyone who is further round (or finished sooner) */
+function racePlace() {
+  const me = RACE.me, id = myRaceId();
+  let n = 1;
+  for (const [who, , d, fin] of RACE.list) { if (who === id) continue; if (me.fin ? fin && fin < me.fin : fin || d > me.d) n++; }
+  return n;
+}
+function raceTick(game, dt) {
+  const R = RACE, pl = game.player;
+  if (!R) return;
+  if (!atMars()) { raceEnd(game, []); return; }   // (off in the rocket, or another world)
+  const tr = R.tr, me = R.me, v = raceVehicle(pl), N = tr.N, host = MP.role !== 'guest';
+  if (R.state === 'count') {   // 3, 2, 1... held on the grid
+    R.cd -= dt;
+    const n = Math.ceil(R.cd - 1);
+    if (n !== R.shown && n >= 1 && n <= 3) { R.shown = n; if (me.in) bigText(String(n)); sfx('rocketBeep', pl.x, pl.y + 1, pl.z); }
+    if (me.in && v && me.slot) { v.x = me.slot[0]; v.z = me.slot[2]; v.vx = v.vz = 0; v.yaw = me.slot[3]; v.flying = false; }
+    if (R.cd <= 1) { R.state = 'run'; R.t = 0; me.lastT = 0; if (me.in) bigText('GO!', 1.2); sfx('raceGo', pl.x, pl.y + 1, pl.z); }
+    hudCount(tr.name + ': get ready!');
+    return;
+  }
+  R.t += dt;
+  if (me.in && !me.fin) {
+    if (!v) { me.outT = (me.outT || 0) + dt; if (me.outT > 6) { me.in = false; toast('You left the race.', 2.5); if (R.viewBefore !== undefined && game.view === 1) game.view = R.viewBefore; } }
+    else {
+      me.outT = 0;
+      // how far round: the nearest bit of track a little ahead of where you were
+      const cur = ((Math.floor(me.d) % N) + N) % N, [bi, dist] = game.gen.trackNear(tr, v.x, v.z, cur - 3, 36), ty = tr.pts[bi][2];
+      let k = ((bi - cur) % N + N) % N; if (k > N / 2) k -= N;
+      if (dist < 9 && Math.abs(v.y - ty) < 12 && k > 0) { me.d = Math.floor(me.d) + k; me.lastT = R.t; }
+      const here = tr.pts[cur];
+      if (v.y < here[2] - 6 || (R.t - me.lastT > 6 && Math.hypot(v.x - here[0], v.z - here[1]) > 10)) {   // off a bridge, or lost: back on the track
+        const nx = tr.pts[(cur + 1) % N];
+        Object.assign(v, { x: here[0], y: here[2] + 1.2, z: here[1], vx: 0, vy: 0, vz: 0, yaw: Math.atan2(-(nx[0] - here[0]), -(nx[1] - here[1])), flying: false });
+        pl.yaw = v.lastYaw = v.yaw; me.lastT = R.t; toast('Back on the track!', 1.5);
+      }
+      if (v.type === 'saucer' && tr.boost[cur] && dist < 3 && v.y - ty < 4) raceBoost(v);
+      for (const b of R.boxes) if (!(b.t > R.t) && Math.hypot(b.x - v.x, b.z - v.z) < 1.8 && Math.abs(b.y - v.y - 0.7) < 3) {   // a pickup box
+        b.t = R.t + 4;
+        if (!me.pickup) { me.pickup = PICKUPS[randInt(0, PICKUPS.length - 1)]; sfx('racePickup', v.x, v.y, v.z); toast('You got: ' + me.pickup[1] + '! Tap to use it.', 2); }
+      }
+      for (const c of R.clouds) if (c.by !== myRaceId() && !c.hit && Math.hypot(c.x - v.x, c.z - v.z) < 3 && Math.abs(c.y - v.y) < 4) {   // into someone's dust cloud
+        c.hit = true;
+        if (me.shield > R.t) { me.shield = 0; toast('Your bubble kept the dust off!', 2); sfx('pop'); }
+        else { v.slowT = 1.8; toast('Cough! A dust cloud!', 1.5); }
+      }
+      if (me.d >= R.laps * N) {   // over the line for the last time (your place is read out a moment later, when every iPad agrees on it)
+        me.fin = R.t; me.sayT = R.t + 1.2; v.boostT = 0;
+        bigText('Finished!', 1.2); sfx('raceGo', v.x, v.y, v.z);
+      }
+    }
+  }
+  if (me.sayT && R.t >= me.sayT) raceAnnounce(game);
+  // dust clouds hang about for a few seconds
+  for (const c of R.clouds) if (Math.random() < dt * 14) smokeParticles(c.x + randRange(-1.5, 1.5), c.y + randRange(0, 1.5), c.z + randRange(-1.5, 1.5), 1, 0.5, true);
+  R.clouds = R.clouds.filter(c => c.t > R.t);
+  if (me.shield > R.t && v && Math.random() < dt * 20 && PARTICLES.length < 1500) { const a = Math.random() * TAU; PARTICLES.push({ x: v.x + Math.cos(a) * 1.3, y: v.y + 0.3 + Math.random() * 1.4, z: v.z + Math.sin(a) * 1.3, vx: 0, vy: 0.4, vz: 0, life: 0.4, tile: TILE.bubble_p, u: 0, v: 0, us: 16, size: 0.08, grav: 0, bright: 1 }); }
+  // tell the host how far you are; the host tells everyone the places
+  R.sendT -= dt;
+  if (R.sendT <= 0) {
+    R.sendT = 0.4;
+    if (!host) { if (me.in || me.fin) MP.send({ t: 'race', a: 'p', d: Math.floor(me.d), f: me.fin ? Math.round(me.fin * 10) / 10 : 0, o: me.in ? 0 : 1 }); }
+    else raceHostTick(game);
+  }
+  if (!RACE) return;
+  const lap = clamp(Math.floor(me.d / N) + 1, 1, R.laps);
+  hudCount(me.in ? (me.fin ? 'Finished: ' + (me.place ? placeWord(me.place) + ' in ' : '') + fmtTime(me.fin) : 'Lap ' + lap + '/' + R.laps + '   ' + fmtSecs(R.t) + '   ' + placeWord(racePlace()) + (me.pickup ? '   [' + me.pickup[1] + ': tap!]' : '')) : 'Race: ' + tr.name + '   ' + fmtSecs(R.t));
+}
+function raceBoost(v) { if (!(v.boostT > 0.6)) sfx('raceBoost', v.x, v.y, v.z); v.boostT = 1.6; }
+/* your place, your time and your prize, once you are over the line */
+function raceAnnounce(game) {
+  const R = RACE, me = R.me, pl = game.player, S = game.stats;
+  if (!me.sayT) return;
+  me.sayT = 0;
+  const place = me.place = racePlace(), prize = [20, 10, 5][place - 1] || 2;
+  if (!S.raceBest) S.raceBest = {};
+  const best = !S.raceBest[R.ti] || me.fin < S.raceBest[R.ti];
+  if (best) S.raceBest[R.ti] = Math.round(me.fin * 10) / 10;
+  S.races = (S.races | 0) + 1;
+  bigText(placeWord(place) + ' place!', 2.5);
+  chat('You finished ' + R.tr.name + ' in ' + fmtTime(me.fin) + ': ' + placeWord(place) + ' place!' + (best ? ' A new best time!' : '') + ' You win $' + prize + '.', '#ffd24a');
+  giveMoney(pl, prize);
+  sfx('levelUp'); if (place === 1) partyEffect(pl.x, pl.y + 1, pl.z);
+  if (MP.role === 'guest') MP.sendSave();
+}
+/* tap while racing: use your pickup */
+function raceUsePickup(game, pl) {
+  const R = RACE, me = R && R.me, v = raceVehicle(pl);
+  if (!me || !me.in || !v || R.state !== 'run') return false;
+  if (!me.pickup) return true;
+  const kind = me.pickup[0];
+  me.pickup = null;
+  if (kind === 'turbo') { v.boostT = 2.6; sfx('raceBoost', v.x, v.y, v.z); }
+  else if (kind === 'bubble') { me.shield = R.t + 25; sfx('bottleFill', v.x, v.y, v.z); toast('Bubble on!', 1.5); }
+  else {
+    const c = { x: r2(v.x + Math.sin(v.yaw) * 2.5), y: r2(v.y), z: r2(v.z + Math.cos(v.yaw) * 2.5), by: myRaceId() };
+    if (MP.role === 'guest') MP.send({ t: 'race', a: 'dust', x: c.x, y: c.y, z: c.z });
+    else { MP.broadcast({ t: 'race', a: 'dust', x: c.x, y: c.y, z: c.z, by: c.by, we: MP.we }); }
+    raceDust(c);
+  }
+  return true;
+}
+function raceDust(c) { if (!RACE) return; RACE.clouds.push({ x: +c.x, y: +c.y, z: +c.z, by: c.by, t: RACE.t + 7 }); smokeParticles(+c.x, +c.y + 0.5, +c.z, 14, 1.2, true); sfx('raceDust', +c.x, +c.y, +c.z); }
+/* the host: everyone's progress, the alien racers, and the end of the race */
+function raceHostTick(game) {
+  const R = RACE, me = R.me, list = [];
+  if (me.in || me.fin) list.push(['host', playerName(), Math.floor(me.d), me.fin || 0]);
+  let humans = me.in && !me.fin ? 1 : 0, firstFin = me.fin || 0;
+  for (const id in R.prog) {
+    const p = R.prog[id], r = MP.remotes.get(id);
+    if (!r) { delete R.prog[id]; continue; }
+    list.push([id, r.name, p.d, p.f]);
+    if (!p.f && !p.o) humans++;
+    if (p.f && (!firstFin || p.f < firstFin)) firstFin = p.f;
+  }
+  for (const id in R.names) if (id !== 'host' && !R.prog[id] && MP.remotes.get(id)) { list.push([id, R.names[id], -1, 0]); if (R.t < 8) humans++; }   // (not heard from yet)
+  for (const e of game.entities) if (e.type === 'racer' && !e.removed && e.rc) list.push(['ai' + e.variant, e.rc.name, Math.floor(e.rc.d), e.rc.fin || 0]);
+  R.list = list;
+  MP.broadcast({ t: 'race', a: 's', l: list, we: MP.we });
+  if (!humans || (firstFin && R.t > firstFin + 45) || R.t > 420) {   // everyone is home (or it has gone on long enough)
+    if (!R.endT) R.endT = R.t + 3;
+    else if (R.t > R.endT) { MP.broadcast({ t: 'race', a: 'end', l: list, we: MP.we }); raceEnd(game, list); }
+  }
+}
+function raceEnd(game, list) {
+  if (!RACE) return;
+  raceAnnounce(game);
+  const R = RACE, rows = (Array.isArray(list) ? list : []).filter(q => Array.isArray(q)).map(q => [String(q[1] || '?').slice(0, 16), +q[2] || 0, +q[3] || 0]);
+  rows.sort((a, b) => (a[2] && b[2] ? a[2] - b[2] : a[2] ? -1 : b[2] ? 1 : b[1] - a[1]));
+  if (rows.length) chat(R.tr.name + ' results: ' + rows.map((q, i) => (i + 1) + '. ' + q[0] + (q[2] ? ' ' + fmtTime(q[2]) : '')).join('   '), '#ffd24a');
+  for (const e of game.entities) if (e.type === 'racer' && !e.proxy) e.removed = true;
+  if (R.viewBefore !== undefined && game.view === 1) game.view = R.viewBefore;
+  RACE = null;
+  hudCount(null);
+}
+/* messages: a guest to the host */
+function raceHostMsg(game, r, m) {
+  if (m.a === 'start') { if (!RACE && atMars() && !raceStart(game, m.ti | 0, m.ai | 0) && r.link) r.link.send({ t: 'chat', m: 'Get in a buggy near the start line first!', c: '#ffd24a' }); return; }
+  if (!RACE) return;
+  if (m.a === 'p') RACE.prog[r.id] = { d: clamp(m.d | 0, -40, 1e6), f: Math.max(0, +m.f || 0), o: m.o ? 1 : 0 };
+  else if (m.a === 'dust' && okXYZ([m.x, m.y, m.z]) && Math.hypot(m.x - r.tx, m.z - r.tz) < 12) { const c = { x: +m.x, y: +m.y, z: +m.z, by: r.id }; MP.broadcast({ t: 'race', a: 'dust', x: c.x, y: c.y, z: c.z, by: c.by, we: MP.we }, r.id); raceDust(c); }
+}
+/* and the host to everyone */
+function raceGuestMsg(game, m) {
+  if (m.a === 'go') raceBegin(game, m);
+  else if (!RACE) return;
+  else if (m.a === 's' && Array.isArray(m.l)) RACE.list = m.l.filter(q => Array.isArray(q) && q.length >= 4).slice(0, 12).map(q => [String(q[0]), String(q[1]), +q[2] || 0, +q[3] || 0]);
+  else if (m.a === 'dust' && okXYZ([m.x, m.y, m.z])) raceDust({ x: m.x, y: m.y, z: m.z, by: String(m.by || '') });
+  else if (m.a === 'end') raceEnd(game, m.l);
+}
+/* an alien racer (the host's iPad drives it round the track) */
+function updateRacer(game, e, dt) {
+  const R = RACE, rc = e.rc;
+  if (!R || !rc || game.mapId !== 'marsworld') { e.removed = true; return; }
+  e.walk += dt * 8;
+  if (R.state !== 'run') return;
+  const tr = R.tr, N = tr.N, i = ((Math.floor(rc.d) % N) + N) % N;
+  if (rc.slowT > 0) rc.slowT -= dt;
+  if (rc.boostT > 0) rc.boostT -= dt;
+  if (tr.boost[i]) rc.boostT = 1.4;
+  let best = R.me.in ? R.me.d : -1e9;
+  for (const id in R.prog) best = Math.max(best, R.prog[id].d);
+  let sp = rc.fin ? Math.max(0, (rc.sp || 0) - dt * 6) : rc.speed * (rc.boostT > 0 ? 1.4 : 1) * (rc.slowT > 0 ? 0.45 : 1) * (best > -1e8 ? (rc.d - best > 25 ? 0.82 : best - rc.d > 35 ? 1.2 : 1) : 1) * (tr.pts[(i + 3) % N][2] !== tr.pts[i][2] ? 0.75 : 1);   // (slower up and down the ramps, like you)
+  rc.sp = sp;
+  rc.d += sp * dt;
+  if (!rc.fin && rc.d >= R.laps * N) rc.fin = R.t;
+  for (const c of R.clouds) if (c.by !== 'ai' + e.variant && !c['a' + e.variant] && Math.hypot(c.x - e.x, c.z - e.z) < 3) { c['a' + e.variant] = true; rc.slowT = 1.8; }
+  const j = ((Math.floor(rc.d) % N) + N) % N, f = rc.d - Math.floor(rc.d), a = tr.pts[j], b = tr.pts[(j + 1) % N], tx = b[0] - a[0], tz = b[1] - a[1], l = Math.hypot(tx, tz) || 1;
+  e.x = a[0] + tx * f - (tz / l) * rc.lane; e.z = a[1] + tz * f + (tx / l) * rc.lane;
+  e.y += (a[2] + 1 - e.y) * Math.min(1, dt * 7);
+  e.bodyYaw = e.headYaw = e.yaw = Math.atan2(-tx, -tz);
+  e.walkAmt = clamp(sp / 10, 0, 1);
+}
+/* pickup boxes spin over the track while a race is on */
+const _rb = M4.create();
+function drawRace(cam, t) {
+  if (!RACE || !MODELS.itembox) return;
+  const P = PROG.entity;
+  gl.uniform4fv(P.u.uTint, [0, 0, 0, 0]);
+  for (const b of RACE.boxes) {
+    if (b.t > RACE.t) continue;
+    gl.uniform1f(P.u.uBright, 1);
+    M4.identity(_rb); M4.translate(_rb, _rb, b.x - cam.x, b.y - cam.y + Math.sin(t * 2 + b.x) * 0.15, b.z - cam.z); M4.rotY(_rb, _rb, t * 1.5); M4.scale(_rb, _rb, 1 / 16, 1 / 16, 1 / 16);
+    drawModel(MODELS.itembox, _rb, null);
+  }
+}
+
+/* ===================== The flying saucer's tractor beam ===================== */
+const BEAM_REACH = 12;
+const beamable = m => { const d = m.mob && !m.dead && !m.removed && MOB_DEFS[m.type]; return !!d && m.w <= 0.8 && !d.ghost && !d.racer && !d.lakemon && !d.spirit && !d.snitch && !d.ball && !d.qplayer && !d.fish && !d.swimmer && !d.flyer; };
+/* tap in the saucer: the beam goes on (and lifts the creature under you) or off (and sets it down) */
+function saucerBeam(game, pl, v) {
+  v.beamOn = !v.beamOn;
+  sfx(v.beamOn ? 'beamOn' : 'beamOff', v.x, v.y, v.z);
+  if (MP.role === 'guest') MP.send({ t: 'beam', e: v.nid, on: v.beamOn ? 1 : 0 });
+  else if (game.net) MP.sfx(v.beamOn ? 'beamOn' : 'beamOff', v.x, v.y, v.z);
+}
+/* each frame, for every saucer (the host or a one-player game holds the creature; every iPad draws the beam) */
+function saucerTick(game, v, dt) {
+  const w = game.world, host = MP.role !== 'guest';
+  if (!v.rider && v.beamOn && host) v.beamOn = false;
+  if (v.beamOn) {
+    for (let i = 0; i < 3 && PARTICLES.length < 1500; i++) { const a = Math.random() * TAU, d = Math.random() * BEAM_REACH * 0.6, rr = 0.3 + d * 0.12; PARTICLES.push({ x: v.x + Math.cos(a) * rr, y: v.y - d, z: v.z + Math.sin(a) * rr, vx: 0, vy: 1.5, vz: 0, life: 0.5, tile: TILE.laser_1, u: 0, v: 0, us: 16, size: 0.1, grav: 0, bright: 1 }); }
+  }
+  if (!host) return;
+  let m = v.beam && !v.beam.removed && !v.beam.dead ? v.beam : null;
+  if (!v.beamOn) { if (m) { m.beamV = null; m.partyT = Math.max(m.partyT || 0, 30); m.fallDist = 0; } v.beam = null; return; }   // (set down: it floats to the ground unhurt)
+  if (!m) {   // look for something to lift
+    let bd = 1e9;
+    for (const q of game.entities) {
+      if (!beamable(q) || q.beamV) continue;
+      const dy = v.y - q.y, dd = Math.hypot(q.x - v.x, q.z - v.z);
+      if (dy < -1 || dy > BEAM_REACH || dd > 1.2 + dy * 0.2 || dd + dy >= bd) continue;
+      bd = dd + dy; m = q;
+    }
+    if (m) { v.beam = m; m.beamV = v; sfx('beamCatch', m.x, m.y, m.z); MP.sfx('beamCatch', m.x, m.y, m.z); }
+  }
+}
+/* a creature held in a beam rises to hang under the saucer, turning slowly (called in place of its own doings) */
+function beamedMob(game, e, dt) {
+  const v = e.beamV;
+  if (!v || v.removed || !v.beamOn || v.beam !== e) { e.beamV = null; e.partyT = Math.max(e.partyT || 0, 30); return false; }
+  const ty = v.y - e.h - 0.6, k = Math.min(1, dt * 4);
+  e.x += (v.x - e.x) * k; e.z += (v.z - e.z) * k; e.y += clamp(ty - e.y, -6 * dt, 5 * dt);
+  e.vx = e.vy = e.vz = 0; e.fallDist = 0; e.onGround = false;
+  e.bodyYaw += dt * 1.5; e.headYaw = e.bodyYaw; e.walkAmt = 0.4; e.walk += dt * 6;
+  return true;
+}
+
+/* a friend riding along hangs in the beam under the saucer (on the ground: stands just behind it) */
+function saucerSeat(v, k) {
+  if (!k) return seatOf(v);
+  const gy = game.world ? groundUnder(game.world, v.x, v.y, v.z) : -1, low = gy < 0 ? 2.6 : clamp(v.y - gy, 0, 2.6), back = (1 - low / 2.6) * (v.w + 0.7);
+  return [v.x + Math.sin(v.yaw) * back, v.y - low, v.z + Math.cos(v.yaw) * back];
+}
+/* an alien racer's buggy, under it */
+const _rk = M4.create();
+function drawRacerBuggy(e, dx, dy, dz) {
+  const m = MODELS.buggy, wr = e.walk * 1.5;
+  M4.identity(_rk); M4.translate(_rk, _rk, dx, dy, dz); M4.rotY(_rk, _rk, e.bodyYaw + Math.PI); M4.scale(_rk, _rk, m.scale, m.scale, m.scale);
+  drawModel(m, _rk, { wfl: [wr, 0, 0], wfr: [wr, 0, 0], wbl: [wr, 0, 0], wbr: [wr, 0, 0] });
+}
+/* every frame: the race, and every flying saucer's beam */
+function marsTick(game, dt) {
+  raceTick(game, dt);
+  for (const e of game.entities) if (e.type === 'saucer' && !e.removed) saucerTick(game, e, dt);
+}
+/* the picture on the world's card: red hills under an orange sky, glass domes, a saucer and a buggy */
+function drawMarsThumb(ctx, W, H) {
+  const g = ctx.createLinearGradient(0, 0, 0, H);
+  g.addColorStop(0, '#c8703a'); g.addColorStop(1, '#f2b880');
+  ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+  ctx.fillStyle = '#fff2d8'; ctx.fillRect(126, 8, 8, 8);
+  for (let x = 0; x < W; x++) { const hgt = 34 + Math.sin(x * 0.045) * 8 + Math.sin(x * 0.17) * 3; ctx.fillStyle = '#a84a28'; ctx.fillRect(x, hgt, 1, H); }
+  for (let x = 0; x < W; x++) { const hgt = 50 + Math.sin(x * 0.07 + 2) * 3; ctx.fillStyle = '#c8603a'; ctx.fillRect(x, hgt, 1, H); }
+  ctx.fillStyle = '#3a3a3e'; ctx.fillRect(0, 60, W, 6);   // the track
+  ctx.fillStyle = '#f4f4f4'; for (let x = 4; x < W; x += 16) ctx.fillRect(x, 62, 8, 2);
+  for (const [x, r] of [[30, 11], [52, 8]]) {   // glass domes
+    ctx.fillStyle = 'rgba(190, 240, 255, 0.75)'; ctx.beginPath(); ctx.arc(x, 52, r, Math.PI, 0); ctx.fill();
+    ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(x, 52, r, Math.PI, 0); ctx.stroke();
+  }
+  ctx.fillStyle = '#58c84a'; ctx.fillRect(28, 44, 5, 8); ctx.fillRect(27, 40, 7, 5); ctx.fillStyle = '#10101c'; ctx.fillRect(28, 42, 2, 2); ctx.fillRect(31, 42, 2, 2);   // a Martian
+  ctx.fillStyle = '#8adcf4'; ctx.fillRect(96, 14, 12, 5); ctx.fillStyle = '#c8c8d4'; ctx.fillRect(86, 19, 32, 4); ctx.fillStyle = '#ffe04a'; for (let x = 89; x < 116; x += 6) ctx.fillRect(x, 20, 2, 2);   // the saucer
+  ctx.fillStyle = 'rgba(140, 255, 200, 0.45)'; ctx.beginPath(); ctx.moveTo(98, 23); ctx.lineTo(106, 23); ctx.lineTo(112, 44); ctx.lineTo(92, 44); ctx.fill();   // (and its beam)
+  ctx.fillStyle = '#f08a2a'; ctx.fillRect(124, 54, 18, 5); ctx.fillStyle = '#d8d8de'; ctx.fillRect(128, 49, 8, 1); ctx.fillRect(128, 49, 1, 5); ctx.fillRect(135, 49, 1, 5);   // a buggy
+  ctx.fillStyle = '#1c1c1c'; ctx.fillRect(125, 58, 5, 5); ctx.fillRect(136, 58, 5, 5);
+}
+
 /* ---- 12n-net.js ---- */
 /* ===================== Networking: room codes and direct connections =====================
    Two iPads find each other through matchmaking services that only pass along the connection
@@ -18995,11 +19812,12 @@ class Link {
    The host's iPad runs the world: creatures, falling sand, water, furnaces, time of day.
    Guests build the same terrain from the seed, send their own moves and block changes,
    and show the host's creatures. A guest's things are saved inside the host's world. */
-const MP_PROTO = 7;   // 2: bows, new TNT, endermen, ghasts, dispensers, minecarts and cars; 3: armor, enchanting, books, signs, potions, fish, boats, made characters, TVs, boards, Hardcore;
+const MP_PROTO = 8;   // 2: bows, new TNT, endermen, ghasts, dispensers, minecarts and cars; 3: armor, enchanting, books, signs, potions, fish, boats, made characters, TVs, boards, Hardcore;
                       // 4: weather, golems, Snorks, the flying car and broom, the rocket and the Moon, wands, Hogwarts, plans, cameras, dungeons, robots;
                       // 5: more doors (iron, glass, airlock, garage), planes with passenger seats, parachutes
                       // 6: tanks, Hogwarts students and Quidditch teams, Declan Falls;
                       // 7: lasers, money and stores, trains, planets, the Ghostbusters and Life Cycle worlds
+                      // 8: the Mars world: Martians, the rover buggy and the flying saucer, races
 const MP_MAX_GUESTS = 3;
 const r2 = v => Math.round(v * 100) / 100;
 const okXYZ = a => Array.isArray(a) && a.length === 3 && a.every(v => typeof v === 'number' && isFinite(v));
@@ -19032,7 +19850,7 @@ const STATE_LEN = 13;
 function encodeState(p) {
   const rd = p.riding, aim = p.drawT > 0 || p.loadT > 0 || p.heldId() === I.CROSSBOW_LOADED, sh = shieldHand(p);
   const f = (p.sneaking ? 1 : 0) | (p.flying ? 2 : 0) | (p.alive ? 4 : 0) | (game.mode === 'creative' ? 8 : 0) | (game.sleeping > 0 ? 16 : 0) |
-    (rd ? 32 : 0) | (rd && (rd.type === 'car' || rd.type === 'flycar' || rd.type === 'tank' || rd.type === 'golfcart' || isPlane(rd)) ? 64 : 0) | (aim ? 128 : 0) | (sh === 'off' ? 256 : 0) | (p.blocking ? 512 : 0) |
+    (rd ? 32 : 0) | (rd && (rd.type === 'car' || rd.type === 'flycar' || rd.type === 'tank' || rd.type === 'golfcart' || rd.type === 'buggy' || rd.type === 'saucer' || isPlane(rd)) ? 64 : 0) | (aim ? 128 : 0) | (sh === 'off' ? 256 : 0) | (p.blocking ? 512 : 0) |
     (rd && rd.type === 'boat' ? 1024 : 0) | (rd && rd.type === 'submarine' ? 2048 : 0) | (rd && rd.type === 'broom' ? 4096 : 0) | (rd && rd.type === 'rocket' ? 8192 : 0) | (p.chute ? 16384 : 0) | ((p.seat & 7) << 15) | (rd && hasSeats(rd) ? 1 << 18 : 0);   // (in a plane, and which seat: 1-5 behind the pilot)
   const b = p.bobber && !p.bobber.removed ? [r2(p.bobber.x), r2(p.bobber.y), r2(p.bobber.z)] : 0;
   return [r2(p.x), r2(p.y), r2(p.z), r2(p.yaw), r2(p.pitch), r2(p.bodyYaw), f, p.heldId(), p.swings || 0, wornArmor(p), wornGlint(p), effectBits(p), b, fallsChar(), lifeStageNum()];
@@ -19087,7 +19905,8 @@ function encodeEnt(e) {
       : e.type === 'snork' ? (e.variant | 0) | (e.tootT > 0 ? 16 : 0) | (e.happy > 0 ? 32 : 0)
       : e.type === 'robot' ? (e.variant | 0) | (Math.max(0, ROBOT_MODES.indexOf(e.mode)) << 3)
       : e.type === 'student' ? (e.variant | 0) | (e.waveT > 0 ? 8 : 0) : e.type === 'qplayer' ? (e.variant | 0) | (game.qm && game.qm.ball.holder === e.nid ? 8 : 0) | ((e.team | 0) << 4)
-      : e.type === 'quaffle' ? qEncode(e) : e.type === 'wisp' ? (e.variant | 0) : 0;
+      : e.type === 'quaffle' ? qEncode(e) : e.type === 'wisp' ? (e.variant | 0)
+      : e.type === 'martian' ? ((e.variant | 0) & 3) | (e.waveT > 0 ? 8 : 0) | (e.marshal !== undefined ? 16 | ((e.marshal & 3) << 5) : 0) : e.type === 'racer' ? (e.variant | 0) & 3 : 0;
     const a = [e.nid, MOB_TYPES.indexOf(e.type), r2(e.x), r2(e.y), r2(e.z), r2(e.bodyYaw), r2(e.headYaw), r2(e.pitch), r2(e.walkAmt), flags, r2(e.fuse || 0), extra];
     if (e.type === 'robot') a.push(e.owner || '');   // (who it belongs to)
     if (e.type === 'quaffle') a.push(typeof e.holder === 'string' ? e.holder : '');   // (the player who has it)
@@ -19096,11 +19915,11 @@ function encodeEnt(e) {
   if (e.type === 'tnt') return [e.nid, -1, r2(e.x), r2(e.y), r2(e.z), r2(e.fuse), TNT_KINDS.indexOf(e.kind), e.small ? 1 : 0];
   if (e.type === 'falling') return [e.nid, -2, r2(e.x), r2(e.y), r2(e.z), e.id];
   if (e.type === 'proj') return [e.nid, -3, r2(e.x), r2(e.y), r2(e.z), r2(e.vx), r2(e.vy), r2(e.vz), PROJ_KINDS.indexOf(e.kind), (e.stuck ? 1 : 0) | (e.crit ? 2 : 0), e.tok || '', e.pk | 0];
-  if (e.vehicle) return [e.nid, VEHICLES[e.type].code, r2(e.x), r2(e.y), r2(e.z), r2(e.yaw), r2(e.slope || 0), e.rider ? 1 : 0, vehicleState(e)[5], e.hurt > 0 ? 1 : 0, e.flying ? 1 : 0, r2(e.bank || 0), r2(e.turret || 0), r2(e.gun || 0), e.tc | 0];
+  if (e.vehicle) return [e.nid, VEHICLES[e.type].code, r2(e.x), r2(e.y), r2(e.z), r2(e.yaw), r2(e.slope || 0), e.rider ? 1 : 0, vehicleState(e)[5], e.hurt > 0 ? 1 : 0, e.flying ? 1 : 0, r2(e.bank || 0), r2(e.turret || 0), e.type === 'saucer' ? (e.beamOn ? 1 : 0) : r2(e.gun || 0), e.tc | 0];   // (for a saucer: is its tractor beam on?)
   if (e.type === 'xp') return [e.nid, -7, r2(e.x), r2(e.y), r2(e.z), e.value];
   return null;
 }
-const ENT_CODE = { '-1': 'tnt', '-2': 'falling', '-3': 'proj', '-5': 'minecart', '-6': 'car', '-7': 'xp', '-8': 'boat', '-9': 'submarine', '-10': 'flycar', '-11': 'broom', '-12': 'rocket', '-13': 'plane', '-14': 'jet', '-15': 'airliner', '-16': 'tank', '-17': 'golfcart', '-18': 'train' };
+const ENT_CODE = { '-1': 'tnt', '-2': 'falling', '-3': 'proj', '-5': 'minecart', '-6': 'car', '-7': 'xp', '-8': 'boat', '-9': 'submarine', '-10': 'flycar', '-11': 'broom', '-12': 'rocket', '-13': 'plane', '-14': 'jet', '-15': 'airliner', '-16': 'tank', '-17': 'golfcart', '-18': 'train', '-19': 'buggy', '-20': 'saucer' };
 /* guest: creatures from the host glide to their latest positions */
 function updateProxy(e, dt) {
   e.age += dt;
@@ -19153,7 +19972,7 @@ function cleanGuestSave(d) {
     mode: d.mode === 'creative' ? 'creative' : 'survival', flying: !!d.flying, dim: okDim(d.dim),
     xp: num(d.xp, 0, 1e7, 0), enchSeed: num(d.enchSeed, 0, 2147483647, 0) | 0, kit: d.kit ? 1 : 0,
     fc: num(d.fc | 0, 0, FALLS_CHARS.length, 0), myst: num(d.myst | 0, 0, 63, 0), seen: num(d.seen | 0, 0, 255, 0),   // (Declan Falls: who they are, the mysteries and creatures they have found)
-    gh: num(d.gh | 0, 0, 1e6, 0), gk: d.gk ? 1 : 0, lb: num(d.lb | 0, 0, 1e7, 0), ls: num(d.ls | 0, 0, 99, 0),   // (Life Cycle: the day they were born, and the last birthday they were told about)   // (Ghostbusters: how many ghosts they have caught, and whether they have had their equipment)
+    gh: num(d.gh | 0, 0, 1e6, 0), gk: d.gk ? 1 : 0, lb: num(d.lb | 0, 0, 1e7, 0), ls: num(d.ls | 0, 0, 99, 0), rb: Array.isArray(d.rb) ? d.rb.slice(0, 8).map(v => num(v, 0, 9999, 0)) : [],   // (Life Cycle: the day they were born, and the last birthday they were told about)   // (Ghostbusters: how many ghosts they have caught, and whether they have had their equipment)
     effects: d.effects && typeof d.effects === 'object' ? Object.fromEntries(EFFECTS.filter(k => +d.effects[k] > 0).map(k => [k, Math.min(600, +d.effects[k])])) : {},
   };
 }
@@ -19179,8 +19998,8 @@ function cleanDataTiles(td) {
   return out;
 }
 const FX_KINDS = ['break', 'place', 'door', 'boom', 'sfx', 'party', 'ice', 'tele', 'smoke', 'xpb', 'splash', 'spell', 'zap', 'paint', 'laser', 'proton', 'trap', 'slime'];
-const SFX_NET = ['leverClick', 'buttonClick', 'honk', 'bowShoot', 'crossbowShoot', 'pearlThrow', 'dispense', 'dispenseFail', 'ghastShoot', 'endermanPortal', 'sonar', 'tvOn', 'tvOff', 'golemBuilt', 'snorkHappy', 'snorkToot', 'spellCast', 'patronus', 'camSwitch', 'airlockDrain', 'airlockHiss', 'planeTakeoff', 'chuteOpen', 'tankFire', 'studentHi', 'whistle', 'quaffleCatch', 'quaffleThrow', 'gnomeGiggle', 'lakemonSay', 'mystery', 'trainHorn', 'trainBell', 'ghostWoo', 'ghostBoo', 'ghostLaugh', 'slimeSplat'];
-const GUEST_SFX = new Set(['leverClick', 'buttonClick', 'honk', 'sonar', 'tvOn', 'tvOff', 'snorkHappy', 'snorkToot', 'camSwitch', 'planeTakeoff', 'chuteOpen', 'trainHorn']);   // the sounds a guest can send
+const SFX_NET = ['leverClick', 'buttonClick', 'honk', 'bowShoot', 'crossbowShoot', 'pearlThrow', 'dispense', 'dispenseFail', 'ghastShoot', 'endermanPortal', 'sonar', 'tvOn', 'tvOff', 'golemBuilt', 'snorkHappy', 'snorkToot', 'spellCast', 'patronus', 'camSwitch', 'airlockDrain', 'airlockHiss', 'planeTakeoff', 'chuteOpen', 'tankFire', 'studentHi', 'whistle', 'quaffleCatch', 'quaffleThrow', 'gnomeGiggle', 'lakemonSay', 'mystery', 'trainHorn', 'trainBell', 'ghostWoo', 'ghostBoo', 'ghostLaugh', 'slimeSplat', 'martianHi', 'martianHappy', 'beamOn', 'beamOff', 'beamCatch'];
+const GUEST_SFX = new Set(['leverClick', 'buttonClick', 'honk', 'sonar', 'tvOn', 'tvOff', 'snorkHappy', 'snorkToot', 'camSwitch', 'planeTakeoff', 'chuteOpen', 'trainHorn', 'martianHappy']);   // the sounds a guest can send
 const LINK_FAIL = "Found the game, but the two iPads couldn't connect to each other. Put both on the same Wi-Fi, then try again.";
 const STALE_T = new Set(['st', 'set', 'open', 'tile', 'close', 'tnt', 'egg', 'portal', 'shoot', 'mount', 'veh', 'dismount', 'veh+', 'sign', 'board', 'rocket', 'launch', 'snitch', 'robot+', 'robot', 'quaffle', 'laser', 'shop', 'proton', 'trap']);
 
@@ -19316,6 +20135,12 @@ const MP = {
       }
       case 'laser': laserMsg(game, r, m); break;   // a guest fired a laser
       case 'shop': shopMsg(game, r, m); break;   // a guest wants to buy or sell at a store
+      case 'race': raceHostMsg(game, r, m); break;   // a race on Mars: a guest starts one, or says how far round they are
+      case 'beam': {   // a guest flying a saucer switched its tractor beam
+        const v = game.entities.find(q => q.nid === m.e && q.type === 'saucer' && q.rider === r.id);
+        if (v) { v.beamOn = !!m.on; const s = v.beamOn ? 'beamOn' : 'beamOff'; sfx(s, v.x, v.y, v.z); this.sfx(s, v.x, v.y, v.z, r.id); }
+        break;
+      }
       case 'proton': protonMsg(game, r, m); break;   // a guest's proton stream
       case 'trap': {   // a guest threw a trap: it catches the ghost if someone is holding it in a proton stream
         const e = game.entities.find(q => q.nid === m.e);
@@ -19679,7 +20504,7 @@ const MP = {
   sendSave() {
     if (this.role !== 'guest' || !this.welcomed) return;
     const pl = game.player, at = pl.alive ? restPos(pl) : game.spawnPos();
-    this.send({ t: 'save', d: { x: r2(at[0]), y: r2(at[1]), z: r2(at[2]), yaw: r2(pl.yaw), pitch: r2(pl.pitch), health: pl.alive ? pl.health : 20, food: pl.alive ? pl.food : 20, air: pl.air, inv: pl.inv, sel: pl.sel, spawn: pl.spawn, mode: game.mode, flying: pl.flying, dim: game.dim, xp: pl.xp, enchSeed: pl.enchSeed, effects: pl.alive ? saveEffects(pl) : {}, kit: game.stats.hogKit ? 1 : 0, fc: game.stats.fc | 0, myst: game.stats.myst | 0, seen: game.stats.seen | 0, gh: game.stats.ghosts | 0, gk: game.stats.ghKit ? 1 : 0, lb: game.stats.born | 0, ls: game.stats.lifeSeen | 0 } });
+    this.send({ t: 'save', d: { x: r2(at[0]), y: r2(at[1]), z: r2(at[2]), yaw: r2(pl.yaw), pitch: r2(pl.pitch), health: pl.alive ? pl.health : 20, food: pl.alive ? pl.food : 20, air: pl.air, inv: pl.inv, sel: pl.sel, spawn: pl.spawn, mode: game.mode, flying: pl.flying, dim: game.dim, xp: pl.xp, enchSeed: pl.enchSeed, effects: pl.alive ? saveEffects(pl) : {}, kit: game.stats.hogKit ? 1 : 0, fc: game.stats.fc | 0, myst: game.stats.myst | 0, seen: game.stats.seen | 0, gh: game.stats.ghosts | 0, gk: game.stats.ghKit ? 1 : 0, lb: game.stats.born | 0, ls: game.stats.lifeSeen | 0, rb: raceBests() } });
   },
   guestMsg(m) {
     if (this.role !== 'guest') return;
@@ -19782,6 +20607,7 @@ const MP = {
         break;
       }
       case 'chat': chat(String(m.m || '').slice(0, 160), typeof m.c === 'string' ? m.c : undefined); break;
+      case 'race': if ((m.we | 0) === this.we) raceGuestMsg(game, m); break;   // a race on Mars: the start, the places, a dust cloud, the end
       case 'closing': {
         const who = this.hostName || 'The host', l = this.hostLink;
         if (ui.inv && ui.inv.tile && ui.inv.tile.remote) this.closeTile(ui.inv.tile);
@@ -19861,7 +20687,7 @@ const MP = {
         e.vx = +a[5] || 0; e.vy = +a[6] || 0; e.vz = +a[7] || 0;
         continue;
       }
-      if (ti <= -5) { e.yawT = +a[5] || 0; e.slopeT = +a[6] || 0; e.rider = a[7] === 1 ? 'someone' : null; e.speed = +a[8] || 0; if (a[9]) e.hurt = 0.2; e.flying = a[10] === 1; e.bankT = clamp(+a[11] || 0, -1, 1); if (e.type === 'tank') { e.turretT = +a[12] || 0; e.gunT = clamp(+a[13] || 0, -0.3, 0.6); e.tc = clamp(a[14] | 0, 0, TANK_COLORS.length - 1); } continue; }
+      if (ti <= -5) { e.yawT = +a[5] || 0; e.slopeT = +a[6] || 0; e.rider = a[7] === 1 ? 'someone' : null; e.speed = +a[8] || 0; if (a[9]) e.hurt = 0.2; e.flying = a[10] === 1; e.bankT = clamp(+a[11] || 0, -1, 1); if (e.type === 'tank') { e.turretT = +a[12] || 0; e.gunT = clamp(+a[13] || 0, -0.3, 0.6); e.tc = clamp(a[14] | 0, 0, TANK_COLORS.length - 1); } if (e.type === 'saucer') e.beamOn = a[13] === 1; continue; }
       if (ti >= 0) {
         e.bodyT = +a[5] || 0; e.headT = +a[6] || 0; e.pitchT = +a[7] || 0; e.walkT = +a[8] || 0;
         const f = a[9] | 0;
@@ -19883,6 +20709,8 @@ const MP = {
         if (e.type === 'snork') { e.variant = clamp(x & 15, 0, SNORK_COLORS.length - 1); e.tootT = (x & 16) ? 0.3 : 0; e.happy = (x & 32) ? 0.3 : 0; }
         if (e.type === 'robot') { if (e.variant !== (x & 7)) { e.variant = clamp(x & 7, 0, ROBOT_COLORS.length - 1); e.color = robotColor(e.variant); } if (!(e.modeT > game.t)) e.mode = ROBOT_MODES[(x >> 3) & 3]; e.owner = String(a[12] || ''); }
         if (e.type === 'student') { e.variant = x & 7; e.waveT = (x & 8) ? 0.4 : 0; }
+        if (e.type === 'martian') { e.variant = x & 3; e.waveT = (x & 8) ? 0.4 : 0; e.marshal = (x & 16) ? (x >> 5) & 3 : undefined; }
+        if (e.type === 'racer') e.variant = x & 3;
         if (e.type === 'qplayer') { e.variant = x & 7; e.hold = !!(x & 8); e.team = (x >> 4) & 1; }
         if (e.type === 'wisp' && e.variant !== x) { e.variant = clamp(x, 0, WISP_COLORS.length - 1); e.color = hexRGB(WISP_COLORS[e.variant]).map(v => v / 255); }
         if (e.type === 'quaffle') { e.qx = x; e.holder = String(a[12] || '').slice(0, 40); }
@@ -20722,7 +21550,7 @@ const game = {
     const pl = this.player = new Player();
     this.stats = {}; this.day = m.day; this.hostAfterLoad = false;
     if (m.you && m.you.kit) this.stats.hogKit = 1;   // (already given a wand and a broom at Hogwarts here)
-    if (m.you) { this.stats.fc = m.you.fc | 0; this.stats.myst = m.you.myst | 0; this.stats.seen = m.you.seen | 0; this.stats.ghosts = m.you.gh | 0; this.stats.ghKit = m.you.gk | 0; if (m.you.lb) { this.stats.born = m.you.lb; this.stats.lifeSeen = m.you.ls | 0; } }   // (in Declan Falls: who you are, and what you have found)
+    if (m.you) { this.stats.fc = m.you.fc | 0; this.stats.myst = m.you.myst | 0; this.stats.seen = m.you.seen | 0; this.stats.ghosts = m.you.gh | 0; this.stats.ghKit = m.you.gk | 0; if (m.you.lb) { this.stats.born = m.you.lb; this.stats.lifeSeen = m.you.ls | 0; } if (Array.isArray(m.you.rb)) { this.stats.raceBest = {}; m.you.rb.forEach((v, i) => { if (v > 0) this.stats.raceBest[i] = v; }); } }   // (in Declan Falls: who you are, and what you have found)
     this.worldSpawn = m.spawn && m.spawn.length === 3 ? m.spawn.slice() : this.gen.spawnPoint(this.mapId, this.seed);
     const you = m.you;
     this.setMode(you ? you.mode : m.mode);
@@ -20811,9 +21639,10 @@ const game = {
       }
       pl.pitch = -0.1;
       if (vyaw !== null && off(pl.yaw) < 0.3) pl.pitch = clamp(Math.atan2(v[1] + 2 - (pl.y + 1.6), vd), -0.15, 0.2);
-      if (this.mapId === 'hogwarts' || this.mapId === 'ghost') { pl.yaw = 0; pl.pitch = 0.15; }   // (facing the Great Hall, or the firehouse)
+      if (this.mapId === 'hogwarts' || this.mapId === 'ghost') { pl.yaw = 0; pl.pitch = 0.15; }
+      if (this.mapId === 'marsworld') { pl.yaw = 0.35; pl.pitch = 0.05; }   // (facing the Martians' village)   // (facing the Great Hall, or the firehouse)
       pl.bodyYaw = pl.yaw;
-      if (this.mapId === 'hogwarts' || this.mapId === 'falls' || this.mapId === 'ghost' || this.mapId === 'life') { /* (the welcome comes below) */ }
+      if (this.mapId === 'hogwarts' || this.mapId === 'falls' || this.mapId === 'ghost' || this.mapId === 'life' || this.mapId === 'marsworld') { /* (the welcome comes below) */ }
       else if (this.mode === 'survival') chat('Welcome to ' + MAPS[this.mapId].name + '! Punch a tree to get started.', '#ffff55');
       else chat('Creative mode: every block is in your inventory (E). Double-tap jump to fly.', '#ffff55');
       if (vyaw !== null) {
@@ -20831,10 +21660,12 @@ const game = {
     for (const c of this.carry.splice(0)) dropItem(this, pl.x, pl.y + 0.5, pl.z, c.id, c.count, false, c);
     if (this.robotsAlong) { if (MP.role !== 'guest') bringRobots(this, this.robotsAlong); this.robotsAlong = null; }   // (robots that came along with you)
     if (isSpace(this.dim)) spaceArrival(this);
+    else if (atMars()) spaceHelmet(this);
     if (atHogwarts()) hogwartsWelcome(this);
     if (atFalls()) fallsWelcome(this);
     if (atGhost()) ghostWelcome(this);
     if (atLife()) lifeWelcome(this);
+    if (atMars()) marsWelcome(this);
     if (came) this.save();
     if (this.hostAfterLoad) { this.hostAfterLoad = false; MP.startHosting(); }
     MP.updateUI();
@@ -20936,6 +21767,7 @@ const game = {
     if (!this.touchOn && !this.dragLook) this.requestPointer();
     ui.hearts = ui.food = ui.armor = -2;
     if (isSpace(this.dim)) spaceArrival(this);
+    else if (atMars()) spaceHelmet(this);
   },
   trySleep(x, y, z) {
     const pl = this.player, t = this.world.time;
@@ -21313,7 +22145,7 @@ function updateCamera(dt) {
   if (game.shake > 0 && !REDUCED_MOTION) { ex += randRange(-1, 1) * game.shake * 0.2; ey += randRange(-1, 1) * game.shake * 0.2; }
   if (game.view > 0) {
     const [dx, dy, dz] = pl.lookDir(), sgn = game.view === 1 ? -1 : 1;
-    const far = pl.riding && isPlane(pl.riding) ? (pl.riding.type === 'airliner' ? 14 : 8) : pl.riding && pl.riding.type === 'tank' ? 6 : pl.riding && pl.riding.type === 'train' ? 14 : 4;   // (further back from a plane or a train, to see all of it)
+    const far = pl.riding && isPlane(pl.riding) ? (pl.riding.type === 'airliner' ? 14 : 8) : pl.riding && pl.riding.type === 'tank' ? 6 : pl.riding && pl.riding.type === 'train' ? 14 : pl.riding && (pl.riding.type === 'buggy' || pl.riding.type === 'saucer') ? 6 : 4;   // (further back from a plane or a train, to see all of it)
     const hit = raycast(game.world, ex, ey, ez, dx * sgn, dy * sgn, dz * sgn, far + 0.2);
     const dist = hit ? Math.max(0.5, hit.t - 0.3) : far;
     ex += dx * sgn * dist; ey += dy * sgn * dist; ez += dz * sgn * dist;
@@ -21417,7 +22249,8 @@ function frame(ts) {
     planetTick(game, dt);   // (on another planet: Jupiter's wind, Mars rovers, Uranus's ice)
     if (atGhost()) ghostTick(game, dt);
     else if (atLife()) lifeTick(game, dt);
-    else { hudCount(null); if (el('pke') && !el('pke').hidden) el('pke').hidden = true; }
+    else { if (!RACE) hudCount(null); if (el('pke') && !el('pke').hidden) el('pke').hidden = true; }
+    marsTick(game, dt);   // (a race on Mars; and flying saucers' tractor beams, in any world)
     if (atHogwarts()) hogwartsTick(game, dt);
     else if (el('qscore') && el('qscore').style.display !== 'none') el('qscore').style.display = 'none';   // (the Quidditch score: only at Hogwarts)
     planTick(game, dt);
