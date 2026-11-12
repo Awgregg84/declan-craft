@@ -306,6 +306,9 @@ const FRONT_FACE_OF = d => [4, 1, 5, 0][d & 3];
     await E(() => { const g = T.ents('gnome')[0], pl = game.player; g.x = pl.x - Math.sin(pl.yaw) * 2.5; g.z = pl.z - Math.cos(pl.yaw) * 2.5; g.ai = () => {}; g.panic = 0; g.frozen = 3; pl.pitch = -0.4; });
     await sleep(500);
     await shot('falls-gnome');
+    // (a forest light close by, so that seeing one does not depend on where they happened to drift)
+    await E(() => { const pl = game.player, q = T.ents('wisp')[0] || spawnMob(game, 'wisp', pl.x + 6, pl.y + 1.5, pl.z); Object.assign(q, { x: pl.x + 6, y: pl.y + 1.5, z: pl.z, vx: 0, vy: 0, vz: 0, home: [pl.x + 6, pl.z], goal: null }); game.seenT = 0; });
+    await sleep(900);
     const lk = await E(async () => {
       const F = game.gen.falls, L = F.lake, e = T.ents('lakemon')[0];
       e.peekT = game.t + 60; e.y = L.y - 1.6;

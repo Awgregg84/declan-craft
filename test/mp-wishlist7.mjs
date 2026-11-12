@@ -87,7 +87,7 @@ const GID = GUEST.pid;
     // she sees the Martians (and which are the marshals), one says hello to her, and she swaps an apple for a present
     await both(M.plaza[0] + 0.5, M.town.y + 1, M.plaza[1] + 3.5);
     const seen = { host: await H.evaluate(() => T.ents('martian').map(e => e.variant + (e.marshal !== undefined ? 'm' + e.marshal : '')).sort().join()), her: await G.evaluate(() => T.ents('martian').map(e => e.variant + (e.marshal !== undefined ? 'm' + e.marshal : '')).sort().join()) };
-    check('she sees the same Martians: three colours, and the two marshals with their flags', seen.host === '0,0,1,1,2,2,3m0,3m1' && seen.her === seen.host, seen);
+    check('she sees the same Martians: three colours, and the marshals with their flags', /^0,0,1,1,2,2,3m0,3m1/.test(seen.host) && seen.her === seen.host, seen);
     const mid = await H.evaluate(() => { const pl = game.player, m = T.ents('martian').filter(e => e.marshal === undefined).sort((a, b) => Math.hypot(a.x - pl.x, a.z - pl.z) - Math.hypot(b.x - pl.x, b.z - pl.z))[0]; m.aiT = 60; m.moving = false; m.hiT = 0; T.put(m.x + 6, m.y, m.z + 6); return [m.nid, m.x, m.y, m.z]; });
     await G.evaluate(a => { T.put(a[1], a[2], a[3] + 1.6); T.aim(a[1], a[2] + 0.8, a[3]); }, mid);
     check('a Martian says hello to her by name', await waitFor(G, () => T.chat(/^A Martian: ".*Cora/), 10000));

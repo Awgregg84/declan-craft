@@ -105,11 +105,14 @@ const GID = GUEST.pid;
     check('it hatches, and she is told', await waitFor(G, () => T.ents('blip').some(e => e.stage === 1) && T.chat(/hatched: it is a baby Blip/), 8000));
     await G.evaluate(a => T.put(a[0] + 9, a[1], a[2] + 5), at);
     check('it follows her (not the host)', await waitFor(H, gid => { const e = T.ents('blip')[0], r = MP.remotes.get(gid); return Math.hypot(e.x - r.tx, e.z - r.tz) < 4.5 && Math.hypot(e.x - game.player.x, e.z - game.player.z) > 5; }, 12000, GID));
-    for (let k = 0; k < 3; k++) {
-      await G.evaluate(k => { const e = T.ents('blip')[0]; if (!k) T.hold(I.APPLE, 3); T.aim(e.x, e.y + 0.25, e.z); game.player.useCd = 0; T.tap(); }, k);
-      await waitFor(H, k => T.ents('blip')[0].fed === k + 1, 5000, k);
-      await sleep(300);
+    await G.evaluate(() => T.hold(I.APPLE, 3));
+    for (let k = 0; k < 3; k++) for (let tries = 0; tries < 5; tries++) {   // (it may be waddling after her: tap until the meal lands)
+      await G.evaluate(() => { const e = T.ents('blip')[0], pl = game.player; if (Math.hypot(e.x - pl.x, e.z - pl.z) > 3) T.put(e.x + 1.4, e.y, e.z); T.aim(e.x, e.y + 0.25, e.z); pl.useCd = 0; });
+      await sleep(250);
+      await G.evaluate(() => { const e = T.ents('blip')[0]; T.aim(e.x, e.y + 0.25, e.z); T.tap(); });
+      if (await waitFor(H, k => T.ents('blip')[0].fed >= k + 1, 2500, k)) break;
     }
+    await sleep(300);
     const fed = { host: await H.evaluate(() => { const e = T.ents('blip')[0]; return { fed: e.fed, stage: e.stage }; }), apples: await G.evaluate(() => T.count(I.APPLE)) };
     check('she feeds it three apples and it grows up', fed.host.fed === 3 && fed.host.stage === 2 && fed.apples === 0 && await waitFor(G, () => T.ents('blip')[0].stage === 2 && T.chat(/Your Blip grew up/), 6000), fed);
     const boss = await H.evaluate(() => { const e = T.ents('blip')[0], pl = game.player; window.__toasts.length = 0; petTap(game, pl, e, 0, false); return { sit: !!e.sit, said: window.__toasts.some(t => /someone else's Blip/.test(t)) }; });
